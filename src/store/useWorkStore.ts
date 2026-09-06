@@ -131,6 +131,7 @@ const recentlyRemovedEmails = new Map<string, number>(); // email -> timestamp m
 const recentlyAddedMembers = new Map<string, number>(); // email -> timestamp ms
 const recentlyUpdatedMemberStyles = new Map<string, { borderStyle: string; timestamp: number }>(); // id or email -> { borderStyle, timestamp }
 const recentlyUpdatedMemberAvatars = new Map<string, { avatarUrl: string; timestamp: number }>(); // id or email -> { avatarUrl, timestamp }
+const recentlyDeletedCommentIds = new Map<string, number>(); // commentId -> timestamp ms
 
 export function markLocalBoardMutation(boardId: string) {
   if (!boardId) return;
@@ -204,6 +205,19 @@ export const useWorkStore = create<WorkState>()(
             for (const [bId, t] of lastLocalMutationTimes.entries()) {
               if (now - t > 10000) lastLocalMutationTimes.delete(bId);
             }
+            for (const [cId, t] of recentlyDeletedCommentIds.entries()) {
+              if (now - t > 10000) recentlyDeletedCommentIds.delete(cId);
+            }
+
+            const sanitizeCardComments = (card: Card): Card => {
+              if (!card.comments || card.comments.length === 0 || recentlyDeletedCommentIds.size === 0) return card;
+              return {
+                ...card,
+                comments: card.comments.filter(
+                  cm => !recentlyDeletedCommentIds.has(cm.id) && (!cm.parentId || !recentlyDeletedCommentIds.has(cm.parentId))
+                )
+              };
+            };
 
             const finalBoards = cloudBoards.map(cb => {
               const memBoard = s.boards.find(lb => lb.id === cb.id);
@@ -274,14 +288,16 @@ export const useWorkStore = create<WorkState>()(
                   ...cb,
                   name: memBoard.name,
                   color: memBoard.color,
-                  columns: memBoard.columns,
-                  inboxCards: memBoard.inboxCards,
+                  columns: memBoard.columns?.map(col => ({ ...col, cards: (col.cards || []).map(sanitizeCardComments) })),
+                  inboxCards: memBoard.inboxCards?.map(sanitizeCardComments),
                   members: memBoard.members?.length ? memBoard.members : mergedMembers,
                 };
               }
 
               return {
                 ...cb,
+                columns: (cb.columns || []).map(col => ({ ...col, cards: (col.cards || []).map(sanitizeCardComments) })),
+                inboxCards: (cb.inboxCards || []).map(sanitizeCardComments),
                 members: mergedMembers,
               };
             });
@@ -1171,6 +1187,9 @@ export const useWorkStore = create<WorkState>()(
 
       deleteComment: (cardId, commentId) => {
         let targetBoard: Board | undefined;
+        const now = Date.now();
+        recentlyDeletedCommentIds.set(commentId, now);
+
         set(s => {
           const tb = s.boards.find(b =>
             b.columns?.some(col => col.cards?.some(c => c.id === cardId)) ||
@@ -1178,6 +1197,17 @@ export const useWorkStore = create<WorkState>()(
           ) || s.boards.find(b => b.id === s.activeBoardId);
 
           if (!tb) return s;
+
+          // Track any child replies of this comment as recently deleted as well
+          const currentCard = tb.columns?.flatMap(col => col.cards || []).find(c => c.id === cardId)
+            || (tb.inboxCards || []).find(c => c.id === cardId);
+          if (currentCard?.comments) {
+            currentCard.comments.forEach(cm => {
+              if (cm.parentId === commentId) {
+                recentlyDeletedCommentIds.set(cm.id, now);
+              }
+            });
+          }
 
           const updatedBoards = updateBoards(s.boards, tb.id, b =>
             updateCardInBoard(b, cardId, c => ({
@@ -1187,6 +1217,10 @@ export const useWorkStore = create<WorkState>()(
           targetBoard = updatedBoards.find(b => b.id === tb.id);
           return { boards: updatedBoards };
         });
+
+        if (supabaseService.isConfigured()) {
+          supabaseService.deleteComment(commentId);
+        }
         if (targetBoard) scheduleBoardSync(targetBoard, 50);
       },
 

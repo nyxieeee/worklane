@@ -517,6 +517,39 @@ export const supabaseService = {
           if (replies.length > 0) await supabase.from('comments').upsert(replies, { onConflict: 'id' });
         }
 
+        // Clean up removed comments for existing cards
+        const allCommentIds = allComments.map(c => c.id).filter(Boolean);
+        if (currentCardIds.length > 0) {
+          if (allCommentIds.length > 0) {
+            // Delete removed child replies first
+            await supabase
+              .from('comments')
+              .delete()
+              .in('card_id', currentCardIds)
+              .not('parent_id', 'is', null)
+              .not('id', 'in', `(${allCommentIds.join(',')})`);
+
+            // Then delete removed parent comments
+            await supabase
+              .from('comments')
+              .delete()
+              .in('card_id', currentCardIds)
+              .not('id', 'in', `(${allCommentIds.join(',')})`);
+          } else {
+            // Delete all replies first, then parent comments for these cards
+            await supabase
+              .from('comments')
+              .delete()
+              .in('card_id', currentCardIds)
+              .not('parent_id', 'is', null);
+
+            await supabase
+              .from('comments')
+              .delete()
+              .in('card_id', currentCardIds);
+          }
+        }
+
         // Batch Attachments
         const allAtts: any[] = [];
         allCardsWithMeta.forEach(item => {
@@ -1263,6 +1296,28 @@ export const supabaseService = {
       return true;
     } catch (err) {
       console.warn('[SupabaseService] Error deleting attachment:', err);
+      return false;
+    }
+  },
+
+  /**
+   * Delete a comment (or reply) from Supabase database.
+   * Also deletes any child replies if deleting a parent comment.
+   */
+  async deleteComment(commentId: string): Promise<boolean> {
+    if (!isSupabaseConfigured() || !commentId) return false;
+    try {
+      // First delete any replies that reference this comment as parent (safe fallback if DB cascade isn't set)
+      await supabase.from('comments').delete().eq('parent_id', commentId);
+      // Then delete the comment itself
+      const { error } = await supabase.from('comments').delete().eq('id', commentId);
+      if (error) {
+        console.warn('[SupabaseService] Error deleting comment:', error);
+        return false;
+      }
+      return true;
+    } catch (err) {
+      console.warn('[SupabaseService] Error deleting comment:', err);
       return false;
     }
   },
