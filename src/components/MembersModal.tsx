@@ -52,6 +52,7 @@ export default function MembersModal({ onClose }: Props) {
   const showToast = useToastStore(s => s.showToast);
   const showConfirm = useConfirmStore(s => s.showConfirm);
   const currentUser = useAuthStore(s => s.user);
+  const updateUserProfile = useAuthStore(s => s.updateUserProfile);
 
   // Search & Registered users state
   const [searchQuery, setSearchQuery] = useState('');
@@ -151,9 +152,20 @@ export default function MembersModal({ onClose }: Props) {
     e.target.value = '';
   };
 
-  const handleCropperApply = (croppedDataUrl: string) => {
+  const handleCropperApply = async (croppedDataUrl: string) => {
     if (croppingMemberId) {
       updateMember(croppingMemberId, { avatarUrl: croppedDataUrl });
+
+      const member = members.find(m => m.id === croppingMemberId);
+      const isCurrent = (member && currentEmail && member.email && member.email.toLowerCase().trim() === currentEmail.toLowerCase().trim()) || (currentUser?.id === croppingMemberId);
+      if (isCurrent) {
+        try {
+          await updateUserProfile({ avatarUrl: croppedDataUrl });
+        } catch (err) {
+          console.warn('Failed to update user profile avatar:', err);
+        }
+      }
+
       showToast('Profile photo updated', 'success');
     }
     setCropperOpen(false);

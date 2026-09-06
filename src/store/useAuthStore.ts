@@ -83,9 +83,15 @@ export const useAuthStore = create<AuthState>()(
             const parsed = parseUser(session.user);
             // Fetch potential custom profile from Supabase profiles table
             try {
-              const { data: prof } = await supabase.from('profiles').select('avatar_url, name, border_style').eq('id', session.user.id).maybeSingle();
+              const { data: prof } = await supabase
+                .from('profiles')
+                .select('avatar_url, name, border_style')
+                .or(`id.eq.${session.user.id},email.ilike.${session.user.email}`)
+                .maybeSingle();
               if (prof?.avatar_url) {
                 parsed.avatarUrl = prof.avatar_url;
+              } else if (get().user?.avatarUrl && get().user?.email?.toLowerCase().trim() === session.user.email?.toLowerCase().trim()) {
+                parsed.avatarUrl = get().user?.avatarUrl;
               }
               if (prof?.name) {
                 parsed.name = prof.name;
@@ -103,9 +109,15 @@ export const useAuthStore = create<AuthState>()(
             if (session?.user) {
               const parsed = parseUser(session.user);
               try {
-                const { data: prof } = await supabase.from('profiles').select('avatar_url, name, border_style').eq('id', session.user.id).maybeSingle();
+                const { data: prof } = await supabase
+                  .from('profiles')
+                  .select('avatar_url, name, border_style')
+                  .or(`id.eq.${session.user.id},email.ilike.${session.user.email}`)
+                  .maybeSingle();
                 if (prof?.avatar_url) {
                   parsed.avatarUrl = prof.avatar_url;
+                } else if (get().user?.avatarUrl && get().user?.email?.toLowerCase().trim() === session.user.email?.toLowerCase().trim()) {
+                  parsed.avatarUrl = get().user?.avatarUrl;
                 }
                 if (prof?.name) {
                   parsed.name = prof.name;
@@ -154,14 +166,18 @@ export const useAuthStore = create<AuthState>()(
         if (isSupabaseConfigured()) {
           try {
             await supabaseService.upsertProfile(updatedUser);
+            // Only store normal URLs in user_metadata; base64 data URLs must not be put into JWT metadata as they exceed header limits
+            const metaUpdates: any = {
+              name: newName,
+              border_style: newBorder || 'none',
+            };
+            if (newAvatar && !newAvatar.startsWith('data:')) {
+              metaUpdates.custom_avatar_url = newAvatar;
+              metaUpdates.avatar_url = newAvatar;
+              metaUpdates.picture = newAvatar;
+            }
             await supabase.auth.updateUser({
-              data: {
-                name: newName,
-                custom_avatar_url: newAvatar || '',
-                avatar_url: newAvatar || '',
-                picture: newAvatar || '',
-                border_style: newBorder || 'none',
-              },
+              data: metaUpdates,
             });
           } catch (err: any) {
             console.warn('[Supabase Auth] UpdateProfile error:', err);

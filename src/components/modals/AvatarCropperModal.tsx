@@ -10,7 +10,7 @@ interface Props {
 }
 
 const CROP_SIZE = 260; // Diameter of the crop circle in px
-const OUTPUT_SIZE = 400; // Resolution of the exported image
+const OUTPUT_SIZE = 256; // Resolution of exported avatar image (retina quality, compact payload)
 
 export default function AvatarCropperModal({
   isOpen,
@@ -208,7 +208,8 @@ export default function AvatarCropperModal({
       naturalSize.height
     );
 
-    const croppedDataUrl = canvas.toDataURL('image/png');
+    // Export as high quality JPEG (sharp, lightweight ~20KB payload)
+    const croppedDataUrl = canvas.toDataURL('image/jpeg', 0.88);
     onApply(croppedDataUrl);
   };
 

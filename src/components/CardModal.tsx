@@ -4,7 +4,8 @@ import {
   Trash2, CheckSquare, Square, Download, X, Send, Plus, Check,
   Eye, Image as ImageIcon, Maximize2, AtSign, Reply, Sparkles,
   FileSpreadsheet, FileText, FileCode, FileArchive, File, Lock,
-  Edit3, Crown, Shield, Save, Loader2, Globe, Server, Cpu, Briefcase
+  Edit3, Crown, Shield, Save, Loader2, Globe, Server, Cpu, Briefcase,
+  Link2, ExternalLink
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useWorkStore } from '../store/useWorkStore';
@@ -71,6 +72,16 @@ export default function CardModal({ cardId, boardId, onClose }: Props) {
   const [newLabelColor] = useState('#3b82f6');
   const [showNewLabel, setShowNewLabel] = useState(false);
   const [previewAttachment, setPreviewAttachment] = useState<Attachment | null>(null);
+
+  // Proof & Screenshot attachments for comments & replies
+  const [commentAttachments, setCommentAttachments] = useState<Attachment[]>([]);
+  const [replyAttachments, setReplyAttachments] = useState<Attachment[]>([]);
+  const [isProcessingProof, setIsProcessingProof] = useState(false);
+  const commentFileInputRef = useRef<HTMLInputElement>(null);
+  const replyFileInputRef = useRef<HTMLInputElement>(null);
+  const [showLinkModal, setShowLinkModal] = useState<'comment' | 'reply' | null>(null);
+  const [linkUrlInput, setLinkUrlInput] = useState('');
+  const [linkTextInput, setLinkTextInput] = useState('');
 
   // Mention State
   const [showMentionMenu, setShowMentionMenu] = useState(false);
@@ -317,20 +328,134 @@ export default function CardModal({ cardId, boardId, onClose }: Props) {
     e.target.value = '';
   };
 
+  const MAX_PROOF_SIZE = 10 * 1024 * 1024; // 10 MB raw file max before compression
+
+  const compressImageIfNeeded = async (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = reject;
+      reader.onload = (e) => {
+        const dataUrl = e.target?.result as string;
+        if (!file.type.startsWith('image/') || file.type === 'image/svg+xml') {
+          resolve(dataUrl);
+          return;
+        }
+        const img = new Image();
+        img.onerror = () => resolve(dataUrl);
+        img.onload = () => {
+          const MAX_DIM = 1280;
+          let { width, height } = img;
+          if (width > MAX_DIM || height > MAX_DIM) {
+            if (width > height) {
+              height = Math.round((height * MAX_DIM) / width);
+              width = MAX_DIM;
+            } else {
+              width = Math.round((width * MAX_DIM) / height);
+              height = MAX_DIM;
+            }
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            resolve(dataUrl);
+            return;
+          }
+          ctx.drawImage(img, 0, 0, width, height);
+          const compressed = canvas.toDataURL('image/jpeg', 0.85);
+          resolve(compressed);
+        };
+        img.src = dataUrl;
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const processProofFiles = async (files: File[], target: 'comment' | 'reply') => {
+    if (!files || files.length === 0) return;
+    setIsProcessingProof(true);
+    try {
+      const newAttachments: Attachment[] = [];
+      for (const file of files) {
+        if (file.size > MAX_PROOF_SIZE) {
+          showToast(`"${file.name}" exceeds 10 MB limit`, 'error');
+          continue;
+        }
+        try {
+          const compressedDataUrl = await compressImageIfNeeded(file);
+          newAttachments.push({
+            id: uid(),
+            name: file.name || `proof_${Date.now()}.${file.type.split('/')[1] || 'png'}`,
+            size: Math.round((compressedDataUrl.length * 3) / 4),
+            type: file.type || 'image/png',
+            dataUrl: compressedDataUrl,
+            addedAt: new Date().toISOString(),
+          });
+        } catch (err) {
+          console.error('Failed to process file:', err);
+        }
+      }
+      if (newAttachments.length > 0) {
+        if (target === 'comment') {
+          setCommentAttachments(prev => [...prev, ...newAttachments]);
+        } else {
+          setReplyAttachments(prev => [...prev, ...newAttachments]);
+        }
+        showToast(`Attached ${newAttachments.length} file/proof(s)`, 'success');
+      }
+    } finally {
+      setIsProcessingProof(false);
+    }
+  };
+
+  const handlePasteProof = async (e: React.ClipboardEvent<HTMLInputElement>, target: 'comment' | 'reply') => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    const imageFiles: File[] = [];
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      if (item.type.startsWith('image/')) {
+        const file = item.getAsFile();
+        if (file) {
+          imageFiles.push(file);
+        }
+      }
+    }
+    if (imageFiles.length > 0) {
+      e.preventDefault();
+      await processProofFiles(imageFiles, target);
+    }
+  };
+
   const handlePostComment = () => {
     const text = commentText.trim();
-    if (!text) return;
-    addComment(cardId, text, null, null);
+    if (!text && commentAttachments.length === 0) return;
+    addComment(
+      cardId,
+      text || (commentAttachments.length > 0 ? '(Proof / attachment attached)' : ''),
+      null,
+      null,
+      commentAttachments.length > 0 ? commentAttachments : undefined
+    );
     setCommentText('');
+    setCommentAttachments([]);
     setShowMentionMenu(false);
     showToast('Comment posted', 'success');
   };
 
   const handlePostReply = (parentId: string, replyToAuthor: string) => {
     const text = replyText.trim();
-    if (!text) return;
-    addComment(cardId, text, parentId, replyToAuthor);
+    if (!text && replyAttachments.length === 0) return;
+    addComment(
+      cardId,
+      text || (replyAttachments.length > 0 ? '(Proof / attachment attached)' : ''),
+      parentId,
+      replyToAuthor,
+      replyAttachments.length > 0 ? replyAttachments : undefined
+    );
     setReplyText('');
+    setReplyAttachments([]);
     setReplyingTo(null);
     showToast('Reply posted', 'success');
   };
@@ -630,14 +755,90 @@ export default function CardModal({ cardId, boardId, onClose }: Props) {
 
     const escapeRegex = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-    // Matches @FullName, @Email, or single @Word
-    const mentionPattern = memberNames.length > 0
-      ? new RegExp(`(@(?:${memberNames.map(escapeRegex).join('|')}|[^\\s@]+))`, 'gi')
-      : /(@[^\s@]+)/g;
+    // Tokenizer regex matching:
+    // 1. Markdown link: \[([^\]]+)\]\((https?:\/\/[^\s)]+|www\.[^\s)]+)\)
+    // 2. Raw URL: (https?:\/\/[^\s<]+|www\.[^\s<]+)
+    // 3. Mention: @MemberName or @word
+    const mentionSub = memberNames.length > 0
+      ? `@(?:${memberNames.map(escapeRegex).join('|')}|[^\\s@]+)`
+      : `@[^\\s@]+`;
 
-    const parts = text.split(mentionPattern);
+    const masterRegex = new RegExp(
+      `(\\[[^\\]]+\\]\\(?:https?:\\/\\/[^\\s)]+|www\\.[^\\s)]+\\)|https?:\\/\\/[^\\s<]+|www\\.[^\\s<]+|${mentionSub})`,
+      'gi'
+    );
+
+    const parts = text.split(masterRegex);
 
     return parts.map((part, idx) => {
+      if (!part) return null;
+
+      // 1. Check markdown link: [label](url)
+      const mdMatch = part.match(/^\[([^\]]+)\]\((https?:\/\/[^\s)]+|www\.[^\s)]+)\)$/i);
+      if (mdMatch) {
+        const label = mdMatch[1];
+        let href = mdMatch[2];
+        if (href.startsWith('www.')) href = 'https://' + href;
+        return (
+          <a
+            key={idx}
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              color: 'hsl(var(--primary))',
+              textDecoration: 'underline',
+              textUnderlineOffset: 3,
+              fontWeight: 600,
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 3,
+              wordBreak: 'break-all',
+            }}
+            onClick={e => e.stopPropagation()}
+            title={href}
+          >
+            {label}
+            <ExternalLink size={10} style={{ opacity: 0.7, flexShrink: 0 }} />
+          </a>
+        );
+      }
+
+      // 2. Check plain URL: https://... or www....
+      const isPlainUrl = /^(https?:\/\/[^\s<]+|www\.[^\s<]+)$/i.test(part);
+      if (isPlainUrl) {
+        const cleanUrl = part.replace(/[.,;!?)\]]+$/, '');
+        const trailing = part.slice(cleanUrl.length);
+        let href = cleanUrl;
+        if (href.startsWith('www.')) href = 'https://' + href;
+        return (
+          <React.Fragment key={idx}>
+            <a
+              href={href}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                color: 'hsl(var(--primary))',
+                textDecoration: 'underline',
+                textUnderlineOffset: 3,
+                fontWeight: 600,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 3,
+                wordBreak: 'break-all',
+              }}
+              onClick={e => e.stopPropagation()}
+              title={href}
+            >
+              {cleanUrl}
+              <ExternalLink size={10} style={{ opacity: 0.7, flexShrink: 0 }} />
+            </a>
+            {trailing}
+          </React.Fragment>
+        );
+      }
+
+      // 3. Check Mention
       if (part.startsWith('@')) {
         const potentialName = part.slice(1).trim().toLowerCase();
         const matched = members.find(m => {
@@ -669,7 +870,8 @@ export default function CardModal({ cardId, boardId, onClose }: Props) {
           );
         }
       }
-      return part;
+
+      return <span key={idx}>{part}</span>;
     });
   };
 
@@ -1090,42 +1292,189 @@ export default function CardModal({ cardId, boardId, onClose }: Props) {
                 )}
               </AnimatePresence>
 
-              <div style={{ display: 'flex', gap: 8 }}>
-                <input
-                  ref={commentInputRef}
-                  type="text"
-                  className="text-input"
-                  placeholder="Write a comment or type @ to mention..."
-                  value={commentText}
-                  onChange={handleCommentChange}
-                  onKeyDown={handleCommentKeyDown}
-                  onFocus={() => {
-                    setMentionTarget('comment');
-                    if (mentionBlurTimeoutRef.current) {
-                      clearTimeout(mentionBlurTimeoutRef.current);
-                    }
-                  }}
-                  onBlur={() => {
-                    mentionBlurTimeoutRef.current = window.setTimeout(() => {
-                      if (mentionTarget === 'comment') {
-                        setShowMentionMenu(false);
+              {/* Main Comment Input Container */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {/* Staged Comment Proofs / Attachments Tray */}
+                {commentAttachments.length > 0 && (
+                  <div
+                    style={{
+                      display: 'flex',
+                      flexWrap: 'wrap',
+                      gap: 6,
+                      padding: '6px 8px',
+                      borderRadius: 8,
+                      backgroundColor: 'hsl(var(--secondary) / 0.6)',
+                      border: '1px solid hsl(var(--border) / 0.6)',
+                    }}
+                  >
+                    {commentAttachments.map((att, idx) => {
+                      const isImg = isImageAttachment(att);
+                      return (
+                        <div
+                          key={att.id || idx}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 6,
+                            padding: '3px 8px',
+                            borderRadius: 6,
+                            backgroundColor: 'hsl(var(--card))',
+                            border: '1px solid hsl(var(--border))',
+                            fontSize: 11,
+                            boxShadow: 'var(--neu-shadow-raised-sm)',
+                          }}
+                        >
+                          {isImg ? (
+                            <img
+                              src={att.dataUrl}
+                              alt={att.name}
+                              style={{ width: 22, height: 22, objectFit: 'cover', borderRadius: 4 }}
+                            />
+                          ) : (
+                            <Paperclip size={12} style={{ color: 'hsl(var(--primary))' }} />
+                          )}
+                          <span
+                            style={{
+                              maxWidth: 130,
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                              fontWeight: 500,
+                            }}
+                          >
+                            {att.name}
+                          </span>
+                          <span style={{ fontSize: 9.5, color: 'hsl(var(--muted-foreground))' }}>
+                            {formatBytes(att.size)}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setCommentAttachments(prev => prev.filter((_, i) => i !== idx))}
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              cursor: 'pointer',
+                              color: 'hsl(var(--muted-foreground))',
+                              display: 'flex',
+                              alignItems: 'center',
+                              padding: 1,
+                            }}
+                            title="Remove attachment"
+                            onMouseEnter={e => (e.currentTarget.style.color = '#ef4444')}
+                            onMouseLeave={e => (e.currentTarget.style.color = 'hsl(var(--muted-foreground))')}
+                          >
+                            <X size={12} />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                  {/* Hidden File Input for Comment Proofs */}
+                  <input
+                    ref={commentFileInputRef}
+                    type="file"
+                    multiple
+                    accept="image/*,.pdf,.doc,.docx,.txt,.zip,.rar"
+                    style={{ display: 'none' }}
+                    onChange={e => {
+                      const files = Array.from(e.target.files || []);
+                      if (files.length > 0) {
+                        processProofFiles(files, 'comment');
                       }
-                    }, 250);
-                  }}
-                />
-                <motion.button
-                  whileTap={commentText.trim() ? { scale: 0.92 } : undefined}
-                  className="btn btn-primary"
-                  onClick={handlePostComment}
-                  title="Post Comment"
-                  disabled={!commentText.trim()}
-                  style={{
-                    opacity: commentText.trim() ? 1 : 0.5,
-                    cursor: commentText.trim() ? 'pointer' : 'not-allowed',
-                  }}
-                >
-                  <Send size={13} />
-                </motion.button>
+                      e.target.value = '';
+                    }}
+                  />
+
+                  <input
+                    ref={commentInputRef}
+                    type="text"
+                    className="text-input"
+                    placeholder="Write a comment, paste screenshot, or type @ to mention..."
+                    value={commentText}
+                    onChange={handleCommentChange}
+                    onKeyDown={handleCommentKeyDown}
+                    onPaste={e => handlePasteProof(e, 'comment')}
+                    onFocus={() => {
+                      setMentionTarget('comment');
+                      if (mentionBlurTimeoutRef.current) {
+                        clearTimeout(mentionBlurTimeoutRef.current);
+                      }
+                    }}
+                    onBlur={() => {
+                      mentionBlurTimeoutRef.current = window.setTimeout(() => {
+                        if (mentionTarget === 'comment') {
+                          setShowMentionMenu(false);
+                        }
+                      }, 250);
+                    }}
+                    style={{ flex: 1 }}
+                  />
+
+                  {/* Attach Screenshot / Proof Button */}
+                  <motion.button
+                    whileTap={{ scale: 0.92 }}
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={() => commentFileInputRef.current?.click()}
+                    disabled={isProcessingProof}
+                    title="Attach screenshot or proof file"
+                    style={{
+                      padding: '0 10px',
+                      height: 38,
+                      flexShrink: 0,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 4,
+                      cursor: isProcessingProof ? 'wait' : 'pointer',
+                    }}
+                  >
+                    {isProcessingProof ? <Loader2 size={13} className="animate-spin" /> : <Paperclip size={13} />}
+                  </motion.button>
+
+                  {/* Insert Link Button */}
+                  <motion.button
+                    whileTap={{ scale: 0.92 }}
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={() => {
+                      setLinkUrlInput('');
+                      setLinkTextInput('');
+                      setShowLinkModal('comment');
+                    }}
+                    title="Insert link or URL"
+                    style={{
+                      padding: '0 10px',
+                      height: 38,
+                      flexShrink: 0,
+                      display: 'flex',
+                      alignItems: 'center',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <Link2 size={13} />
+                  </motion.button>
+
+                  {/* Post Comment Button */}
+                  <motion.button
+                    whileTap={(commentText.trim() || commentAttachments.length > 0) ? { scale: 0.92 } : undefined}
+                    className="btn btn-primary"
+                    onClick={handlePostComment}
+                    title="Post Comment"
+                    disabled={!commentText.trim() && commentAttachments.length === 0}
+                    style={{
+                      padding: '0 14px',
+                      height: 38,
+                      flexShrink: 0,
+                      opacity: (commentText.trim() || commentAttachments.length > 0) ? 1 : 0.5,
+                      cursor: (commentText.trim() || commentAttachments.length > 0) ? 'pointer' : 'not-allowed',
+                    }}
+                  >
+                    <Send size={13} />
+                  </motion.button>
+                </div>
               </div>
 
               {/* Threaded Comments List */}
@@ -1206,6 +1555,105 @@ export default function CardModal({ cardId, boardId, onClose }: Props) {
                             <p style={{ fontSize: 12.5, color: 'hsl(var(--foreground))', lineHeight: 1.4, margin: '4px 0 6px 0' }}>
                               {renderCommentText(c.text)}
                             </p>
+
+                            {/* Attached Proofs / Screenshots on Root Comment */}
+                            {c.attachments && c.attachments.length > 0 && (
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 6, marginBottom: 8 }}>
+                                {c.attachments.map(att => {
+                                  const isImg = isImageAttachment(att);
+                                  if (isImg) {
+                                    return (
+                                      <div
+                                        key={att.id}
+                                        onClick={() => setPreviewAttachment(att)}
+                                        style={{
+                                          borderRadius: 8,
+                                          overflow: 'hidden',
+                                          cursor: 'pointer',
+                                          border: '1px solid hsl(var(--border) / 0.8)',
+                                          boxShadow: 'var(--neu-shadow-raised-sm)',
+                                          maxWidth: 240,
+                                          backgroundColor: 'hsl(var(--card))',
+                                          transition: 'transform 0.15s ease, box-shadow 0.15s ease',
+                                        }}
+                                        title={`Click to preview full screenshot: ${att.name}`}
+                                        onMouseEnter={e => {
+                                          e.currentTarget.style.transform = 'translateY(-2px)';
+                                          e.currentTarget.style.boxShadow = 'var(--neu-shadow-raised)';
+                                        }}
+                                        onMouseLeave={e => {
+                                          e.currentTarget.style.transform = 'translateY(0)';
+                                          e.currentTarget.style.boxShadow = 'var(--neu-shadow-raised-sm)';
+                                        }}
+                                      >
+                                        <img
+                                          src={att.dataUrl}
+                                          alt={att.name}
+                                          style={{
+                                            width: '100%',
+                                            maxHeight: 120,
+                                            objectFit: 'cover',
+                                            display: 'block',
+                                          }}
+                                        />
+                                        <div
+                                          style={{
+                                            padding: '3px 8px',
+                                            fontSize: 10,
+                                            color: 'hsl(var(--muted-foreground))',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'space-between',
+                                            gap: 4,
+                                            backgroundColor: 'hsl(var(--secondary) / 0.7)',
+                                          }}
+                                        >
+                                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 140 }}>
+                                            {att.name}
+                                          </span>
+                                          <span>{formatBytes(att.size)}</span>
+                                        </div>
+                                      </div>
+                                    );
+                                  }
+                                  const info = getFileTypeInfo(att.name, att.type);
+                                  const FileIcon = info.icon;
+                                  return (
+                                    <a
+                                      key={att.id}
+                                      href={att.dataUrl}
+                                      download={att.name}
+                                      onClick={e => e.stopPropagation()}
+                                      style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: 6,
+                                        padding: '5px 10px',
+                                        borderRadius: 8,
+                                        backgroundColor: 'hsl(var(--secondary))',
+                                        border: '1px solid hsl(var(--border) / 0.8)',
+                                        color: 'hsl(var(--foreground))',
+                                        textDecoration: 'none',
+                                        fontSize: 11,
+                                        fontWeight: 500,
+                                        boxShadow: 'var(--neu-shadow-raised-sm)',
+                                        transition: 'all 0.15s ease',
+                                      }}
+                                      title={`Download proof: ${att.name}`}
+                                    >
+                                      <FileIcon size={13} style={{ color: info.color }} />
+                                      <span style={{ maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                        {att.name}
+                                      </span>
+                                      <span style={{ fontSize: 9.5, color: 'hsl(var(--muted-foreground))' }}>
+                                        ({formatBytes(att.size)})
+                                      </span>
+                                      <Download size={11} style={{ color: 'hsl(var(--muted-foreground))' }} />
+                                    </a>
+                                  );
+                                })}
+                              </div>
+                            )}
 
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6, marginTop: 4 }}>
                               {canDeleteComment(c) && (
@@ -1338,6 +1786,106 @@ export default function CardModal({ cardId, boardId, onClose }: Props) {
                                   <p style={{ fontSize: 12, color: 'hsl(var(--foreground))', lineHeight: 1.35, margin: '2px 0 4px 0' }}>
                                     {renderCommentText(reply.text)}
                                   </p>
+
+                                  {/* Attached Proofs / Screenshots on Child Reply */}
+                                  {reply.attachments && reply.attachments.length > 0 && (
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 4, marginBottom: 6 }}>
+                                      {reply.attachments.map(att => {
+                                        const isImg = isImageAttachment(att);
+                                        if (isImg) {
+                                          return (
+                                            <div
+                                              key={att.id}
+                                              onClick={() => setPreviewAttachment(att)}
+                                              style={{
+                                                borderRadius: 6,
+                                                overflow: 'hidden',
+                                                cursor: 'pointer',
+                                                border: '1px solid hsl(var(--border) / 0.8)',
+                                                boxShadow: 'var(--neu-shadow-raised-sm)',
+                                                maxWidth: 200,
+                                                backgroundColor: 'hsl(var(--card))',
+                                                transition: 'transform 0.15s ease, box-shadow 0.15s ease',
+                                              }}
+                                              title={`Click to preview full screenshot: ${att.name}`}
+                                              onMouseEnter={e => {
+                                                e.currentTarget.style.transform = 'translateY(-2px)';
+                                                e.currentTarget.style.boxShadow = 'var(--neu-shadow-raised)';
+                                              }}
+                                              onMouseLeave={e => {
+                                                e.currentTarget.style.transform = 'translateY(0)';
+                                                e.currentTarget.style.boxShadow = 'var(--neu-shadow-raised-sm)';
+                                              }}
+                                            >
+                                              <img
+                                                src={att.dataUrl}
+                                                alt={att.name}
+                                                style={{
+                                                  width: '100%',
+                                                  maxHeight: 100,
+                                                  objectFit: 'cover',
+                                                  display: 'block',
+                                                }}
+                                              />
+                                              <div
+                                                style={{
+                                                  padding: '2px 6px',
+                                                  fontSize: 9.5,
+                                                  color: 'hsl(var(--muted-foreground))',
+                                                  display: 'flex',
+                                                  alignItems: 'center',
+                                                  justifyContent: 'space-between',
+                                                  gap: 4,
+                                                  backgroundColor: 'hsl(var(--secondary) / 0.7)',
+                                                }}
+                                              >
+                                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 110 }}>
+                                                  {att.name}
+                                                </span>
+                                                <span>{formatBytes(att.size)}</span>
+                                              </div>
+                                            </div>
+                                          );
+                                        }
+                                        const info = getFileTypeInfo(att.name, att.type);
+                                        const FileIcon = info.icon;
+                                        return (
+                                          <a
+                                            key={att.id}
+                                            href={att.dataUrl}
+                                            download={att.name}
+                                            onClick={e => e.stopPropagation()}
+                                            style={{
+                                              display: 'inline-flex',
+                                              alignItems: 'center',
+                                              gap: 5,
+                                              padding: '4px 8px',
+                                              borderRadius: 6,
+                                              backgroundColor: 'hsl(var(--secondary))',
+                                              border: '1px solid hsl(var(--border) / 0.8)',
+                                              color: 'hsl(var(--foreground))',
+                                              textDecoration: 'none',
+                                              fontSize: 10.5,
+                                              fontWeight: 500,
+                                              boxShadow: 'var(--neu-shadow-raised-sm)',
+                                              transition: 'all 0.15s ease',
+                                            }}
+                                            title={`Download proof: ${att.name}`}
+                                          >
+                                            <FileIcon size={12} style={{ color: info.color }} />
+                                            <span style={{ maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                              {att.name}
+                                            </span>
+                                            <span style={{ fontSize: 9, color: 'hsl(var(--muted-foreground))' }}>
+                                              ({formatBytes(att.size)})
+                                            </span>
+                                            <Download size={10} style={{ color: 'hsl(var(--muted-foreground))' }} />
+                                          </a>
+                                        );
+                                      })}
+                                    </div>
+                                  )}
+
                                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6 }}>
                                     {canDeleteComment(reply) && (
                                       <button
@@ -1452,16 +2000,90 @@ export default function CardModal({ cardId, boardId, onClose }: Props) {
                                 </button>
                               </div>
 
-                              <div style={{ display: 'flex', gap: 6 }}>
+                              {/* Staged Reply Attachments Preview Tray */}
+                              {replyAttachments.length > 0 && (
+                                <div
+                                  style={{
+                                    display: 'flex',
+                                    flexWrap: 'wrap',
+                                    gap: 5,
+                                    padding: '4px 6px',
+                                    borderRadius: 6,
+                                    backgroundColor: 'hsl(var(--secondary) / 0.6)',
+                                    border: '1px solid hsl(var(--border) / 0.6)',
+                                  }}
+                                >
+                                  {replyAttachments.map((att, idx) => {
+                                    const isImg = isImageAttachment(att);
+                                    return (
+                                      <div
+                                        key={att.id || idx}
+                                        style={{
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          gap: 5,
+                                          padding: '2px 6px',
+                                          borderRadius: 4,
+                                          backgroundColor: 'hsl(var(--card))',
+                                          border: '1px solid hsl(var(--border))',
+                                          fontSize: 10.5,
+                                          boxShadow: 'var(--neu-shadow-raised-sm)',
+                                        }}
+                                      >
+                                        {isImg ? (
+                                          <img src={att.dataUrl} alt={att.name} style={{ width: 18, height: 18, objectFit: 'cover', borderRadius: 3 }} />
+                                        ) : (
+                                          <Paperclip size={11} style={{ color: 'hsl(var(--primary))' }} />
+                                        )}
+                                        <span style={{ maxWidth: 100, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                          {att.name}
+                                        </span>
+                                        <span style={{ fontSize: 9, color: 'hsl(var(--muted-foreground))' }}>
+                                          {formatBytes(att.size)}
+                                        </span>
+                                        <button
+                                          type="button"
+                                          onClick={() => setReplyAttachments(prev => prev.filter((_, i) => i !== idx))}
+                                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'hsl(var(--muted-foreground))', padding: 1 }}
+                                          title="Remove attachment"
+                                          onMouseEnter={e => (e.currentTarget.style.color = '#ef4444')}
+                                          onMouseLeave={e => (e.currentTarget.style.color = 'hsl(var(--muted-foreground))')}
+                                        >
+                                          <X size={11} />
+                                        </button>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
+
+                              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                                {/* Hidden File Input for Reply Proofs */}
+                                <input
+                                  ref={replyFileInputRef}
+                                  type="file"
+                                  multiple
+                                  accept="image/*,.pdf,.doc,.docx,.txt,.zip,.rar"
+                                  style={{ display: 'none' }}
+                                  onChange={e => {
+                                    const files = Array.from(e.target.files || []);
+                                    if (files.length > 0) {
+                                      processProofFiles(files, 'reply');
+                                    }
+                                    e.target.value = '';
+                                  }}
+                                />
+
                                 <input
                                   ref={replyInputRef}
                                   autoFocus
                                   type="text"
                                   className="text-input"
-                                  placeholder={`Reply to @${replyingTo.author} or type @ to mention...`}
+                                  placeholder={`Reply to @${replyingTo.author}, paste screenshot, or type @...`}
                                   value={replyText}
                                   onChange={handleReplyChange}
                                   onKeyDown={e => handleReplyKeyDown(e, c.id, replyingTo.author)}
+                                  onPaste={e => handlePasteProof(e, 'reply')}
                                   onFocus={() => {
                                     setMentionTarget('reply');
                                     if (mentionBlurTimeoutRef.current) {
@@ -1475,18 +2097,50 @@ export default function CardModal({ cardId, boardId, onClose }: Props) {
                                       }
                                     }, 250);
                                   }}
-                                  style={{ fontSize: 12, padding: '6px 10px' }}
+                                  style={{ fontSize: 12, padding: '6px 10px', flex: 1 }}
                                 />
+
+                                {/* Attach Screenshot / Proof Button for Reply */}
                                 <motion.button
-                                  whileTap={replyText.trim() ? { scale: 0.94 } : undefined}
+                                  whileTap={{ scale: 0.94 }}
+                                  type="button"
+                                  className="btn btn-secondary"
+                                  onClick={() => replyFileInputRef.current?.click()}
+                                  disabled={isProcessingProof}
+                                  title="Attach proof file or screenshot"
+                                  style={{ padding: '0 8px', height: 32, flexShrink: 0, display: 'flex', alignItems: 'center' }}
+                                >
+                                  {isProcessingProof ? <Loader2 size={11} className="animate-spin" /> : <Paperclip size={11} />}
+                                </motion.button>
+
+                                {/* Insert Link Button for Reply */}
+                                <motion.button
+                                  whileTap={{ scale: 0.94 }}
+                                  type="button"
+                                  className="btn btn-secondary"
+                                  onClick={() => {
+                                    setLinkUrlInput('');
+                                    setLinkTextInput('');
+                                    setShowLinkModal('reply');
+                                  }}
+                                  title="Insert link or URL"
+                                  style={{ padding: '0 8px', height: 32, flexShrink: 0, display: 'flex', alignItems: 'center' }}
+                                >
+                                  <Link2 size={11} />
+                                </motion.button>
+
+                                <motion.button
+                                  whileTap={(replyText.trim() || replyAttachments.length > 0) ? { scale: 0.94 } : undefined}
                                   className="btn btn-primary"
                                   onClick={() => handlePostReply(c.id, replyingTo.author)}
-                                  disabled={!replyText.trim()}
+                                  disabled={!replyText.trim() && replyAttachments.length === 0}
                                   style={{
                                     padding: '6px 12px',
                                     fontSize: 12,
-                                    opacity: replyText.trim() ? 1 : 0.5,
-                                    cursor: replyText.trim() ? 'pointer' : 'not-allowed',
+                                    height: 32,
+                                    flexShrink: 0,
+                                    opacity: (replyText.trim() || replyAttachments.length > 0) ? 1 : 0.5,
+                                    cursor: (replyText.trim() || replyAttachments.length > 0) ? 'pointer' : 'not-allowed',
                                   }}
                                 >
                                   <Send size={12} />
@@ -2223,6 +2877,142 @@ export default function CardModal({ cardId, boardId, onClose }: Props) {
                 boxShadow: '0 25px 60px rgba(0, 0, 0, 0.6)'
               }}
             />
+          </motion.div>
+        </div>
+      )}
+    </AnimatePresence>
+
+    {/* Link Insertion Modal Dialog */}
+    <AnimatePresence>
+      {showLinkModal && (
+        <div
+          className="modal-overlay"
+          style={{ zIndex: 210, backgroundColor: 'rgba(0, 0, 0, 0.65)', backdropFilter: 'blur(5px)', padding: 16 }}
+          onClick={() => setShowLinkModal(null)}
+        >
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: 10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 10 }}
+            transition={{ duration: 0.15 }}
+            className="modal-content"
+            style={{
+              maxWidth: 420,
+              padding: 20,
+              borderRadius: 16,
+              backgroundColor: 'hsl(var(--card))',
+              border: '1px solid hsl(var(--border) / 0.8)',
+              boxShadow: 'var(--neu-shadow-floating)',
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div
+                  style={{
+                    width: 30,
+                    height: 30,
+                    borderRadius: '50%',
+                    backgroundColor: 'hsl(var(--primary) / 0.15)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: 'hsl(var(--primary))',
+                  }}
+                >
+                  <Link2 size={15} />
+                </div>
+                <span style={{ fontSize: 14, fontWeight: 700, color: 'hsl(var(--foreground))' }}>
+                  Insert Link in {showLinkModal === 'comment' ? 'Comment' : 'Reply'}
+                </span>
+              </div>
+              <button
+                type="button"
+                className="icon-btn"
+                style={{ width: 28, height: 28 }}
+                onClick={() => setShowLinkModal(null)}
+              >
+                <X size={14} />
+              </button>
+            </div>
+
+            <form
+              onSubmit={e => {
+                e.preventDefault();
+                let url = linkUrlInput.trim();
+                if (!url) return;
+                if (!/^https?:\/\//i.test(url) && !url.startsWith('/')) {
+                  url = 'https://' + url;
+                }
+                const label = linkTextInput.trim();
+                const formatted = label ? `[${label}](${url})` : url;
+
+                if (showLinkModal === 'comment') {
+                  setCommentText(prev => {
+                    const needsSpace = prev.length > 0 && !prev.endsWith(' ');
+                    return prev + (needsSpace ? ' ' : '') + formatted + ' ';
+                  });
+                  setTimeout(() => commentInputRef.current?.focus(), 60);
+                } else if (showLinkModal === 'reply') {
+                  setReplyText(prev => {
+                    const needsSpace = prev.length > 0 && !prev.endsWith(' ');
+                    return prev + (needsSpace ? ' ' : '') + formatted + ' ';
+                  });
+                  setTimeout(() => replyInputRef.current?.focus(), 60);
+                }
+                setShowLinkModal(null);
+                setLinkUrlInput('');
+                setLinkTextInput('');
+              }}
+              style={{ display: 'flex', flexDirection: 'column', gap: 12 }}
+            >
+              <div className="form-group">
+                <label className="field-label" style={{ fontSize: 11.5, marginBottom: 4 }}>
+                  Destination URL <span style={{ color: '#ef4444' }}>*</span>
+                </label>
+                <input
+                  autoFocus
+                  type="text"
+                  className="text-input"
+                  placeholder="https://example.com or link..."
+                  value={linkUrlInput}
+                  onChange={e => setLinkUrlInput(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="field-label" style={{ fontSize: 11.5, marginBottom: 4 }}>
+                  Display Text <span style={{ fontSize: 10, color: 'hsl(var(--muted-foreground))' }}>(optional)</span>
+                </label>
+                <input
+                  type="text"
+                  className="text-input"
+                  placeholder="e.g. Sprint Specs, Figma, PR #12"
+                  value={linkTextInput}
+                  onChange={e => setLinkTextInput(e.target.value)}
+                />
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 4 }}>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setShowLinkModal(null)}
+                  style={{ fontSize: 12 }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  disabled={!linkUrlInput.trim()}
+                  style={{ fontSize: 12 }}
+                >
+                  Insert Link
+                </button>
+              </div>
+            </form>
           </motion.div>
         </div>
       )}

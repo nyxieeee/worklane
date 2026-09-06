@@ -57,7 +57,7 @@ interface WorkState {
   removeAttachment: (cardId: string, attId: string) => void;
 
   // Comment actions
-  addComment: (cardId: string, text: string, parentId?: string | null, replyToAuthor?: string | null) => void;
+  addComment: (cardId: string, text: string, parentId?: string | null, replyToAuthor?: string | null, attachments?: Attachment[]) => void;
   deleteComment: (cardId: string, commentId: string) => void;
 
   // Member actions
@@ -130,6 +130,7 @@ const lastLocalMutationTimes = new Map<string, number>(); // boardId -> timestam
 const recentlyRemovedEmails = new Map<string, number>(); // email -> timestamp ms
 const recentlyAddedMembers = new Map<string, number>(); // email -> timestamp ms
 const recentlyUpdatedMemberStyles = new Map<string, { borderStyle: string; timestamp: number }>(); // id or email -> { borderStyle, timestamp }
+const recentlyUpdatedMemberAvatars = new Map<string, { avatarUrl: string; timestamp: number }>(); // id or email -> { avatarUrl, timestamp }
 
 export function markLocalBoardMutation(boardId: string) {
   if (!boardId) return;
@@ -195,7 +196,10 @@ export const useWorkStore = create<WorkState>()(
               if (now - t > 6000) recentlyAddedMembers.delete(em);
             }
             for (const [key, val] of recentlyUpdatedMemberStyles.entries()) {
-              if (now - val.timestamp > 6000) recentlyUpdatedMemberStyles.delete(key);
+              if (now - val.timestamp > 8000) recentlyUpdatedMemberStyles.delete(key);
+            }
+            for (const [key, val] of recentlyUpdatedMemberAvatars.entries()) {
+              if (now - val.timestamp > 8000) recentlyUpdatedMemberAvatars.delete(key);
             }
             for (const [bId, t] of lastLocalMutationTimes.entries()) {
               if (now - t > 10000) lastLocalMutationTimes.delete(bId);
@@ -207,13 +211,22 @@ export const useWorkStore = create<WorkState>()(
                 const cleanMembers = (cb.members || []).filter(
                   m => !m.email || !recentlyRemovedEmails.has(m.email.toLowerCase().trim())
                 ).map(m => {
-                  const recentById = recentlyUpdatedMemberStyles.get(m.id);
-                  const recentByEmail = m.email ? recentlyUpdatedMemberStyles.get(m.email.toLowerCase().trim()) : undefined;
-                  const recent = recentById || recentByEmail;
-                  if (recent && now - recent.timestamp < 6000) {
-                    return { ...m, borderStyle: recent.borderStyle };
+                  const recentStyleById = recentlyUpdatedMemberStyles.get(m.id);
+                  const recentStyleByEmail = m.email ? recentlyUpdatedMemberStyles.get(m.email.toLowerCase().trim()) : undefined;
+                  const recentStyle = recentStyleById || recentStyleByEmail;
+
+                  const recentAvatarById = recentlyUpdatedMemberAvatars.get(m.id);
+                  const recentAvatarByEmail = m.email ? recentlyUpdatedMemberAvatars.get(m.email.toLowerCase().trim()) : undefined;
+                  const recentAvatar = recentAvatarById || recentAvatarByEmail;
+
+                  let memberObj = m;
+                  if (recentStyle && now - recentStyle.timestamp < 8000) {
+                    memberObj = { ...memberObj, borderStyle: recentStyle.borderStyle };
                   }
-                  return m;
+                  if (recentAvatar && now - recentAvatar.timestamp < 8000) {
+                    memberObj = { ...memberObj, avatarUrl: recentAvatar.avatarUrl };
+                  }
+                  return memberObj;
                 });
                 return { ...cb, members: cleanMembers };
               }
@@ -223,17 +236,26 @@ export const useWorkStore = create<WorkState>()(
               const lastEdit = lastLocalMutationTimes.get(cb.id) || 0;
               const isRecentLocalEdit = (now - lastEdit) < 3000;
 
-              // Filter out recently removed members and preserve optimistic border styles
+              // Filter out recently removed members and preserve optimistic styles and avatars
               const cloudMembersFiltered = (cb.members || []).filter(
                 m => !m.email || !recentlyRemovedEmails.has(m.email.toLowerCase().trim())
               ).map(m => {
-                const recentById = recentlyUpdatedMemberStyles.get(m.id);
-                const recentByEmail = m.email ? recentlyUpdatedMemberStyles.get(m.email.toLowerCase().trim()) : undefined;
-                const recent = recentById || recentByEmail;
-                if (recent && now - recent.timestamp < 6000) {
-                  return { ...m, borderStyle: recent.borderStyle };
+                const recentStyleById = recentlyUpdatedMemberStyles.get(m.id);
+                const recentStyleByEmail = m.email ? recentlyUpdatedMemberStyles.get(m.email.toLowerCase().trim()) : undefined;
+                const recentStyle = recentStyleById || recentStyleByEmail;
+
+                const recentAvatarById = recentlyUpdatedMemberAvatars.get(m.id);
+                const recentAvatarByEmail = m.email ? recentlyUpdatedMemberAvatars.get(m.email.toLowerCase().trim()) : undefined;
+                const recentAvatar = recentAvatarById || recentAvatarByEmail;
+
+                let memberObj = m;
+                if (recentStyle && now - recentStyle.timestamp < 8000) {
+                  memberObj = { ...memberObj, borderStyle: recentStyle.borderStyle };
                 }
-                return m;
+                if (recentAvatar && now - recentAvatar.timestamp < 8000) {
+                  memberObj = { ...memberObj, avatarUrl: recentAvatar.avatarUrl };
+                }
+                return memberObj;
               });
 
               // ONLY preserve locally added members if this client explicitly added them in the last 6s and cloud hasn't returned them yet
@@ -332,6 +354,10 @@ export const useWorkStore = create<WorkState>()(
         const fullName = user.name?.trim();
         if (!fullName) return;
 
+        if (user.avatarUrl) {
+          recentlyUpdatedMemberAvatars.set(email, { avatarUrl: user.avatarUrl, timestamp: Date.now() });
+        }
+
         set(s => {
           const updatedBoards = s.boards.map(b => ({
             ...b,
@@ -340,7 +366,7 @@ export const useWorkStore = create<WorkState>()(
                 return {
                   ...m,
                   name: fullName,
-                  avatarUrl: user.avatarUrl || m.avatarUrl,
+                  avatarUrl: user.avatarUrl !== undefined ? user.avatarUrl : m.avatarUrl,
                 };
               }
               return m;
@@ -1001,7 +1027,7 @@ export const useWorkStore = create<WorkState>()(
       },
 
       // ── Comment actions ───────────────────────────────
-      addComment: (cardId, text, parentId = null, replyToAuthor = null) => {
+      addComment: (cardId, text, parentId = null, replyToAuthor = null, attachments = []) => {
         const currentUser = useAuthStore.getState().user;
         const authorName = (currentUser?.name && currentUser.name.trim()) ? currentUser.name : 'Me';
         const authorInitialsStr = avatarInitials(authorName);
@@ -1012,6 +1038,7 @@ export const useWorkStore = create<WorkState>()(
           authorInitials: authorInitialsStr,
           avatarColor: '#6366f1',
           text,
+          attachments: attachments && attachments.length > 0 ? attachments : undefined,
           parentId: parentId || null,
           replyToAuthor: replyToAuthor || null,
           authorEmail: currentUser?.email || undefined,
@@ -1231,6 +1258,13 @@ export const useWorkStore = create<WorkState>()(
               recentlyUpdatedMemberStyles.set(updatedMember.email.toLowerCase().trim(), { borderStyle: updatedMember.borderStyle, timestamp: Date.now() });
             }
             supabaseService.updateMemberBorderStyle(targetBoard.id, memberId, updatedMember.borderStyle, updatedMember.email);
+          }
+          if (updatedMember?.avatarUrl !== undefined) {
+            recentlyUpdatedMemberAvatars.set(memberId, { avatarUrl: updatedMember.avatarUrl, timestamp: Date.now() });
+            if (updatedMember.email) {
+              recentlyUpdatedMemberAvatars.set(updatedMember.email.toLowerCase().trim(), { avatarUrl: updatedMember.avatarUrl, timestamp: Date.now() });
+            }
+            supabaseService.updateMemberAvatar(targetBoard.id, memberId, updatedMember.avatarUrl, updatedMember.email);
           }
         }
       },

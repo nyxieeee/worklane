@@ -32,6 +32,7 @@ export interface Comment {
   replyToAuthor?: string | null;
   authorEmail?: string;
   authorId?: string;
+  attachments?: Attachment[];
 }
 
 export interface Card {

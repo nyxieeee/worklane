@@ -36,7 +36,28 @@ export const supabaseService = {
       };
       if (user.id) profileRow.id = user.id;
 
-      const { error } = await supabase.from('profiles').upsert(profileRow, { onConflict: 'email' });
+      // Ensure profileRow has an ID if a profile already exists for this email
+      if (!profileRow.id) {
+        const { data: existingProf } = await supabase.from('profiles').select('id').ilike('email', cleanEmail).maybeSingle();
+        if (existingProf?.id) {
+          profileRow.id = existingProf.id;
+        }
+      }
+
+      let error = null;
+      if (profileRow.id) {
+        const res = await supabase.from('profiles').upsert(profileRow, { onConflict: 'id' });
+        error = res.error;
+      } else {
+        const res = await supabase.from('profiles').update({
+          name: profileRow.name,
+          avatar_url: profileRow.avatar_url,
+          border_style: profileRow.border_style,
+          updated_at: profileRow.updated_at,
+        }).ilike('email', cleanEmail);
+        error = res.error;
+      }
+
       if (error) {
         console.warn('[SupabaseService] Upsert profile warning:', error);
       }
@@ -177,16 +198,28 @@ export const supabaseService = {
 
           const cardComments: Comment[] = allComments
             .filter(cm => cm.card_id === card.id)
-            .map(cm => ({
-              id: cm.id,
-              author: cm.author,
-              authorInitials: cm.author_initials,
-              avatarColor: cm.avatar_color,
-              text: cm.text,
-              createdAt: cm.created_at,
-              parentId: cm.parent_id || null,
-              replyToAuthor: cm.reply_to_author || null,
-            }));
+            .map(cm => {
+              let text = cm.text || '';
+              let attachments: Attachment[] | undefined;
+              const match = text.match(/<!--worklane_attachments:([\s\S]*?)-->/);
+              if (match) {
+                try {
+                  attachments = JSON.parse(match[1]);
+                  text = text.replace(match[0], '').trimEnd();
+                } catch {}
+              }
+              return {
+                id: cm.id,
+                author: cm.author,
+                authorInitials: cm.author_initials,
+                avatarColor: cm.avatar_color,
+                text,
+                attachments,
+                createdAt: cm.created_at,
+                parentId: cm.parent_id || null,
+                replyToAuthor: cm.reply_to_author || null,
+              };
+            });
 
           const cardAtts: Attachment[] = allAttachments
             .filter(att => att.card_id === card.id)
@@ -461,6 +494,9 @@ export const supabaseService = {
         const allComments: any[] = [];
         allCardsWithMeta.forEach(item => {
           (item.card.comments || []).forEach(cm => {
+            const encodedText = cm.attachments && cm.attachments.length > 0
+              ? `${cm.text || ''}\n<!--worklane_attachments:${JSON.stringify(cm.attachments)}-->`
+              : (cm.text || '');
             allComments.push({
               id: cm.id,
               card_id: item.card.id,
@@ -469,7 +505,7 @@ export const supabaseService = {
               author: cm.author,
               author_initials: cm.authorInitials || 'U',
               avatar_color: cm.avatarColor || '#6366f1',
-              text: cm.text,
+              text: encodedText,
               created_at: cm.createdAt || new Date().toISOString(),
             });
           });
@@ -800,16 +836,28 @@ export const supabaseService = {
 
         const cardComments: Comment[] = allComments
           .filter(cm => cm.card_id === card.id)
-          .map(cm => ({
-            id: cm.id,
-            author: cm.author,
-            authorInitials: cm.author_initials,
-            avatarColor: cm.avatar_color,
-            text: cm.text,
-            createdAt: cm.created_at,
-            parentId: cm.parent_id || null,
-            replyToAuthor: cm.reply_to_author || null,
-          }));
+          .map(cm => {
+            let text = cm.text || '';
+            let attachments: Attachment[] | undefined;
+            const match = text.match(/<!--worklane_attachments:([\s\S]*?)-->/);
+            if (match) {
+              try {
+                attachments = JSON.parse(match[1]);
+                text = text.replace(match[0], '').trimEnd();
+              } catch {}
+            }
+            return {
+              id: cm.id,
+              author: cm.author,
+              authorInitials: cm.author_initials,
+              avatarColor: cm.avatar_color,
+              text,
+              attachments,
+              createdAt: cm.created_at,
+              parentId: cm.parent_id || null,
+              replyToAuthor: cm.reply_to_author || null,
+            };
+          });
 
         const cardAtts: Attachment[] = allAttachments
           .filter(att => att.card_id === card.id)
@@ -1032,6 +1080,40 @@ export const supabaseService = {
       return true;
     } catch (err) {
       console.warn('[SupabaseService] Error updating member border style:', err);
+      return false;
+    }
+  },
+
+  /**
+   * Update member avatar in Supabase (updates board_members, profiles, and broadcasts)
+   */
+  async updateMemberAvatar(boardId: string, memberId: string, avatarUrl: string, email?: string): Promise<boolean> {
+    if (!isSupabaseConfigured() || !boardId) return false;
+    try {
+      const cleanEmail = email ? email.toLowerCase().trim() : '';
+
+      if (memberId) {
+        await supabase.from('board_members').update({ avatar_url: avatarUrl }).eq('id', memberId).eq('board_id', boardId);
+      }
+      if (cleanEmail) {
+        // Update all board memberships for this user
+        await supabase.from('board_members').update({ avatar_url: avatarUrl }).ilike('email', cleanEmail);
+
+        // Update profiles table so all future board fetches/refreshes have the new avatar
+        await supabase
+          .from('profiles')
+          .update({ avatar_url: avatarUrl, updated_at: new Date().toISOString() })
+          .ilike('email', cleanEmail);
+      }
+
+      try {
+        await supabase.from('boards').update({ updated_at: new Date().toISOString() }).eq('id', boardId);
+      } catch {}
+
+      await this.broadcastUpdate('boards', { boardId });
+      return true;
+    } catch (err) {
+      console.warn('[SupabaseService] Error updating member avatar:', err);
       return false;
     }
   },
