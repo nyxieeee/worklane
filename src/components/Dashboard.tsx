@@ -164,19 +164,6 @@ export default function Dashboard({ onSelectBoard, onCreateBoard, onOpenCard }: 
     return 'Good evening';
   };
 
-  const todayFormatted = currentTime.toLocaleDateString(undefined, {
-    weekday: 'long',
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric'
-  });
-
-  const timeFormatted = currentTime.toLocaleTimeString(undefined, {
-    hour: 'numeric',
-    minute: '2-digit',
-    hour12: true
-  });
-
   return (
     <motion.div
       variants={containerVariants}
@@ -188,13 +175,6 @@ export default function Dashboard({ onSelectBoard, onCreateBoard, onOpenCard }: 
       {/* Header Greeting & Overview Hero */}
       <motion.div variants={item3DVariants} className="dashboard-hero" style={{ display: 'flex', flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
         <div>
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 12px', borderRadius: 9999, backgroundColor: 'hsl(var(--card))', boxShadow: 'var(--neu-shadow-raised-sm)', fontSize: 11.5, fontWeight: 600, color: 'hsl(var(--muted-foreground))', marginBottom: 6 }}>
-            <Calendar size={12} color="hsl(var(--primary))" />
-            <span>{todayFormatted}</span>
-            <span style={{ opacity: 0.35, margin: '0 1px' }}>•</span>
-            <Clock size={12} color="hsl(var(--primary))" />
-            <span>{timeFormatted}</span>
-          </div>
           <h1 className="dashboard-greeting">
             {getHourGreeting()}, {firstName}
           </h1>

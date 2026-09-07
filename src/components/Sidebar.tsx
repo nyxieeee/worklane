@@ -3,7 +3,7 @@ import {
   KanbanSquare, List, Calendar, Users, Inbox,
   Mail, Shield, Plus, X, ChevronLeft, ChevronRight,
   ArrowLeft, Check, Sun, Moon, LayoutDashboard,
-  Eye, EyeOff, LogOut, Settings, Sliders, Pencil, Palette
+  Eye, EyeOff, LogOut, Settings, Sliders, Pencil, Palette, Clock
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useWorkStore } from '../store/useWorkStore';
@@ -79,6 +79,33 @@ export default function Sidebar({
     () => sortMembersWithOwnerFirst(activeBoard?.members ?? [], activeBoard?.createdBy),
     [activeBoard?.members, activeBoard?.createdBy]
   );
+
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const todayFormatted = currentTime.toLocaleDateString(undefined, {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric'
+  });
+
+  const fullDate = currentTime.toLocaleDateString(undefined, {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric'
+  });
+
+  const timeFormatted = currentTime.toLocaleTimeString(undefined, {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true
+  });
 
   // ── Collapsed Sidebar ──
   if (collapsed) {
@@ -656,6 +683,35 @@ export default function Sidebar({
           <Settings size={14} />
           {!collapsed && <span style={{ flex: 1, textAlign: 'left' }}>Settings</span>}
         </motion.button>
+
+        {/* Real-time Date & Clock Box */}
+        <div
+          className="sidebar-time-box"
+          title={fullDate}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 6,
+            padding: '7px 10px',
+            borderRadius: 'calc(var(--radius) - 2px)',
+            backgroundColor: 'hsl(var(--card))',
+            boxShadow: 'var(--neu-shadow-input)',
+            fontSize: 11,
+            userSelect: 'none',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 5, color: 'hsl(var(--muted-foreground))', minWidth: 0, overflow: 'hidden' }}>
+            <Calendar size={12} color="hsl(var(--primary))" style={{ flexShrink: 0 }} />
+            <span style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {todayFormatted}
+            </span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0, fontWeight: 700, color: 'hsl(var(--foreground))' }}>
+            <Clock size={11} color="hsl(var(--primary))" />
+            <span>{timeFormatted}</span>
+          </div>
+        </div>
 
         {!collapsed ? (
           <div className="theme-segmented-control">
