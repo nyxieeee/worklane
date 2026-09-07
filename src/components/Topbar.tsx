@@ -89,7 +89,7 @@ export default function Topbar({
           <span className="topbar-crumb-root">Workspace</span>
           <ChevronRight size={13} className="topbar-crumb-sep" />
           {page === 'board' && board ? (
-            <span className="topbar-crumb-active" style={{ display: 'inline-flex', alignItems: 'center', gap: 7, position: 'relative' }}>
+            <span className="topbar-crumb-active" style={{ display: 'inline-flex', alignItems: 'center', gap: 7, position: 'relative', zIndex: showColorPicker ? 40 : undefined }}>
               <button
                 type="button"
                 style={{

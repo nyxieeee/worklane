@@ -69,6 +69,7 @@ export default function BoardColorPicker({
       transition={{ duration: 0.16, ease: 'easeOut' }}
       onClick={e => e.stopPropagation()}
       onMouseDown={e => e.stopPropagation()}
+      onPointerDown={e => e.stopPropagation()}
       style={{
         position: 'absolute',
         top: 'calc(100% + 6px)',
@@ -97,6 +98,8 @@ export default function BoardColorPicker({
             e.stopPropagation();
             onClose();
           }}
+          onMouseDown={e => e.stopPropagation()}
+          onPointerDown={e => e.stopPropagation()}
           className="icon-btn"
           style={{ width: 20, height: 20, padding: 0 }}
           title="Close color drawer"
@@ -121,6 +124,8 @@ export default function BoardColorPicker({
                 onSelectColor(c.value);
                 // Keep open so user can preview and compare colors
               }}
+              onMouseDown={e => e.stopPropagation()}
+              onPointerDown={e => e.stopPropagation()}
               style={{
                 width: 22,
                 height: 22,
@@ -182,6 +187,7 @@ export default function BoardColorPicker({
             }}
             onClick={e => e.stopPropagation()}
             onMouseDown={e => e.stopPropagation()}
+            onPointerDown={e => e.stopPropagation()}
             style={{
               position: 'absolute',
               inset: 0,
@@ -204,6 +210,7 @@ export default function BoardColorPicker({
             onChange={handleHexChange}
             onClick={e => e.stopPropagation()}
             onMouseDown={e => e.stopPropagation()}
+            onPointerDown={e => e.stopPropagation()}
             className="text-input"
             style={{
               height: 25,

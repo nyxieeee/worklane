@@ -269,9 +269,13 @@ export default function Sidebar({
 
               {boards.map(b => (
                 <motion.div
-                  whileTap={{ scale: 0.97 }}
+                  whileTap={colorPickerBoardId === b.id ? undefined : { scale: 0.97 }}
                   key={b.id}
                   className="sidebar-board-item"
+                  style={{
+                    position: 'relative',
+                    zIndex: colorPickerBoardId === b.id ? 40 : 1,
+                  }}
                   onClick={() => onSelectBoard(b.id)}
                 >
                   {editingSidebarBoardId === b.id ? (
@@ -441,7 +445,7 @@ export default function Sidebar({
         ) : (
           <>
             {/* Active Board Header & Return */}
-            <div className="sidebar-section">
+            <div className="sidebar-section" style={{ position: 'relative', zIndex: colorPickerBoardId === activeBoard?.id ? 40 : 1 }}>
               <motion.button
                 whileTap={{ scale: 0.97 }}
                 className="sidebar-nav-item"
@@ -503,7 +507,14 @@ export default function Sidebar({
                 ) : (
                   <div
                     className="sidebar-board-item active"
-                    style={{ marginTop: 2, display: 'flex', alignItems: 'center', gap: 8, position: 'relative' }}
+                    style={{
+                      marginTop: 2,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      position: 'relative',
+                      zIndex: colorPickerBoardId === activeBoard.id ? 40 : 1,
+                    }}
                   >
                     {(() => {
                       const canEditActive = (!activeBoard.createdBy || (user?.email && activeBoard.createdBy.toLowerCase().trim() === user.email.toLowerCase().trim()) || (activeBoard.members && activeBoard.members.some(m => m.email && user?.email && m.email.toLowerCase().trim() === user.email.toLowerCase().trim() && m.role !== 'observer')));

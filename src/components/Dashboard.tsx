@@ -298,11 +298,15 @@ export default function Dashboard({ onSelectBoard, onCreateBoard, onOpenCard }: 
                   return (
                     <motion.div
                       key={board.id}
-                      whileHover={{ scale: 1.02, y: -2 }}
-                      whileTap={{ scale: 0.98 }}
+                      whileHover={colorPickerBoardId === board.id ? undefined : { scale: 1.02, y: -2 }}
+                      whileTap={colorPickerBoardId === board.id ? undefined : { scale: 0.98 }}
                       transition={{ duration: 0.15 }}
                       className="dashboard-board-card"
-                      style={{ cursor: 'pointer', position: 'relative' }}
+                      style={{
+                        cursor: 'pointer',
+                        position: 'relative',
+                        zIndex: colorPickerBoardId === board.id ? 40 : 1,
+                      }}
                       onClick={() => onSelectBoard(board.id)}
                     >
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
