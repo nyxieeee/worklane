@@ -2887,7 +2887,7 @@ export default function CardModal({ cardId, boardId, onClose }: Props) {
       {showLinkModal && (
         <div
           className="modal-overlay"
-          style={{ zIndex: 210, backgroundColor: 'rgba(0, 0, 0, 0.65)', backdropFilter: 'blur(5px)', padding: 16 }}
+          style={{ zIndex: 210, backgroundColor: 'rgba(0, 0, 0, 0.65)', backdropFilter: 'blur(5px)', padding: 20 }}
           onClick={() => setShowLinkModal(null)}
         >
           <motion.div
@@ -2897,42 +2897,49 @@ export default function CardModal({ cardId, boardId, onClose }: Props) {
             transition={{ duration: 0.15 }}
             className="modal-content"
             style={{
-              maxWidth: 420,
-              padding: 20,
-              borderRadius: 16,
+              width: '100%',
+              maxWidth: 560,
+              padding: '24px 28px',
+              borderRadius: 18,
               backgroundColor: 'hsl(var(--card))',
               border: '1px solid hsl(var(--border) / 0.8)',
               boxShadow: 'var(--neu-shadow-floating)',
             }}
             onClick={e => e.stopPropagation()}
           >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <div
                   style={{
-                    width: 30,
-                    height: 30,
-                    borderRadius: '50%',
+                    width: 36,
+                    height: 36,
+                    borderRadius: 10,
                     backgroundColor: 'hsl(var(--primary) / 0.15)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     color: 'hsl(var(--primary))',
+                    flexShrink: 0,
                   }}
                 >
-                  <Link2 size={15} />
+                  <Link2 size={18} />
                 </div>
-                <span style={{ fontSize: 14, fontWeight: 700, color: 'hsl(var(--foreground))' }}>
-                  Insert Link in {showLinkModal === 'comment' ? 'Comment' : 'Reply'}
-                </span>
+                <div>
+                  <div style={{ fontSize: 15.5, fontWeight: 700, color: 'hsl(var(--foreground))' }}>
+                    Insert Link in {showLinkModal === 'comment' ? 'Comment' : 'Reply'}
+                  </div>
+                  <div style={{ fontSize: 11.5, color: 'hsl(var(--muted-foreground))', marginTop: 1 }}>
+                    Attach a web link or resource with custom display text
+                  </div>
+                </div>
               </div>
               <button
                 type="button"
                 className="icon-btn"
-                style={{ width: 28, height: 28 }}
+                style={{ width: 32, height: 32 }}
                 onClick={() => setShowLinkModal(null)}
               >
-                <X size={14} />
+                <X size={15} />
               </button>
             </div>
 
@@ -2964,10 +2971,10 @@ export default function CardModal({ cardId, boardId, onClose }: Props) {
                 setLinkUrlInput('');
                 setLinkTextInput('');
               }}
-              style={{ display: 'flex', flexDirection: 'column', gap: 12 }}
+              style={{ display: 'flex', flexDirection: 'column', gap: 16 }}
             >
               <div className="form-group">
-                <label className="field-label" style={{ fontSize: 11.5, marginBottom: 4 }}>
+                <label className="field-label" style={{ fontSize: 12.5, fontWeight: 600, marginBottom: 6 }}>
                   Destination URL <span style={{ color: '#ef4444' }}>*</span>
                 </label>
                 <input
@@ -2977,13 +2984,14 @@ export default function CardModal({ cardId, boardId, onClose }: Props) {
                   placeholder="https://example.com or link..."
                   value={linkUrlInput}
                   onChange={e => setLinkUrlInput(e.target.value)}
+                  style={{ height: 42, fontSize: 13.5, padding: '8px 14px', borderRadius: 8 }}
                   required
                 />
               </div>
 
               <div className="form-group">
-                <label className="field-label" style={{ fontSize: 11.5, marginBottom: 4 }}>
-                  Display Text <span style={{ fontSize: 10, color: 'hsl(var(--muted-foreground))' }}>(optional)</span>
+                <label className="field-label" style={{ fontSize: 12.5, fontWeight: 600, marginBottom: 6 }}>
+                  Display Text <span style={{ fontSize: 11, fontWeight: 400, color: 'hsl(var(--muted-foreground))' }}>(optional)</span>
                 </label>
                 <input
                   type="text"
@@ -2991,15 +2999,16 @@ export default function CardModal({ cardId, boardId, onClose }: Props) {
                   placeholder="e.g. Sprint Specs, Figma, PR #12"
                   value={linkTextInput}
                   onChange={e => setLinkTextInput(e.target.value)}
+                  style={{ height: 42, fontSize: 13.5, padding: '8px 14px', borderRadius: 8 }}
                 />
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 4 }}>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 6 }}>
                 <button
                   type="button"
                   className="btn btn-secondary"
                   onClick={() => setShowLinkModal(null)}
-                  style={{ fontSize: 12 }}
+                  style={{ fontSize: 13, padding: '8px 18px' }}
                 >
                   Cancel
                 </button>
@@ -3007,7 +3016,7 @@ export default function CardModal({ cardId, boardId, onClose }: Props) {
                   type="submit"
                   className="btn btn-primary"
                   disabled={!linkUrlInput.trim()}
-                  style={{ fontSize: 12 }}
+                  style={{ fontSize: 13, padding: '8px 20px' }}
                 >
                   Insert Link
                 </button>
