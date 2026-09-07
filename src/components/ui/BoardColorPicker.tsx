@@ -1,6 +1,6 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Check, Pipette } from 'lucide-react';
+import { Check, Pipette, X } from 'lucide-react';
 import { BOARD_COLORS } from '../../types';
 
 interface Props {
@@ -19,9 +19,22 @@ export default function BoardColorPicker({
   style,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const isColorInputActive = useRef(false);
+  const [hexInput, setHexInput] = useState(() =>
+    currentColor.startsWith('#') ? currentColor.slice(1) : currentColor
+  );
+
+  // Sync hex text when external currentColor changes
+  useEffect(() => {
+    if (currentColor.startsWith('#')) {
+      setHexInput(currentColor.slice(1));
+    }
+  }, [currentColor]);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
+      // If the native color picker dialog was just active, do not close
+      if (isColorInputActive.current) return;
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
         onClose();
       }
@@ -39,6 +52,14 @@ export default function BoardColorPicker({
     };
   }, [onClose]);
 
+  const handleHexChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const clean = e.target.value.replace(/[^0-9a-fA-F]/g, '');
+    setHexInput(clean);
+    if (clean.length === 6 || clean.length === 3) {
+      onSelectColor('#' + clean);
+    }
+  };
+
   return (
     <motion.div
       ref={containerRef}
@@ -47,6 +68,7 @@ export default function BoardColorPicker({
       exit={{ opacity: 0, scale: 0.92, y: 6 }}
       transition={{ duration: 0.16, ease: 'easeOut' }}
       onClick={e => e.stopPropagation()}
+      onMouseDown={e => e.stopPropagation()}
       style={{
         position: 'absolute',
         top: 'calc(100% + 6px)',
@@ -57,40 +79,33 @@ export default function BoardColorPicker({
         borderRadius: 12,
         padding: '10px 12px',
         boxShadow: 'var(--neu-shadow-floating)',
-        width: 190,
+        width: 204,
         display: 'flex',
         flexDirection: 'column',
-        gap: 8,
+        gap: 10,
         ...style,
       }}
     >
+      {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <span style={{ fontSize: 11, fontWeight: 700, color: 'hsl(var(--muted-foreground))', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+        <span style={{ fontSize: 10.5, fontWeight: 700, color: 'hsl(var(--muted-foreground))', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
           Board Color
         </span>
-        <label
-          title="Pick custom color"
-          style={{
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 3,
-            fontSize: 10.5,
-            color: 'hsl(var(--primary))',
-            fontWeight: 600,
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onClose();
           }}
+          className="icon-btn"
+          style={{ width: 20, height: 20, padding: 0 }}
+          title="Close color drawer"
         >
-          <Pipette size={11} />
-          <span>Custom</span>
-          <input
-            type="color"
-            value={currentColor.startsWith('#') ? currentColor : '#6366f1'}
-            onChange={e => onSelectColor(e.target.value)}
-            style={{ position: 'absolute', opacity: 0, width: 0, height: 0, pointerEvents: 'none' }}
-          />
-        </label>
+          <X size={12} />
+        </button>
       </div>
 
+      {/* Preset Swatches */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 6 }}>
         {BOARD_COLORS.map(c => {
           const isSelected = currentColor.toLowerCase() === c.value.toLowerCase();
@@ -104,7 +119,7 @@ export default function BoardColorPicker({
               onClick={(e) => {
                 e.stopPropagation();
                 onSelectColor(c.value);
-                onClose();
+                // Keep open so user can preview and compare colors
               }}
               style={{
                 width: 22,
@@ -125,6 +140,82 @@ export default function BoardColorPicker({
             </motion.button>
           );
         })}
+      </div>
+
+      {/* Custom Color Input Row */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
+          paddingTop: 8,
+          borderTop: '1px solid hsl(var(--border) / 0.5)',
+        }}
+      >
+        {/* Color picker circle with pipette icon */}
+        <div
+          title="Pick custom color"
+          style={{
+            position: 'relative',
+            width: 24,
+            height: 24,
+            borderRadius: '50%',
+            backgroundColor: currentColor.startsWith('#') ? currentColor : '#6366f1',
+            boxShadow: 'var(--neu-shadow-raised-sm)',
+            border: '1.5px solid hsl(var(--border))',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0,
+            overflow: 'hidden',
+            cursor: 'pointer',
+          }}
+        >
+          <Pipette size={11} color="#fff" style={{ filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.6))', pointerEvents: 'none' }} />
+          <input
+            type="color"
+            value={currentColor.startsWith('#') && currentColor.length === 7 ? currentColor : '#6366f1'}
+            onFocus={() => { isColorInputActive.current = true; }}
+            onBlur={() => { setTimeout(() => { isColorInputActive.current = false; }, 300); }}
+            onChange={e => {
+              onSelectColor(e.target.value);
+            }}
+            onClick={e => e.stopPropagation()}
+            onMouseDown={e => e.stopPropagation()}
+            style={{
+              position: 'absolute',
+              inset: 0,
+              opacity: 0,
+              width: '100%',
+              height: '100%',
+              cursor: 'pointer',
+            }}
+          />
+        </div>
+
+        {/* Hex input */}
+        <div style={{ display: 'flex', alignItems: 'center', flex: 1, position: 'relative' }}>
+          <span style={{ position: 'absolute', left: 7, fontSize: 11, color: 'hsl(var(--muted-foreground))', fontWeight: 600, pointerEvents: 'none' }}>#</span>
+          <input
+            type="text"
+            maxLength={6}
+            placeholder="6366f1"
+            value={hexInput}
+            onChange={handleHexChange}
+            onClick={e => e.stopPropagation()}
+            onMouseDown={e => e.stopPropagation()}
+            className="text-input"
+            style={{
+              height: 25,
+              fontSize: 11.5,
+              paddingLeft: 17,
+              paddingRight: 6,
+              fontFamily: 'monospace',
+              borderRadius: 6,
+              width: '100%',
+            }}
+          />
+        </div>
       </div>
     </motion.div>
   );
