@@ -572,7 +572,6 @@ function saveAlertedSet(key: string, setObj: Set<string>) {
           onFilterMember={setFilterMemberId}
           onManageMembers={() => setShowMembers(true)}
           onOpenSettings={handleOpenSettings}
-          onToggleNotif={() => setNotifOpen(o => !o)}
           onCreateBoard={() => setShowCreateBoard(true)}
           onGoToDashboard={handleGoToDashboard}
           onSelectBoard={handleSelectBoard}

@@ -4,8 +4,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useWorkStore } from '../store/useWorkStore';
 import { useNotifStore } from '../store/useNotifStore';
 import { useAuthStore } from '../store/useAuthStore';
+import { useToastStore } from '../store/useToastStore';
 import { avatarInitials, sortMembersWithOwnerFirst } from '../utils';
 import AvatarBorder from './ui/AvatarBorder';
+import BoardColorPicker from './ui/BoardColorPicker';
 import type { Member } from '../types';
 
 interface Props {
@@ -35,10 +37,15 @@ export default function Topbar({
 }: Props) {
   const boards            = useWorkStore(s => s.boards);
   const activeBoard       = useWorkStore(s => s.boards.find(b => b.id === s.activeBoardId));
+  const updateBoardColor  = useWorkStore(s => s.updateBoardColor);
+  const showToast         = useToastStore(s => s.showToast);
   const board             = page === 'dashboard' ? null : activeBoard;
   const rawNotifications  = useNotifStore(s => s.notifications);
   const user              = useAuthStore(s => s.user);
   const logout            = useAuthStore(s => s.logout);
+  const [showColorPicker, setShowColorPicker] = useState(false);
+
+  const canEditBoard = board ? (!board.createdBy || (user?.email && board.createdBy.toLowerCase().trim() === user.email.toLowerCase().trim()) || (board.members && board.members.some(m => m.email && user?.email && m.email.toLowerCase().trim() === user.email.toLowerCase().trim() && m.role !== 'observer'))) : false;
 
   const notifications = useMemo(() => {
     if (!user?.email) return rawNotifications.filter(n => !n.recipientEmail);
@@ -82,8 +89,41 @@ export default function Topbar({
           <span className="topbar-crumb-root">Workspace</span>
           <ChevronRight size={13} className="topbar-crumb-sep" />
           {page === 'board' && board ? (
-            <span className="topbar-crumb-active">
-              {board.name}
+            <span className="topbar-crumb-active" style={{ display: 'inline-flex', alignItems: 'center', gap: 7, position: 'relative' }}>
+              <button
+                type="button"
+                style={{
+                  width: 10,
+                  height: 10,
+                  borderRadius: '50%',
+                  backgroundColor: board.color,
+                  border: 'none',
+                  padding: 0,
+                  cursor: canEditBoard ? 'pointer' : 'default',
+                  boxShadow: 'var(--neu-shadow-raised-sm)',
+                  display: 'inline-block',
+                }}
+                title={canEditBoard ? "Change board color" : undefined}
+                onClick={canEditBoard ? (e) => {
+                  e.stopPropagation();
+                  setShowColorPicker(s => !s);
+                } : undefined}
+              />
+              <span>{board.name}</span>
+              <AnimatePresence>
+                {showColorPicker && (
+                  <BoardColorPicker
+                    currentColor={board.color}
+                    onSelectColor={(col) => {
+                      updateBoardColor(board.id, col);
+                      showToast('Board color updated', 'success');
+                    }}
+                    onClose={() => setShowColorPicker(false)}
+                    align="left"
+                    style={{ top: 'calc(100% + 8px)' }}
+                  />
+                )}
+              </AnimatePresence>
             </span>
           ) : (
             <span className="topbar-crumb-active">

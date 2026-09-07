@@ -1,11 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  KanbanSquare, List, Calendar, Users, BellRing, Inbox,
+  KanbanSquare, List, Calendar, Users, Inbox,
   Mail, Shield, Plus, X, ChevronLeft, ChevronRight,
   ArrowLeft, Check, Sun, Moon, LayoutDashboard,
-  Eye, EyeOff, LogOut, Settings, Sliders, Pencil
+  Eye, EyeOff, LogOut, Settings, Sliders, Pencil, Palette
 } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useWorkStore } from '../store/useWorkStore';
 import { useAuthStore } from '../store/useAuthStore';
 import { useSettingsStore } from '../store/useSettingsStore';
@@ -14,6 +14,7 @@ import { useToastStore } from '../store/useToastStore';
 import { useConfirmStore } from '../store/useConfirmStore';
 import { avatarInitials, sortMembersWithOwnerFirst, getTeamBadgeInfo } from '../utils';
 import AvatarBorder from './ui/AvatarBorder';
+import BoardColorPicker from './ui/BoardColorPicker';
 import sidebarImg from '../assets/sidebar.png';
 import sidebarDarkImg from '../assets/sidebar-dark.png';
 import logoImg from '../assets/logo.png';
@@ -26,7 +27,6 @@ interface Props {
   isInboxOpen?: boolean;
   onManageMembers: () => void;
   onOpenSettings: (tab?: 'appearance' | 'notifications' | 'email' | 'privacy' | 'labels') => void;
-  onToggleNotif: () => void;
   onFilterMember: (memberId: string | null) => void;
   filterMemberId: string | null;
   collapsed: boolean;
@@ -44,7 +44,6 @@ export default function Sidebar({
   isInboxOpen = false,
   onManageMembers,
   onOpenSettings,
-  onToggleNotif,
   onFilterMember,
   filterMemberId,
   collapsed,
@@ -58,9 +57,11 @@ export default function Sidebar({
   const deleteBoard = useWorkStore(s => s.deleteBoard);
   const leaveBoard  = useWorkStore(s => s.leaveBoard);
   const renameBoard = useWorkStore(s => s.renameBoard);
+  const updateBoardColor = useWorkStore(s => s.updateBoardColor);
 
   const [editingSidebarBoardId, setEditingSidebarBoardId] = React.useState<string | null>(null);
   const [editingSidebarBoardName, setEditingSidebarBoardName] = React.useState('');
+  const [colorPickerBoardId, setColorPickerBoardId] = React.useState<string | null>(null);
   const getVisibleBoards = useWorkStore(s => s.getVisibleBoards);
   const user             = useAuthStore(s => s.user);
   const logout           = useAuthStore(s => s.logout);
@@ -104,14 +105,6 @@ export default function Sidebar({
           </motion.button>
           {page === 'dashboard' ? (
             <>
-              <motion.button
-                whileTap={{ scale: 0.92 }}
-                className="icon-btn active"
-                title="All Boards"
-                onClick={onGoToDashboard}
-              >
-                <LayoutDashboard size={16} />
-              </motion.button>
               {boards.map(b => (
                 <motion.button
                   whileTap={{ scale: 0.92 }}
@@ -173,14 +166,6 @@ export default function Sidebar({
                 onClick={onManageMembers}
               >
                 <Users size={16} />
-              </motion.button>
-              <motion.button
-                whileTap={{ scale: 0.92 }}
-                className="icon-btn"
-                title="Notifications"
-                onClick={onToggleNotif}
-              >
-                <BellRing size={16} />
               </motion.button>
               <motion.button
                 whileTap={{ scale: 0.92 }}
@@ -313,74 +298,114 @@ export default function Sidebar({
                     </div>
                   ) : (
                     <>
-                      <div className="sidebar-board-dot" style={{ backgroundColor: b.color }} />
-                      <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {b.name}
-                      </span>
-                      <div className="sidebar-board-actions">
-                        {(!b.createdBy || (user?.email && b.createdBy.toLowerCase().trim() === user.email.toLowerCase().trim()) || (b.members && b.members.some(m => m.email && user?.email && m.email.toLowerCase().trim() === user.email.toLowerCase().trim() && m.role !== 'observer'))) && (
-                          <button
-                            className="sidebar-action-icon-btn"
-                            title="Rename Board"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setEditingSidebarBoardId(b.id);
-                              setEditingSidebarBoardName(b.name);
-                            }}
-                          >
-                            <Pencil size={11} />
-                          </button>
-                        )}
-                        {!b.createdBy || (user?.email && b.createdBy.toLowerCase().trim() === user.email.toLowerCase().trim()) ? (
-                      <button
-                        className="sidebar-action-icon-btn"
-                        title="Delete Board"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          showConfirm({
-                            title: `Delete "${b.name}"?`,
-                            message: `Are you sure you want to permanently delete this board and all its tasks? This action cannot be undone.`,
-                            confirmText: 'Delete Board',
-                            variant: 'danger',
-                            icon: 'trash',
-                            onConfirm: () => {
-                              deleteBoard(b.id);
-                              showToast(`Deleted board "${b.name}"`, 'info');
-                            }
-                          });
-                        }}
-                      >
-                        <X size={12} />
-                      </button>
-                    ) : (
-                      <button
-                        className="sidebar-action-icon-btn"
-                        title="Leave Board"
-                        style={{ color: 'hsl(var(--destructive))' }}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (user?.email) {
-                            showConfirm({
-                              title: `Leave "${b.name}"?`,
-                              message: `Are you sure you want to leave this board? You will need an invite from the owner to rejoin.`,
-                              confirmText: 'Leave Board',
-                              variant: 'danger',
-                              icon: 'logout',
-                              onConfirm: () => {
-                                if (user?.email) {
-                                  leaveBoard(b.id, user.email);
-                                  showToast(`You left "${b.name}"`, 'info');
-                                }
-                              }
-                            });
-                          }
-                        }}
-                      >
-                        <LogOut size={12} />
-                      </button>
-                    )}
-                  </div>
-                </>
+                      {(() => {
+                        const canEditB = (!b.createdBy || (user?.email && b.createdBy.toLowerCase().trim() === user.email.toLowerCase().trim()) || (b.members && b.members.some(m => m.email && user?.email && m.email.toLowerCase().trim() === user.email.toLowerCase().trim() && m.role !== 'observer')));
+                        return (
+                          <>
+                            <div
+                              className="sidebar-board-dot"
+                              style={{ backgroundColor: b.color, cursor: canEditB ? 'pointer' : 'default' }}
+                              title={canEditB ? "Change board color" : undefined}
+                              onClick={canEditB ? (e) => {
+                                e.stopPropagation();
+                                setColorPickerBoardId(colorPickerBoardId === b.id ? null : b.id);
+                              } : undefined}
+                            />
+                            <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {b.name}
+                            </span>
+                            <div className="sidebar-board-actions">
+                              {canEditB && (
+                                <>
+                                  <button
+                                    className="sidebar-action-icon-btn"
+                                    title="Change Board Color"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setColorPickerBoardId(colorPickerBoardId === b.id ? null : b.id);
+                                    }}
+                                  >
+                                    <Palette size={11} />
+                                  </button>
+                                  <button
+                                    className="sidebar-action-icon-btn"
+                                    title="Rename Board"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setEditingSidebarBoardId(b.id);
+                                      setEditingSidebarBoardName(b.name);
+                                    }}
+                                  >
+                                    <Pencil size={11} />
+                                  </button>
+                                </>
+                              )}
+                              {!b.createdBy || (user?.email && b.createdBy.toLowerCase().trim() === user.email.toLowerCase().trim()) ? (
+                                <button
+                                  className="sidebar-action-icon-btn"
+                                  title="Delete Board"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    showConfirm({
+                                      title: `Delete "${b.name}"?`,
+                                      message: `Are you sure you want to permanently delete this board and all its tasks? This action cannot be undone.`,
+                                      confirmText: 'Delete Board',
+                                      variant: 'danger',
+                                      icon: 'trash',
+                                      onConfirm: () => {
+                                        deleteBoard(b.id);
+                                        showToast(`Deleted board "${b.name}"`, 'info');
+                                      }
+                                    });
+                                  }}
+                                >
+                                  <X size={12} />
+                                </button>
+                              ) : (
+                                <button
+                                  className="sidebar-action-icon-btn"
+                                  title="Leave Board"
+                                  style={{ color: 'hsl(var(--destructive))' }}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (user?.email) {
+                                      showConfirm({
+                                        title: `Leave "${b.name}"?`,
+                                        message: `Are you sure you want to leave this board? You will need an invite from the owner to rejoin.`,
+                                        confirmText: 'Leave Board',
+                                        variant: 'danger',
+                                        icon: 'logout',
+                                        onConfirm: () => {
+                                          if (user?.email) {
+                                            leaveBoard(b.id, user.email);
+                                            showToast(`You left "${b.name}"`, 'info');
+                                          }
+                                        }
+                                      });
+                                    }
+                                  }}
+                                >
+                                  <LogOut size={12} />
+                                </button>
+                              )}
+                            </div>
+                            <AnimatePresence>
+                              {colorPickerBoardId === b.id && (
+                                <BoardColorPicker
+                                  currentColor={b.color}
+                                  onSelectColor={(newCol) => {
+                                    updateBoardColor(b.id, newCol);
+                                    showToast(`Board color updated`, 'success');
+                                  }}
+                                  onClose={() => setColorPickerBoardId(null)}
+                                  align="left"
+                                />
+                              )}
+                            </AnimatePresence>
+                          </>
+                        );
+                      })()}
+                    </>
               )}
             </motion.div>
           ))}
@@ -451,25 +476,66 @@ export default function Sidebar({
                 ) : (
                   <div
                     className="sidebar-board-item active"
-                    style={{ marginTop: 2, display: 'flex', alignItems: 'center', gap: 8 }}
+                    style={{ marginTop: 2, display: 'flex', alignItems: 'center', gap: 8, position: 'relative' }}
                   >
-                    <div className="sidebar-board-dot" style={{ backgroundColor: activeBoard.color }} />
-                    <span style={{ fontWeight: 600, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {activeBoard.name}
-                    </span>
-                    {(!activeBoard.createdBy || (user?.email && activeBoard.createdBy.toLowerCase().trim() === user.email.toLowerCase().trim()) || (activeBoard.members && activeBoard.members.some(m => m.email && user?.email && m.email.toLowerCase().trim() === user.email.toLowerCase().trim() && m.role !== 'observer'))) && (
-                      <button
-                        className="sidebar-action-icon-btn"
-                        title="Rename Board"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setEditingSidebarBoardId(activeBoard.id);
-                          setEditingSidebarBoardName(activeBoard.name);
-                        }}
-                      >
-                        <Pencil size={11} />
-                      </button>
-                    )}
+                    {(() => {
+                      const canEditActive = (!activeBoard.createdBy || (user?.email && activeBoard.createdBy.toLowerCase().trim() === user.email.toLowerCase().trim()) || (activeBoard.members && activeBoard.members.some(m => m.email && user?.email && m.email.toLowerCase().trim() === user.email.toLowerCase().trim() && m.role !== 'observer')));
+                      return (
+                        <>
+                          <div
+                            className="sidebar-board-dot"
+                            style={{ backgroundColor: activeBoard.color, cursor: canEditActive ? 'pointer' : 'default' }}
+                            title={canEditActive ? "Change board color" : undefined}
+                            onClick={canEditActive ? (e) => {
+                              e.stopPropagation();
+                              setColorPickerBoardId(colorPickerBoardId === activeBoard.id ? null : activeBoard.id);
+                            } : undefined}
+                          />
+                          <span style={{ fontWeight: 600, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {activeBoard.name}
+                          </span>
+                          {canEditActive && (
+                            <>
+                              <button
+                                className="sidebar-action-icon-btn"
+                                title="Change Board Color"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setColorPickerBoardId(colorPickerBoardId === activeBoard.id ? null : activeBoard.id);
+                                }}
+                              >
+                                <Palette size={11} />
+                              </button>
+                              <button
+                                className="sidebar-action-icon-btn"
+                                title="Rename Board"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setEditingSidebarBoardId(activeBoard.id);
+                                  setEditingSidebarBoardName(activeBoard.name);
+                                }}
+                              >
+                                <Pencil size={11} />
+                              </button>
+                            </>
+                          )}
+                          <AnimatePresence>
+                            {colorPickerBoardId === activeBoard.id && (
+                              <BoardColorPicker
+                                currentColor={activeBoard.color}
+                                onSelectColor={(newCol) => {
+                                  updateBoardColor(activeBoard.id, newCol);
+                                  showToast(`Board color updated`, 'success');
+                                }}
+                                onClose={() => setColorPickerBoardId(null)}
+                                align="left"
+                                style={{ top: 'calc(100% + 4px)', left: 0 }}
+                              />
+                            )}
+                          </AnimatePresence>
+                        </>
+                      );
+                    })()}
                   </div>
                 )
               )}

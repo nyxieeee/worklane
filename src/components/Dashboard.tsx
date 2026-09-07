@@ -2,9 +2,9 @@ import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import {
   KanbanSquare, Plus, CheckSquare, Clock,
   Layers, Zap, CheckCircle2,
-  Calendar, Activity, ArrowUpRight, Sparkles, Trash2, LogOut, Pencil, Check, X
+  Calendar, Activity, ArrowUpRight, Sparkles, Trash2, LogOut, Pencil, Check, X, Palette
 } from 'lucide-react';
-import { motion, type Variants } from 'framer-motion';
+import { motion, AnimatePresence, type Variants } from 'framer-motion';
 import { useWorkStore } from '../store/useWorkStore';
 import { useAuthStore } from '../store/useAuthStore';
 import { useNotifStore } from '../store/useNotifStore';
@@ -14,6 +14,7 @@ import { useSettingsStore } from '../store/useSettingsStore';
 import { formatDueDate, avatarInitials } from '../utils';
 import { LABELS, type Card, type Board } from '../types';
 import Tilt3D from './ui/Tilt3D';
+import BoardColorPicker from './ui/BoardColorPicker';
 
 interface Props {
   onSelectBoard: (boardId: string) => void;
@@ -56,9 +57,11 @@ export default function Dashboard({ onSelectBoard, onCreateBoard, onOpenCard }: 
   const showConfirm        = useConfirmStore(s => s.showConfirm);
   const customLabels       = useSettingsStore(s => s.customLabels);
   const renameBoard        = useWorkStore(s => s.renameBoard);
+  const updateBoardColor   = useWorkStore(s => s.updateBoardColor);
 
   const [editingBoardId, setEditingBoardId] = useState<string | null>(null);
   const [editingBoardName, setEditingBoardName] = useState('');
+  const [colorPickerBoardId, setColorPickerBoardId] = useState<string | null>(null);
 
   const allLabels = useMemo(() => [...LABELS, ...customLabels], [customLabels]);
 
@@ -383,8 +386,14 @@ export default function Dashboard({ onSelectBoard, onCreateBoard, onOpenCard }: 
                                 height: 12,
                                 borderRadius: '50%',
                                 backgroundColor: board.color,
-                                boxShadow: 'var(--neu-shadow-raised-sm)'
+                                boxShadow: 'var(--neu-shadow-raised-sm)',
+                                cursor: (!board.createdBy || (user?.email && board.createdBy.toLowerCase().trim() === user.email.toLowerCase().trim()) || (board.members && board.members.some(m => m.email && user?.email && m.email.toLowerCase().trim() === user.email.toLowerCase().trim() && m.role !== 'observer'))) ? 'pointer' : 'default',
                               }}
+                              title={(!board.createdBy || (user?.email && board.createdBy.toLowerCase().trim() === user.email.toLowerCase().trim()) || (board.members && board.members.some(m => m.email && user?.email && m.email.toLowerCase().trim() === user.email.toLowerCase().trim() && m.role !== 'observer'))) ? "Change board color" : undefined}
+                              onClick={(!board.createdBy || (user?.email && board.createdBy.toLowerCase().trim() === user.email.toLowerCase().trim()) || (board.members && board.members.some(m => m.email && user?.email && m.email.toLowerCase().trim() === user.email.toLowerCase().trim() && m.role !== 'observer'))) ? (e) => {
+                                e.stopPropagation();
+                                setColorPickerBoardId(colorPickerBoardId === board.id ? null : board.id);
+                              } : undefined}
                             />
                             <span style={{ fontSize: 14, fontWeight: 700, color: 'hsl(var(--foreground))' }}>
                               {board.name}
@@ -395,23 +404,51 @@ export default function Dashboard({ onSelectBoard, onCreateBoard, onOpenCard }: 
                           style={{ display: 'flex', alignItems: 'center', gap: 6, position: 'relative', zIndex: 20 }}
                           onClick={e => e.stopPropagation()}
                         >
-                          {/* Rename board */}
+                          {/* Color & Rename board */}
                           {(!board.createdBy || (user?.email && board.createdBy.toLowerCase().trim() === user.email.toLowerCase().trim()) || (board.members && board.members.some(m => m.email && user?.email && m.email.toLowerCase().trim() === user.email.toLowerCase().trim() && m.role !== 'observer'))) && (
-                            <motion.button
-                              type="button"
-                              whileTap={{ scale: 0.88 }}
-                              className="icon-btn"
-                              style={{ width: 28, height: 28, minWidth: 28, minHeight: 28, cursor: 'pointer' }}
-                              title="Rename board"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setEditingBoardId(board.id);
-                                setEditingBoardName(board.name);
-                              }}
-                            >
-                              <Pencil size={13} />
-                            </motion.button>
+                            <>
+                              <motion.button
+                                type="button"
+                                whileTap={{ scale: 0.88 }}
+                                className="icon-btn"
+                                style={{ width: 28, height: 28, minWidth: 28, minHeight: 28, cursor: 'pointer' }}
+                                title="Change board color"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setColorPickerBoardId(colorPickerBoardId === board.id ? null : board.id);
+                                }}
+                              >
+                                <Palette size={13} />
+                              </motion.button>
+                              <motion.button
+                                type="button"
+                                whileTap={{ scale: 0.88 }}
+                                className="icon-btn"
+                                style={{ width: 28, height: 28, minWidth: 28, minHeight: 28, cursor: 'pointer' }}
+                                title="Rename board"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setEditingBoardId(board.id);
+                                  setEditingBoardName(board.name);
+                                }}
+                              >
+                                <Pencil size={13} />
+                              </motion.button>
+                            </>
                           )}
+                          <AnimatePresence>
+                            {colorPickerBoardId === board.id && (
+                              <BoardColorPicker
+                                currentColor={board.color}
+                                onSelectColor={(col) => {
+                                  updateBoardColor(board.id, col);
+                                  showToast(`Board color updated`, 'success');
+                                }}
+                                onClose={() => setColorPickerBoardId(null)}
+                                align="right"
+                              />
+                            )}
+                          </AnimatePresence>
                           {!board.createdBy || (user?.email && board.createdBy.toLowerCase().trim() === user.email.toLowerCase().trim()) ? (
                             <motion.button
                               type="button"

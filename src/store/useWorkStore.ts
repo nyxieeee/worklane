@@ -22,6 +22,7 @@ interface WorkState {
   createBoard: (name: string, color: string, createdBy?: string, creatorName?: string) => Promise<Board>;
   deleteBoard: (boardId: string) => void;
   renameBoard: (boardId: string, name: string) => void;
+  updateBoardColor: (boardId: string, color: string) => void;
   leaveBoard: (boardId: string, userEmail: string) => void;
   switchBoard: (boardId: string) => void;
   joinBoardFromCloud: (boardId: string, role: MemberRole, user: { name?: string; email: string; avatarUrl?: string }) => Promise<Board | null>;
@@ -485,6 +486,25 @@ export const useWorkStore = create<WorkState>()(
           scheduleBoardSync(targetBoard, 30);
           if (supabaseService.isConfigured()) {
             supabaseService.updateBoard(boardId, { name: cleanName });
+          }
+        }
+      },
+
+      updateBoardColor: (boardId, color) => {
+        if (!color) return;
+        let targetBoard: Board | undefined;
+        set(s => {
+          const updatedBoards = updateBoards(s.boards, boardId, b => ({
+            ...b,
+            color,
+          }));
+          targetBoard = updatedBoards.find(b => b.id === boardId);
+          return { boards: updatedBoards };
+        });
+        if (targetBoard) {
+          scheduleBoardSync(targetBoard, 30);
+          if (supabaseService.isConfigured()) {
+            supabaseService.updateBoard(boardId, { color });
           }
         }
       },
