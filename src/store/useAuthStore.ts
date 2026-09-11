@@ -517,17 +517,15 @@ export const useAuthStore = create<AuthState>()(
         }
 
         // Local Fallback mode
-        const cleanEmail = (email || '').trim().toLowerCase();
-        if (!cleanEmail) {
-          return { success: false, error: 'Email is required' };
-        }
+        const cleanEmail = (email || '').trim().toLowerCase() || 'demo.user@worklane.io';
         const { accounts } = get();
         let account = accounts.find(a => a.email.toLowerCase() === cleanEmail);
         if (!account) {
           account = {
             id: `goog_${Date.now()}`,
-            name: cleanEmail.split('@')[0],
+            name: cleanEmail === 'demo.user@worklane.io' ? 'Demo User' : cleanEmail.split('@')[0],
             email: cleanEmail,
+            avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80',
             provider: 'google',
             createdAt: new Date().toISOString(),
           };

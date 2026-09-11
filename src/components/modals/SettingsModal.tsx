@@ -240,9 +240,9 @@ export default function SettingsModal({ initialTab = 'profile', onClose }: Props
         className="modal"
         style={{
           maxWidth: 740,
-          width: '92vw',
+          width: 'min(740px, calc(100vw - 16px))',
           height: 560,
-          maxHeight: '90vh',
+          maxHeight: '92dvh',
           display: 'flex',
           flexDirection: 'column',
           overflow: 'hidden',
@@ -288,19 +288,10 @@ export default function SettingsModal({ initialTab = 'profile', onClose }: Props
           </motion.button>
         </div>
 
-        {/* 2-Column Body: Tabs Sidebar + Content */}
-        <div style={{ display: 'grid', gridTemplateColumns: '210px 1fr', flex: 1, overflow: 'hidden' }}>
+        {/* 2-Column Body on Desktop / Top Tab Strip on Mobile */}
+        <div className="settings-modal-grid">
           {/* Settings Tab List */}
-          <div
-            style={{
-              padding: '12px 8px',
-              borderRight: '1px solid hsl(var(--border) / 0.4)',
-              backgroundColor: 'hsl(var(--background))',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 4
-            }}
-          >
+          <div className="settings-modal-tabs">
             {navTabs.map(t => {
               const active = activeTab === t.key;
               return (

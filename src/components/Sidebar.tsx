@@ -34,6 +34,8 @@ interface Props {
   onGoToDashboard: () => void;
   onCreateBoard: () => void;
   onSelectBoard: (boardId: string) => void;
+  isMobileOpen?: boolean;
+  onCloseMobile?: () => void;
 }
 
 export default function Sidebar({
@@ -51,6 +53,8 @@ export default function Sidebar({
   onGoToDashboard,
   onCreateBoard,
   onSelectBoard,
+  isMobileOpen = false,
+  onCloseMobile,
 }: Props) {
   const allBoards        = useWorkStore(s => s.boards);
   const activeBoardId    = useWorkStore(s => s.activeBoardId);
@@ -58,6 +62,31 @@ export default function Sidebar({
   const leaveBoard  = useWorkStore(s => s.leaveBoard);
   const renameBoard = useWorkStore(s => s.renameBoard);
   const updateBoardColor = useWorkStore(s => s.updateBoardColor);
+
+  const handleSelectBoard = (boardId: string) => {
+    onSelectBoard(boardId);
+    onCloseMobile?.();
+  };
+  const handleGoToDashboard = () => {
+    onGoToDashboard();
+    onCloseMobile?.();
+  };
+  const handleSelectView = (view: 'board' | 'list' | 'calendar') => {
+    onSelectView(view);
+    onCloseMobile?.();
+  };
+  const handleCreateBoard = () => {
+    onCreateBoard();
+    onCloseMobile?.();
+  };
+  const handleManageMembers = () => {
+    onManageMembers();
+    onCloseMobile?.();
+  };
+  const handleOpenSettings = (tab?: 'appearance' | 'notifications' | 'email' | 'privacy' | 'labels') => {
+    onOpenSettings(tab);
+    onCloseMobile?.();
+  };
 
   const [editingSidebarBoardId, setEditingSidebarBoardId] = React.useState<string | null>(null);
   const [editingSidebarBoardName, setEditingSidebarBoardName] = React.useState('');
@@ -108,15 +137,15 @@ export default function Sidebar({
   });
 
   // ── Collapsed Sidebar ──
-  if (collapsed) {
+  if (collapsed && !isMobileOpen) {
     return (
-      <aside className="sidebar collapsed">
+      <aside className={`sidebar collapsed${isMobileOpen ? ' mobile-open' : ''}`}>
         <div className="sidebar-header" style={{ justifyContent: 'center', height: 62, padding: '0 8px', flexDirection: 'column', gap: 4 }}>
           <img
             src={logoImg}
             alt="Worklane"
             style={{ width: 32, height: 32, borderRadius: 8, cursor: 'pointer', objectFit: 'contain' }}
-            onClick={onGoToDashboard}
+            onClick={handleGoToDashboard}
             title="Worklane"
           />
         </div>
@@ -138,7 +167,7 @@ export default function Sidebar({
                   key={b.id}
                   className="icon-btn"
                   title={b.name}
-                  onClick={() => onSelectBoard(b.id)}
+                  onClick={() => handleSelectBoard(b.id)}
                 >
                   <div className="sidebar-board-dot" style={{ backgroundColor: b.color }} />
                 </motion.button>
@@ -147,7 +176,7 @@ export default function Sidebar({
                 whileTap={{ scale: 0.92 }}
                 className="icon-btn"
                 title="Create Board"
-                onClick={onCreateBoard}
+                onClick={handleCreateBoard}
               >
                 <Plus size={16} />
               </motion.button>
@@ -158,7 +187,7 @@ export default function Sidebar({
                 whileTap={{ scale: 0.92 }}
                 className="icon-btn"
                 title="Back to Dashboard"
-                onClick={onGoToDashboard}
+                onClick={handleGoToDashboard}
               >
                 <ArrowLeft size={16} />
               </motion.button>
@@ -166,7 +195,7 @@ export default function Sidebar({
                 whileTap={{ scale: 0.92 }}
                 className={`icon-btn ${activeView === 'board' ? 'active' : ''}`}
                 title="Board View"
-                onClick={() => onSelectView('board')}
+                onClick={() => handleSelectView('board')}
               >
                 <KanbanSquare size={16} />
               </motion.button>
@@ -174,7 +203,7 @@ export default function Sidebar({
                 whileTap={{ scale: 0.92 }}
                 className={`icon-btn ${activeView === 'list' ? 'active' : ''}`}
                 title="List View"
-                onClick={() => onSelectView('list')}
+                onClick={() => handleSelectView('list')}
               >
                 <List size={16} />
               </motion.button>
@@ -182,7 +211,7 @@ export default function Sidebar({
                 whileTap={{ scale: 0.92 }}
                 className={`icon-btn ${activeView === 'calendar' ? 'active' : ''}`}
                 title="Calendar View"
-                onClick={() => onSelectView('calendar')}
+                onClick={() => handleSelectView('calendar')}
               >
                 <Calendar size={16} />
               </motion.button>
@@ -190,15 +219,23 @@ export default function Sidebar({
                 whileTap={{ scale: 0.92 }}
                 className="icon-btn"
                 title="Team Members"
-                onClick={onManageMembers}
+                onClick={handleManageMembers}
               >
                 <Users size={16} />
               </motion.button>
               <motion.button
                 whileTap={{ scale: 0.92 }}
+                className={`icon-btn ${isInboxOpen ? 'active' : ''}`}
+                title="Inbox"
+                onClick={() => { onOpenInbox(); onCloseMobile?.(); }}
+              >
+                <Inbox size={16} />
+              </motion.button>
+              <motion.button
+                whileTap={{ scale: 0.92 }}
                 className="icon-btn"
                 title="Settings"
-                onClick={() => onOpenSettings()}
+                onClick={() => handleOpenSettings()}
               >
                 <Settings size={16} />
               </motion.button>
@@ -211,10 +248,10 @@ export default function Sidebar({
 
   // ── Expanded Neumorphic Sidebar ──
   return (
-    <aside className="sidebar">
+    <aside className={`sidebar${isMobileOpen ? ' mobile-open' : ''}`}>
       {/* Header */}
       <div className="sidebar-header" style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', height: 62, padding: '0 16px' }}>
-        <div className="sidebar-logo" onClick={onGoToDashboard} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+        <div className="sidebar-logo" onClick={handleGoToDashboard} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
           <img
             src={isDark ? sidebarDarkImg : sidebarImg}
             alt="Worklane"
@@ -230,13 +267,25 @@ export default function Sidebar({
         </div>
         <motion.button
           whileTap={{ scale: 0.92 }}
-          className="sidebar-toggle-btn"
+          className="sidebar-toggle-btn hide-on-mobile"
           onClick={onToggleCollapse}
           title="Collapse sidebar"
           style={{ position: 'absolute', right: 12 }}
         >
           <ChevronLeft size={15} />
         </motion.button>
+        {onCloseMobile && (
+          <motion.button
+            whileTap={{ scale: 0.92 }}
+            className="sidebar-toggle-btn show-on-mobile"
+            onClick={onCloseMobile}
+            title="Close navigation menu"
+            aria-label="Close navigation menu"
+            style={{ position: 'absolute', right: 12 }}
+          >
+            <X size={16} />
+          </motion.button>
+        )}
       </div>
 
       <div className="sidebar-scrollable">
@@ -247,7 +296,7 @@ export default function Sidebar({
               <motion.button
                 whileTap={{ scale: 0.97 }}
                 className="sidebar-nav-item active"
-                onClick={onGoToDashboard}
+                onClick={handleGoToDashboard}
               >
                 <LayoutDashboard size={15} />
                 <span>Overview</span>
@@ -260,7 +309,7 @@ export default function Sidebar({
                 <motion.button
                   whileTap={{ scale: 0.92 }}
                   className="sidebar-action-icon-btn"
-                  onClick={onCreateBoard}
+                  onClick={handleCreateBoard}
                   title="Create Board"
                 >
                   <Plus size={13} />
@@ -276,7 +325,7 @@ export default function Sidebar({
                     position: 'relative',
                     zIndex: colorPickerBoardId === b.id ? 40 : 1,
                   }}
-                  onClick={() => onSelectBoard(b.id)}
+                  onClick={() => handleSelectBoard(b.id)}
                 >
                   {editingSidebarBoardId === b.id ? (
                     <div
@@ -449,7 +498,7 @@ export default function Sidebar({
               <motion.button
                 whileTap={{ scale: 0.97 }}
                 className="sidebar-nav-item"
-                onClick={onGoToDashboard}
+                onClick={handleGoToDashboard}
               >
                 <ArrowLeft size={14} />
                 <span>All Boards</span>
@@ -587,7 +636,7 @@ export default function Sidebar({
               <motion.button
                 whileTap={{ scale: 0.97 }}
                 className={`sidebar-nav-item ${activeView === 'board' ? 'active' : ''}`}
-                onClick={() => onSelectView('board')}
+                onClick={() => handleSelectView('board')}
               >
                 <KanbanSquare size={14} />
                 <span style={{ flex: 1 }}>Board</span>
@@ -596,7 +645,7 @@ export default function Sidebar({
               <motion.button
                 whileTap={{ scale: 0.97 }}
                 className={`sidebar-nav-item ${activeView === 'list' ? 'active' : ''}`}
-                onClick={() => onSelectView('list')}
+                onClick={() => handleSelectView('list')}
               >
                 <List size={14} />
                 <span style={{ flex: 1 }}>List</span>
@@ -605,7 +654,7 @@ export default function Sidebar({
               <motion.button
                 whileTap={{ scale: 0.97 }}
                 className={`sidebar-nav-item ${activeView === 'calendar' ? 'active' : ''}`}
-                onClick={() => onSelectView('calendar')}
+                onClick={() => handleSelectView('calendar')}
               >
                 <Calendar size={14} />
                 <span style={{ flex: 1 }}>Calendar</span>
@@ -620,7 +669,7 @@ export default function Sidebar({
                 <motion.button
                   whileTap={{ scale: 0.92 }}
                   className="sidebar-action-icon-btn"
-                  onClick={onManageMembers}
+                  onClick={handleManageMembers}
                   title="Manage Team"
                 >
                   <Plus size={13} />
@@ -689,7 +738,7 @@ export default function Sidebar({
           whileTap={{ scale: 0.97 }}
           className="sidebar-nav-item"
           style={{ width: '100%' }}
-          onClick={() => onOpenSettings()}
+          onClick={() => handleOpenSettings()}
         >
           <Settings size={14} />
           {!collapsed && <span style={{ flex: 1, textAlign: 'left' }}>Settings</span>}

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { Bell, Mail, Search, LogOut, Shield, ChevronRight, Settings, Inbox, Crown, Eye, User } from 'lucide-react';
+import { Bell, Mail, Search, LogOut, Shield, ChevronRight, Settings, Inbox, Crown, Eye, User, Menu } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useWorkStore } from '../store/useWorkStore';
 import { useNotifStore } from '../store/useNotifStore';
@@ -21,6 +21,7 @@ interface Props {
   onOpenSettings?: (tab?: 'profile' | 'appearance' | 'notifications' | 'email' | 'privacy' | 'labels') => void;
   onToggleNotif: () => void;
   notifOpen: boolean;
+  onToggleMobileMenu?: () => void;
 }
 
 export default function Topbar({
@@ -33,7 +34,8 @@ export default function Topbar({
   onOpenPrivacy,
   onOpenSettings,
   onToggleNotif,
-  notifOpen
+  notifOpen,
+  onToggleMobileMenu
 }: Props) {
   const boards            = useWorkStore(s => s.boards);
   const activeBoard       = useWorkStore(s => s.boards.find(b => b.id === s.activeBoardId));
@@ -85,6 +87,18 @@ export default function Topbar({
     <header className="topbar">
       {/* Breadcrumb */}
       <div className="topbar-left">
+        {onToggleMobileMenu && (
+          <motion.button
+            whileTap={{ scale: 0.92 }}
+            className="icon-btn show-on-mobile"
+            onClick={onToggleMobileMenu}
+            title="Open Navigation Menu"
+            aria-label="Open Navigation Menu"
+            style={{ width: 32, height: 32, flexShrink: 0 }}
+          >
+            <Menu size={17} />
+          </motion.button>
+        )}
         <div className="topbar-breadcrumbs">
           <span className="topbar-crumb-root">Workspace</span>
           <ChevronRight size={13} className="topbar-crumb-sep" />
@@ -150,7 +164,7 @@ export default function Topbar({
         {/* Member avatar stack (Board context only) */}
         {page === 'board' && board && members.length > 0 && (
           <div
-            className="card-assignees"
+            className="card-assignees hide-on-mobile"
             onClick={onManageMembers}
             title="Manage Team Members"
             style={{ cursor: 'pointer', paddingRight: 4 }}
@@ -192,13 +206,10 @@ export default function Topbar({
           </div>
         )}
 
-
-
-
         {page === 'board' && onManageEmail && (
           <motion.button
             whileTap={{ scale: 0.92 }}
-            className="icon-btn"
+            className="icon-btn hide-on-mobile"
             title="Email Updates"
             onClick={onManageEmail}
           >

@@ -255,7 +255,7 @@ export default function LoginPage() {
     <div
       style={{
         display: 'flex',
-        minHeight: '100vh',
+        minHeight: '100dvh',
         width: '100vw',
         position: 'relative',
         overflow: 'hidden',
@@ -402,13 +402,14 @@ export default function LoginPage() {
 
       {/* ── Right Side Full-Height Neumorphic Login Panel ── */}
       <motion.div
+        className="login-right-panel"
         initial={{ opacity: 0, x: 30 }}
         animate={{ opacity: 1, x: 0 }}
         transition={{ duration: 0.45, ease: 'easeOut' }}
         style={{
           width: '100%',
           maxWidth: 480,
-          minHeight: '100vh',
+          minHeight: '100dvh',
           backgroundColor: isDark ? 'hsl(228 21% 14% / 0.94)' : 'hsl(218 25% 92% / 0.95)',
           backdropFilter: 'blur(28px)',
           WebkitBackdropFilter: 'blur(28px)',

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence, type Variants } from 'framer-motion';
+import { LayoutDashboard, KanbanSquare, List, Calendar, Inbox } from 'lucide-react';
 import Sidebar from './components/Sidebar';
 import Topbar from './components/Topbar';
 import BoardArea from './components/BoardArea';
@@ -244,6 +245,7 @@ export default function App() {
   // Page routing: dashboard (home) or board (active board view)
   const [page, setPage] = useState<'dashboard' | 'board'>(initialRouting.page);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const [openCardId, setOpenCardId] = useState<string | null>(initialRouting.cardId);
   const [openCardBoardId, setOpenCardBoardId] = useState<string | null>(null);
@@ -561,6 +563,13 @@ function saveAlertedSet(key: string, setObj: Set<string>) {
 
   return (
     <div className="app-layout" style={{ perspective: 1400 }}>
+      {/* Mobile Sidebar Backdrop Overlay */}
+      <div
+        className={`sidebar-backdrop${mobileMenuOpen ? ' open' : ''}`}
+        onClick={() => setMobileMenuOpen(false)}
+        aria-hidden="true"
+      />
+
       <div className={`app-window${sidebarCollapsed ? ' sidebar-collapsed-layout' : ''}`}>
         <Sidebar
           page={page}
@@ -577,6 +586,8 @@ function saveAlertedSet(key: string, setObj: Set<string>) {
           onSelectBoard={handleSelectBoard}
           collapsed={sidebarCollapsed}
           onToggleCollapse={() => setSidebarCollapsed(c => !c)}
+          isMobileOpen={mobileMenuOpen}
+          onCloseMobile={() => setMobileMenuOpen(false)}
         />
 
         <div className="app-main-content" style={{ transformStyle: 'preserve-3d' }}>
@@ -600,6 +611,7 @@ function saveAlertedSet(key: string, setObj: Set<string>) {
                   onOpenSettings={handleOpenSettings}
                   onToggleNotif={() => setNotifOpen(o => !o)}
                   notifOpen={notifOpen}
+                  onToggleMobileMenu={() => setMobileMenuOpen(o => !o)}
                 />
                 <Dashboard
                   onSelectBoard={handleSelectBoard}
@@ -631,6 +643,7 @@ function saveAlertedSet(key: string, setObj: Set<string>) {
                   onOpenSettings={handleOpenSettings}
                   onToggleNotif={() => setNotifOpen(o => !o)}
                   notifOpen={notifOpen}
+                  onToggleMobileMenu={() => setMobileMenuOpen(o => !o)}
                 />
 
                 <BoardArea
@@ -713,6 +726,77 @@ function saveAlertedSet(key: string, setObj: Set<string>) {
           }
         }}
       />
+
+      {/* Mobile Quick Bottom Navigation Bar */}
+      <nav className="mobile-bottom-nav" aria-label="Quick Mobile Navigation">
+        <button
+          type="button"
+          className={`mobile-nav-tab ${page === 'dashboard' ? 'active' : ''}`}
+          onClick={() => {
+            handleGoToDashboard();
+            setMobileMenuOpen(false);
+          }}
+          title="Dashboard"
+        >
+          <LayoutDashboard size={17} />
+          <span>Home</span>
+        </button>
+
+        <button
+          type="button"
+          className={`mobile-nav-tab ${page === 'board' && viewMode === 'board' ? 'active' : ''}`}
+          onClick={() => {
+            setPage('board');
+            setViewMode('board');
+            setMobileMenuOpen(false);
+          }}
+          title="Board View"
+        >
+          <KanbanSquare size={17} />
+          <span>Board</span>
+        </button>
+
+        <button
+          type="button"
+          className={`mobile-nav-tab ${page === 'board' && viewMode === 'list' ? 'active' : ''}`}
+          onClick={() => {
+            setPage('board');
+            setViewMode('list');
+            setMobileMenuOpen(false);
+          }}
+          title="List View"
+        >
+          <List size={17} />
+          <span>List</span>
+        </button>
+
+        <button
+          type="button"
+          className={`mobile-nav-tab ${page === 'board' && viewMode === 'calendar' ? 'active' : ''}`}
+          onClick={() => {
+            setPage('board');
+            setViewMode('calendar');
+            setMobileMenuOpen(false);
+          }}
+          title="Calendar View"
+        >
+          <Calendar size={17} />
+          <span>Calendar</span>
+        </button>
+
+        <button
+          type="button"
+          className={`mobile-nav-tab ${showInbox ? 'active' : ''}`}
+          onClick={() => {
+            setShowInbox(s => !s);
+            setMobileMenuOpen(false);
+          }}
+          title="Inbox"
+        >
+          <Inbox size={17} />
+          <span>Inbox</span>
+        </button>
+      </nav>
 
       {/* Toasts */}
       <Toast />

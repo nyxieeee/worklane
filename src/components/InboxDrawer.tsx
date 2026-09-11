@@ -127,7 +127,7 @@ export function InboxDrawer({
           className={`inbox-drawer-panel ${docked ? 'inbox-docked' : ''}`}
           style={docked ? {
             position: 'relative',
-            width: 320,
+            width: 'min(320px, calc(100vw - 24px))',
             minWidth: 0,
             height: '100%',
             flexShrink: 0,
@@ -146,7 +146,8 @@ export function InboxDrawer({
             top: 16,
             left: 16,
             bottom: 16,
-            width: 320,
+            width: 'min(320px, calc(100vw - 32px))',
+            maxWidth: 'calc(100vw - 32px)',
             zIndex: 40,
             display: 'flex',
             flexDirection: 'column',
@@ -164,7 +165,7 @@ export function InboxDrawer({
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
         >
-          <div style={{ width: 320, minWidth: 320, height: '100%', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
             {/* Header */}
             <div
               style={{
