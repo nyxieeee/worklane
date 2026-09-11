@@ -5,7 +5,7 @@ import { useWorkStore } from '../store/useWorkStore';
 import { useNotifStore } from '../store/useNotifStore';
 import { useAuthStore } from '../store/useAuthStore';
 import { useToastStore } from '../store/useToastStore';
-import { avatarInitials, sortMembersWithOwnerFirst } from '../utils';
+import { avatarInitials, sortMembersWithOwnerFirst, useIsMobile } from '../utils';
 import AvatarBorder from './ui/AvatarBorder';
 import BoardColorPicker from './ui/BoardColorPicker';
 import type { Member } from '../types';
@@ -73,6 +73,8 @@ export default function Topbar({
   const shown   = members.slice(0, 3);
   const extra   = members.length > 3 ? members.length - 3 : 0;
 
+  const isMobile = useIsMobile(860);
+
   // Close user dropdown on outside click
   useEffect(() => {
     if (!userDropOpen) return;
@@ -94,14 +96,18 @@ export default function Topbar({
             onClick={onToggleMobileMenu}
             title="Open Navigation Menu"
             aria-label="Open Navigation Menu"
-            style={{ width: 32, height: 32, flexShrink: 0 }}
+            style={{ width: 34, height: 34, flexShrink: 0, display: isMobile ? 'flex' : undefined }}
           >
-            <Menu size={17} />
+            <Menu size={18} />
           </motion.button>
         )}
         <div className="topbar-breadcrumbs">
-          <span className="topbar-crumb-root">Workspace</span>
-          <ChevronRight size={13} className="topbar-crumb-sep" />
+          {!isMobile && (
+            <>
+              <span className="topbar-crumb-root">Workspace</span>
+              <ChevronRight size={13} className="topbar-crumb-sep" />
+            </>
+          )}
           {page === 'board' && board ? (
             <span className="topbar-crumb-active" style={{ display: 'inline-flex', alignItems: 'center', gap: 7, position: 'relative', zIndex: showColorPicker ? 40 : undefined }}>
               <button
@@ -141,7 +147,7 @@ export default function Topbar({
             </span>
           ) : (
             <span className="topbar-crumb-active">
-              {title || 'Overview'}
+              Overview
             </span>
           )}
         </div>
@@ -155,10 +161,15 @@ export default function Topbar({
           className="topbar-search-trigger"
           onClick={onOpenSearch}
           title={page === 'board' && board ? `Search in ${board.name}` : 'Search all boards'}
+          style={isMobile ? { minWidth: 34, width: 34, height: 34, padding: 0, justifyContent: 'center' } : undefined}
         >
-          <Search size={14} />
-          <span>{page === 'board' && board ? `Search in ${board.name}...` : 'Search all boards...'}</span>
-          <kbd className="topbar-shortcut-pill">⌘K</kbd>
+          <Search size={15} />
+          {!isMobile && (
+            <>
+              <span>{page === 'board' && board ? `Search in ${board.name}...` : 'Search all boards...'}</span>
+              <kbd className="topbar-shortcut-pill">⌘K</kbd>
+            </>
+          )}
         </motion.button>
 
         {/* Member avatar stack (Board context only) */}

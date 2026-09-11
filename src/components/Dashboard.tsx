@@ -173,7 +173,7 @@ export default function Dashboard({ onSelectBoard, onCreateBoard, onOpenCard }: 
       style={{ perspective: 1200 }}
     >
       {/* Header Greeting & Overview Hero */}
-      <motion.div variants={item3DVariants} className="dashboard-hero" style={{ display: 'flex', flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
+      <motion.div variants={item3DVariants} className="dashboard-hero">
         <div>
           <h1 className="dashboard-greeting">
             {getHourGreeting()}, {firstName}

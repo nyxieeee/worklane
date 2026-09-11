@@ -1442,12 +1442,17 @@ html, body, #root {
     transform: translateX(0) !important;
   }
 
+  /* CRITICAL: On mobile screens, NEVER show a persistent collapsed sidebar strip! */
   .sidebar.collapsed {
-    width: 280px !important;
+    display: none !important;
+    width: 0 !important;
     min-width: 0 !important;
-    transform: translateX(-100%);
+    transform: translateX(-100%) !important;
   }
   .sidebar.collapsed.mobile-open {
+    display: flex !important;
+    width: 280px !important;
+    min-width: 0 !important;
     transform: translateX(0) !important;
   }
 
@@ -1457,15 +1462,68 @@ html, body, #root {
 
   .app-main-content {
     width: 100% !important;
-    padding-bottom: calc(56px + var(--sab)); /* Reserve room for mobile bottom bar */
+    padding-bottom: calc(58px + var(--sab)); /* Reserve room for mobile bottom bar */
   }
 
-  /* Topbar Mobile Layout */
+  /* Topbar Mobile Layout (<= 860px) */
   .topbar {
     height: calc(52px + var(--sat));
     padding-top: max(4px, var(--sat));
     padding-left: max(12px, var(--sal));
     padding-right: max(12px, var(--sar));
+  }
+  .topbar-shortcut-pill {
+    display: none !important;
+  }
+  .topbar-search-trigger {
+    min-width: unset !important;
+    padding: 7px 9px !important;
+  }
+  .topbar-search-trigger span {
+    display: none !important;
+  }
+  .topbar-crumb-root,
+  .topbar-crumb-sep {
+    display: none !important;
+  }
+  .topbar-breadcrumbs {
+    max-width: 150px;
+    overflow: hidden;
+  }
+  .topbar-crumb-active {
+    font-size: 13.5px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* Dashboard Stats Grid 2-columns on mobile */
+  .dashboard-stats-row {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 10px !important;
+  }
+  .dashboard-stat-card {
+    padding: 12px 10px !important;
+    gap: 10px !important;
+  }
+  .dashboard-stat-icon {
+    width: 34px !important;
+    height: 34px !important;
+  }
+  .dashboard-stat-value {
+    font-size: 18px !important;
+  }
+  .dashboard-stat-label {
+    font-size: 11px !important;
+  }
+  .dashboard-hero {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 12px !important;
+  }
+  .dashboard-hero .btn {
+    width: 100% !important;
+    justify-content: center !important;
   }
 
   /* Mobile Bottom Navigation Bar */

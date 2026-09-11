@@ -12,7 +12,7 @@ import { useSettingsStore } from '../store/useSettingsStore';
 import { useThemeStore } from '../store/useThemeStore';
 import { useToastStore } from '../store/useToastStore';
 import { useConfirmStore } from '../store/useConfirmStore';
-import { avatarInitials, sortMembersWithOwnerFirst, getTeamBadgeInfo } from '../utils';
+import { avatarInitials, sortMembersWithOwnerFirst, getTeamBadgeInfo, useIsMobile } from '../utils';
 import AvatarBorder from './ui/AvatarBorder';
 import BoardColorPicker from './ui/BoardColorPicker';
 import sidebarImg from '../assets/sidebar.png';
@@ -109,6 +109,7 @@ export default function Sidebar({
     [activeBoard?.members, activeBoard?.createdBy]
   );
 
+  const isMobile = useIsMobile(860);
   const [currentTime, setCurrentTime] = useState(new Date());
 
   useEffect(() => {
@@ -136,10 +137,10 @@ export default function Sidebar({
     hour12: true
   });
 
-  // ── Collapsed Sidebar ──
-  if (collapsed && !isMobileOpen) {
+  // ── Collapsed Sidebar (DESKTOP ONLY) ──
+  if (collapsed && !isMobile && !isMobileOpen) {
     return (
-      <aside className={`sidebar collapsed${isMobileOpen ? ' mobile-open' : ''}`}>
+      <aside className="sidebar collapsed">
         <div className="sidebar-header" style={{ justifyContent: 'center', height: 62, padding: '0 8px', flexDirection: 'column', gap: 4 }}>
           <img
             src={logoImg}

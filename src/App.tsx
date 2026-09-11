@@ -28,7 +28,7 @@ import { useThemeStore } from './store/useThemeStore';
 import { useToastStore } from './store/useToastStore';
 import { useSettingsStore } from './store/useSettingsStore';
 import { supabaseService } from './services/supabaseService';
-import { formatDueDate, uid } from './utils';
+import { formatDueDate, uid, useIsMobile } from './utils';
 import type { MemberRole } from './types';
 
 const CHECK_INTERVAL_MS = 10_000;
@@ -243,6 +243,7 @@ export default function App() {
   const initialRouting = useMemo(() => getInitialRouting(), []);
 
   // Page routing: dashboard (home) or board (active board view)
+  const isMobile = useIsMobile(860);
   const [page, setPage] = useState<'dashboard' | 'board'>(initialRouting.page);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -570,7 +571,7 @@ function saveAlertedSet(key: string, setObj: Set<string>) {
         aria-hidden="true"
       />
 
-      <div className={`app-window${sidebarCollapsed ? ' sidebar-collapsed-layout' : ''}`}>
+      <div className={`app-window${(!isMobile && sidebarCollapsed) ? ' sidebar-collapsed-layout' : ''}`}>
         <Sidebar
           page={page}
           activeView={viewMode}
@@ -584,7 +585,7 @@ function saveAlertedSet(key: string, setObj: Set<string>) {
           onCreateBoard={() => setShowCreateBoard(true)}
           onGoToDashboard={handleGoToDashboard}
           onSelectBoard={handleSelectBoard}
-          collapsed={sidebarCollapsed}
+          collapsed={!isMobile && sidebarCollapsed}
           onToggleCollapse={() => setSidebarCollapsed(c => !c)}
           isMobileOpen={mobileMenuOpen}
           onCloseMobile={() => setMobileMenuOpen(false)}
