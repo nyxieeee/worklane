@@ -1,15 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Calendar, MessageSquare, Paperclip,
   Square, CheckSquare,
   Lock, Smartphone, Settings, Code, Paintbrush,
-  Zap, BookOpen, Globe, Database, ShieldCheck, Layers
+  Zap, BookOpen, Globe, Database, ShieldCheck, Layers,
+  ArrowRightLeft
 } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { LABELS, type Card as CardType, type Member } from '../types';
-import { getDueStatus, formatDueDate, avatarInitials } from '../utils';
+import { getDueStatus, formatDueDate, avatarInitials, getColDotColor } from '../utils';
 import { useWorkStore } from '../store/useWorkStore';
 import { useSettingsStore } from '../store/useSettingsStore';
+import { useToastStore } from '../store/useToastStore';
 import AvatarBorder from './ui/AvatarBorder';
 
 interface Props {
@@ -72,10 +74,26 @@ export default function Card({
   card, cardIndex, colId, accentColor, isUrgent, isObserver,
   onClick, onToggleComplete, onDragStart, onDragEnd
 }: Props) {
-  const board        = useWorkStore(s => s.getActiveBoard());
+  const boards       = useWorkStore(s => s.boards);
+  const activeBoardId= useWorkStore(s => s.activeBoardId);
+  const board        = boards.find(b => b.id === activeBoardId) || null;
+  const moveCard     = useWorkStore(s => s.moveCard);
+  const undoLastMove = useWorkStore(s => s.undoLastMove);
+  const showToast    = useToastStore(s => s.showToast);
+
   const labelMode    = useSettingsStore(s => s.labelMode);
   const customLabels = useSettingsStore(s => s.customLabels);
   const [nowTick, setNowTick] = useState(() => Date.now());
+  const [showMoveMenu, setShowMoveMenu] = useState(false);
+  const [isTouchDragging, setIsTouchDragging] = useState(false);
+  const [touchDelta, setTouchDelta] = useState({ x: 0, y: 0 });
+
+  const touchTimerRef = useRef<number | null>(null);
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
+  const isDraggingActiveRef = useRef(false);
+  const wasDraggingRef = useRef(false);
+
+  const otherColumns = (board?.columns || []).filter(c => c.id !== colId);
 
   useEffect(() => {
     if (!card.dueDate || card.completed) return;
@@ -109,6 +127,105 @@ export default function Card({
   const priority  = getPriority(card);
   const icon      = getCardIcon(card);
 
+  // Touch Drag & Drop for Mobile Phones
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (isObserver) return;
+    const touch = e.touches[0];
+    touchStartRef.current = { x: touch.clientX, y: touch.clientY };
+    isDraggingActiveRef.current = false;
+    setTouchDelta({ x: 0, y: 0 });
+
+    touchTimerRef.current = window.setTimeout(() => {
+      isDraggingActiveRef.current = true;
+      setIsTouchDragging(true);
+      document.querySelector('.board-area')?.classList.add('touch-dragging-active');
+      if (navigator.vibrate) {
+        try { navigator.vibrate(35); } catch {}
+      }
+      onDragStart({
+        dataTransfer: { effectAllowed: 'move', setData: () => {} },
+        currentTarget: e.currentTarget
+      } as any);
+    }, 180);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (isObserver) return;
+    const touch = e.touches[0];
+    if (!isDraggingActiveRef.current) {
+      if (touchStartRef.current) {
+        const dx = Math.abs(touch.clientX - touchStartRef.current.x);
+        const dy = Math.abs(touch.clientY - touchStartRef.current.y);
+        if (dx > 8 || dy > 8) {
+          if (touchTimerRef.current) {
+            clearTimeout(touchTimerRef.current);
+            touchTimerRef.current = null;
+          }
+        }
+      }
+      return;
+    }
+
+    if (e.cancelable) e.preventDefault();
+
+    if (touchStartRef.current) {
+      setTouchDelta({
+        x: touch.clientX - touchStartRef.current.x,
+        y: touch.clientY - touchStartRef.current.y,
+      });
+    }
+
+    const el = document.elementFromPoint(touch.clientX, touch.clientY);
+    const targetCol = el?.closest('.column');
+    document.querySelectorAll('.column.drag-over').forEach(c => {
+      if (c !== targetCol) c.classList.remove('drag-over');
+    });
+    if (targetCol) {
+      targetCol.classList.add('drag-over');
+    }
+
+    const boardArea = document.querySelector('.board-area');
+    if (boardArea) {
+      if (touch.clientX < 70) {
+        boardArea.scrollBy({ left: -16, behavior: 'auto' });
+      } else if (touch.clientX > window.innerWidth - 70) {
+        boardArea.scrollBy({ left: 16, behavior: 'auto' });
+      }
+    }
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (touchTimerRef.current) {
+      clearTimeout(touchTimerRef.current);
+      touchTimerRef.current = null;
+    }
+
+    if (isDraggingActiveRef.current) {
+      wasDraggingRef.current = true;
+      setTimeout(() => { wasDraggingRef.current = false; }, 150);
+      isDraggingActiveRef.current = false;
+      setIsTouchDragging(false);
+      setTouchDelta({ x: 0, y: 0 });
+      document.querySelector('.board-area')?.classList.remove('touch-dragging-active');
+      document.querySelectorAll('.column.drag-over').forEach(c => c.classList.remove('drag-over'));
+
+      const touch = e.changedTouches[0];
+      const el = document.elementFromPoint(touch.clientX, touch.clientY);
+      const targetCol = el?.closest('.column');
+      const targetColId = targetCol?.getAttribute('data-col-id');
+
+      if (targetColId && targetColId !== colId) {
+        moveCard(card.id, colId, targetColId);
+        const targetColName = board?.columns.find(c => c.id === targetColId)?.name || 'another column';
+        showToast(`Moved to "${targetColName}"`, 'info', 4500, {
+          label: 'Undo',
+          onClick: undoLastMove,
+        });
+      }
+      onDragEnd();
+    }
+  };
+
   return (
     <motion.div
       layout
@@ -116,14 +233,29 @@ export default function Card({
       animate={{ opacity: 1, scale: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.82, y: 12, filter: 'blur(6px)', transition: { duration: 0.22 } }}
       transition={{ duration: 0.2 }}
-      className={`card ${card.completed ? 'completed' : ''}`}
+      className={`card ${card.completed ? 'completed' : ''}${isTouchDragging ? ' touch-dragging' : ''}`}
       data-card-id={card.id}
       draggable={!isObserver}
       onDragStart={(e: any) => (isObserver ? undefined : onDragStart(e))}
       onDragEnd={isObserver ? undefined : onDragEnd}
-      onClick={onClick}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+      onClick={(e) => {
+        if (wasDraggingRef.current) return;
+        onClick();
+      }}
       style={{
         cursor: isObserver ? 'pointer' : 'grab',
+        ...(isTouchDragging ? {
+          transform: `translate3d(${touchDelta.x}px, ${touchDelta.y}px, 0) scale(1.04) rotate(1.5deg)`,
+          opacity: 0.92,
+          boxShadow: '0 20px 40px rgba(0,0,0,0.5)',
+          zIndex: 9999,
+          pointerEvents: 'none',
+          transition: 'none',
+          border: '1.5px solid hsl(var(--primary))'
+        } : {})
       }}
     >
       {/* Cover Image Thumbnail */}
@@ -259,6 +391,95 @@ export default function Card({
               )}
             </div>
           )}
+          {/* Quick Move Popover Button */}
+          {!isObserver && otherColumns.length > 0 && (
+            <div style={{ position: 'relative' }}>
+              <button
+                type="button"
+                className="icon-btn"
+                style={{
+                  width: 22,
+                  height: 22,
+                  background: 'transparent',
+                  boxShadow: 'none',
+                  color: showMoveMenu ? 'hsl(var(--primary))' : 'hsl(var(--muted-foreground))',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: 0,
+                }}
+                title="Move card to column"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowMoveMenu(s => !s);
+                }}
+              >
+                <ArrowRightLeft size={13} />
+              </button>
+
+              <AnimatePresence>
+                {showMoveMenu && (
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.92, y: -4 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.92, y: -4 }}
+                    transition={{ duration: 0.12 }}
+                    style={{
+                      position: 'absolute',
+                      bottom: '100%',
+                      right: 0,
+                      marginBottom: 6,
+                      backgroundColor: 'hsl(var(--popover))',
+                      borderRadius: 'var(--radius)',
+                      boxShadow: 'var(--neu-shadow-floating)',
+                      border: '1px solid hsl(var(--border) / 0.8)',
+                      padding: 6,
+                      zIndex: 80,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 3,
+                      minWidth: 155,
+                    }}
+                    onClick={e => e.stopPropagation()}
+                  >
+                    <div style={{ fontSize: 10.5, fontWeight: 700, padding: '2px 8px 4px', color: 'hsl(var(--muted-foreground))', borderBottom: '1px solid hsl(var(--border) / 0.5)' }}>
+                      Move to column:
+                    </div>
+                    {otherColumns.map(c => (
+                      <button
+                        key={c.id}
+                        type="button"
+                        className="sidebar-nav-item"
+                        style={{
+                          width: '100%',
+                          fontSize: 12,
+                          padding: '5px 8px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 8,
+                          borderRadius: 6,
+                          textAlign: 'left'
+                        }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setShowMoveMenu(false);
+                          moveCard(card.id, colId, c.id);
+                          showToast(`Moved to "${c.name}"`, 'success', 4500, {
+                            label: 'Undo',
+                            onClick: undoLastMove
+                          });
+                        }}
+                      >
+                        <span style={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: getColDotColor(c.name), flexShrink: 0 }} />
+                        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.name}</span>
+                      </button>
+                    ))}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          )}
+
           <button
             style={{
               background: 'none',

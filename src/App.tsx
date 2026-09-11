@@ -44,6 +44,7 @@ export default function App() {
   const initializeAuth = useAuthStore(s => s.initializeAuth);
   const boards = useWorkStore(s => s.boards);
   const activeBoardId = useWorkStore(s => s.activeBoardId);
+  const currentBoard = useMemo(() => boards.find(b => b.id === activeBoardId) || boards[0] || null, [boards, activeBoardId]);
   const switchBoard = useWorkStore(s => s.switchBoard);
   const updateCard = useWorkStore(s => s.updateCard);
   const syncCurrentUserProfile = useWorkStore(s => s.syncCurrentUserProfile);
@@ -619,12 +620,14 @@ function saveAlertedSet(key: string, setObj: Set<string>) {
                   onCreateBoard={() => setShowCreateBoard(true)}
                   onOpenCard={handleOpenCard}
                 />
-                <InboxDrawer
-                  isOpen={showInbox}
-                  onClose={() => setShowInbox(false)}
-                  board={useWorkStore.getState().getActiveBoard() || useWorkStore.getState().boards[0] || null}
-                  onOpenCard={cardId => handleOpenCard(cardId)}
-                />
+                {!isMobile && (
+                  <InboxDrawer
+                    isOpen={showInbox}
+                    onClose={() => setShowInbox(false)}
+                    board={currentBoard}
+                    onOpenCard={cardId => handleOpenCard(cardId)}
+                  />
+                )}
               </motion.div>
             ) : (
               <motion.div
@@ -727,6 +730,17 @@ function saveAlertedSet(key: string, setObj: Set<string>) {
           }
         }}
       />
+
+      {/* Global Off-canvas Overlay Inbox Drawer (Mobile) */}
+      {isMobile && (
+        <InboxDrawer
+          isOpen={showInbox}
+          onClose={() => setShowInbox(false)}
+          board={currentBoard}
+          onOpenCard={cardId => handleOpenCard(cardId)}
+          docked={false}
+        />
+      )}
 
       {/* Mobile Quick Bottom Navigation Bar */}
       <nav className="mobile-bottom-nav" aria-label="Quick Mobile Navigation">

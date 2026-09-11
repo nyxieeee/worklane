@@ -9,7 +9,7 @@ import { useToastStore } from '../store/useToastStore';
 import { useAuthStore } from '../store/useAuthStore';
 import Column from './Column';
 import { InboxDrawer } from './InboxDrawer';
-import { formatDueDate, avatarInitials } from '../utils';
+import { formatDueDate, avatarInitials, useIsMobile } from '../utils';
 import { LABELS, type Member, type Card, type Column as ColumnType } from '../types';
 import { sortColumnsByWorkflow } from '../store/useWorkStore';
 
@@ -67,6 +67,7 @@ export default function BoardArea({
   const toggleCardComplete = useWorkStore(s => s.toggleCardComplete);
   const showToast          = useToastStore(s => s.showToast);
   const currentUser        = useAuthStore(s => s.user);
+  const isMobile           = useIsMobile(860);
 
   const [dragState, setDragState] = useState<DragState | null>(null);
   const [internalShowInbox, setInternalShowInbox] = useState(false);
@@ -158,20 +159,19 @@ export default function BoardArea({
   }
 
   // Sort columns by fixed workflow order (Urgent first)
-  const sortedColumns = sortColumnsByWorkflow(board.columns);
+  const sortedColumns = sortColumnsByWorkflow(board.columns || []);
 
   // Filter columns and cards if filterMemberId is active
   const filteredColumns = sortedColumns.map(col => ({
     ...col,
     cards: filterMemberId
-      ? col.cards.filter(c => (c.assignees || []).includes(filterMemberId))
-      : col.cards
+      ? (col.cards || []).filter(c => (c.assignees || []).includes(filterMemberId))
+      : (col.cards || [])
   }));
 
-  // Compute which column is the "next" for a dragged card
-  const getNextColId = (fromColId: string | null): string | null => {
-    if (!fromColId) return null;
-    const idx = sortedColumns.findIndex(c => c.id === fromColId);
+  // Determine next column in workflow for quick "Move to Next"
+  const getNextColId = (currentColId: string): string | null => {
+    const idx = sortedColumns.findIndex(c => c.id === currentColId);
     if (idx === -1 || idx >= sortedColumns.length - 1) return null;
     return sortedColumns[idx + 1].id;
   };
@@ -192,7 +192,7 @@ export default function BoardArea({
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          padding: '8px 18px',
+          padding: isMobile ? '6px 12px' : '8px 18px',
           background: 'hsl(var(--card) / 0.6)',
           backdropFilter: 'blur(10px)',
           borderBottom: '1px solid hsl(var(--border) / 0.5)',
@@ -236,41 +236,41 @@ export default function BoardArea({
             )}
           </motion.button>
 
-          {/* Observer Role Indicator */}
-          {isObserver && (
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 5,
-                padding: '4px 10px',
-                borderRadius: 8,
-                background: 'hsl(38 92% 50% / 0.15)',
-                color: '#d97706',
-                border: '1px solid hsl(38 92% 50% / 0.3)',
-                fontSize: 11.5,
-                fontWeight: 600,
-              }}
-            >
-              <Eye size={13} />
-              <span>Observer Mode (View Only)</span>
+            {/* Observer Role Indicator */}
+            {isObserver && (
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 5,
+                  padding: '4px 10px',
+                  borderRadius: 8,
+                  background: 'hsl(38 92% 50% / 0.15)',
+                  color: '#d97706',
+                  border: '1px solid hsl(38 92% 50% / 0.3)',
+                  fontSize: 11.5,
+                  fontWeight: 600,
+                }}
+              >
+                <Eye size={13} />
+                <span>Observer Mode (View Only)</span>
+              </div>
+            )}
+          </div>
+
+          {/* Filter Info if active */}
+          {activeMember && (
+            <div className="board-filter-banner" style={{ margin: 0, padding: '4px 10px' }}>
+              <div className="board-filter-left">
+                <Filter size={12} color="hsl(var(--primary))" />
+                <span style={{ fontSize: 12 }}>Showing tasks for <strong>{activeMember.name}</strong></span>
+              </div>
+              <button onClick={onClearFilter} className="filter-clear-btn-pill" style={{ padding: '2px 8px', fontSize: 11 }}>
+                <X size={11} /> Clear
+              </button>
             </div>
           )}
         </div>
-
-        {/* Filter Info if active */}
-        {activeMember && (
-          <div className="board-filter-banner" style={{ margin: 0, padding: '4px 10px' }}>
-            <div className="board-filter-left">
-              <Filter size={12} color="hsl(var(--primary))" />
-              <span style={{ fontSize: 12 }}>Showing tasks for <strong>{activeMember.name}</strong></span>
-            </div>
-            <button onClick={onClearFilter} className="filter-clear-btn-pill" style={{ padding: '2px 8px', fontSize: 11 }}>
-              <X size={11} /> Clear
-            </button>
-          </div>
-        )}
-      </div>
 
       <AnimatePresence mode="wait">
         {viewMode === 'list' && (
@@ -578,21 +578,23 @@ export default function BoardArea({
             className="board-area"
             style={{ transformStyle: 'preserve-3d' }}
           >
-            {/* Docked Inbox Drawer - sits as first column, shifting all columns to the right */}
-            <InboxDrawer
-              isOpen={showInbox}
-              onClose={() => controlledToggleInbox ? controlledToggleInbox() : setInternalShowInbox(false)}
-              board={board}
-              onOpenCard={onOpenCard}
-              onDragStart={(e, cardId) => {
-                if (isObserver) return;
-                setDragState({ cardId, fromColId: 'inbox', fromInbox: true });
-                e.dataTransfer.effectAllowed = 'move';
-              }}
-              onDragEnd={() => setDragState(null)}
-              dragState={dragState}
-              docked={true}
-            />
+            {/* Docked Inbox Drawer - sits as first column, shifting all columns to the right (Desktop only) */}
+            {!isMobile && (
+              <InboxDrawer
+                isOpen={showInbox}
+                onClose={() => controlledToggleInbox ? controlledToggleInbox() : setInternalShowInbox(false)}
+                board={board}
+                onOpenCard={onOpenCard}
+                onDragStart={(e, cardId) => {
+                  if (isObserver) return;
+                  setDragState({ cardId, fromColId: 'inbox', fromInbox: true });
+                  e.dataTransfer.effectAllowed = 'move';
+                }}
+                onDragEnd={() => setDragState(null)}
+                dragState={dragState}
+                docked={true}
+              />
+            )}
 
             {filteredColumns.map((col, idx) => (
               <motion.div

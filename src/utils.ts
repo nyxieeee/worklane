@@ -325,4 +325,15 @@ export function useIsMobile(breakpoint = 860): boolean {
   return isMobile;
 }
 
+export function getColDotColor(name: string): string {
+  const n = (name || '').toLowerCase();
+  if (n.includes('done') || n.includes('complete'))             return '#10b981';
+  if (n.includes('urgent') || n.includes('critical'))           return '#ef4444';
+  if (n.includes('progress') || n.includes('active') || n.includes('doing')) return '#3b82f6';
+  if (n.includes('review') || n.includes('qa') || n.includes('testing'))     return '#f59e0b';
+  if (n.includes('todo') || n.includes('to do') || n.includes('backlog'))    return '#8b5cf6';
+  return '#64748b';
+}
+
+
 

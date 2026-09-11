@@ -8,7 +8,7 @@ import { Card as CardType, Board, LABELS } from '../types';
 import { useWorkStore } from '../store/useWorkStore';
 import { useToastStore } from '../store/useToastStore';
 import { useConfirmStore } from '../store/useConfirmStore';
-import { formatDueDate } from '../utils';
+import { formatDueDate, useIsMobile } from '../utils';
 
 interface Props {
   isOpen: boolean;
@@ -31,6 +31,9 @@ export function InboxDrawer({
   dragState,
   docked = false,
 }: Props) {
+  const isMobile = useIsMobile(860);
+  const isDocked = docked && !isMobile;
+
   const [newTitle, setNewTitle] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [isHoveredDrop, setIsHoveredDrop] = useState(false);
@@ -49,15 +52,41 @@ export function InboxDrawer({
     const q = searchQuery.toLowerCase();
     return (
       c.title.toLowerCase().includes(q) ||
-      (c.description || '').toLowerCase().includes(q)
+      (c.description && c.description.toLowerCase().includes(q))
     );
   });
+
+  // Drag over inbox panel
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    if (dragState && !dragState.fromInbox) {
+      setIsHoveredDrop(true);
+      e.dataTransfer.dropEffect = 'move';
+    }
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    // Only clear if leaving the panel entirely
+    if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+      setIsHoveredDrop(false);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsHoveredDrop(false);
+    if (!dragState || dragState.fromInbox || !board) return;
+
+    moveColumnCardToInbox(dragState.cardId, dragState.fromColId);
+    showToast('Moved card to Inbox', 'info');
+  };
 
   const handleAddCard = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTitle.trim() || !board) return;
     addInboxCard(newTitle.trim(), board.id);
     setNewTitle('');
+    showToast('Employee request added to Inbox', 'success');
   };
 
   const handleDeleteCard = (e: React.MouseEvent, card: CardType) => {
@@ -75,23 +104,10 @@ export function InboxDrawer({
     });
   };
 
-  const handleDragOver = (e: React.DragEvent) => {
-    if (!dragState || dragState.fromInbox) return;
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-    setIsHoveredDrop(true);
-  };
-
-  const handleDragLeave = () => {
-    setIsHoveredDrop(false);
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsHoveredDrop(false);
-    if (!dragState || dragState.fromInbox) return;
-    moveColumnCardToInbox(dragState.cardId, dragState.fromColId);
-    onDragEnd?.();
+  const handleQuickMove = (card: CardType) => {
+    if (!board || !defaultTargetCol) return;
+    moveInboxCardToColumn(card.id, defaultTargetCol.id);
+    showToast(`Prioritized to "${defaultTargetCol.name}"`, 'success');
   };
 
   // Find first non-done column for quick move button
@@ -101,70 +117,115 @@ export function InboxDrawer({
 
   return (
     <AnimatePresence>
+      {isOpen && isMobile && (
+        <motion.div
+          key="inbox-backdrop"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          onClick={onClose}
+          className="inbox-backdrop"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(10, 14, 22, 0.65)',
+            backdropFilter: 'blur(4px)',
+            WebkitBackdropFilter: 'blur(4px)',
+            zIndex: 140,
+          }}
+        />
+      )}
       {isOpen && (
         <motion.aside
+          key="inbox-drawer-panel"
           initial={
-            docked
-              ? { width: 0, opacity: 0, rotateY: -18, translateZ: -35, scale: 0.94 }
-              : { x: -340, opacity: 0, rotateY: -15 }
-          }
-          animate={
-            docked
-              ? { width: 320, opacity: 1, rotateY: 0, translateZ: 0, scale: 1 }
-              : { x: 0, opacity: 1, rotateY: 0 }
-          }
-          exit={
-            docked
-              ? { width: 0, opacity: 0, rotateY: -18, translateZ: -35, scale: 0.94 }
-              : { x: -340, opacity: 0, rotateY: -15 }
-          }
-          transition={{
-            type: 'spring',
-            damping: 24,
-            stiffness: 220,
-            mass: 0.85,
-          }}
-          className={`inbox-drawer-panel ${docked ? 'inbox-docked' : ''}`}
-          style={docked ? {
-            position: 'relative',
-            width: 'min(320px, calc(100vw - 24px))',
-            minWidth: 0,
-            height: '100%',
-            flexShrink: 0,
-            display: 'flex',
-            flexDirection: 'column',
-            backgroundColor: 'hsl(var(--card))',
-            border: '1.5px solid hsl(var(--primary) / 0.35)',
-            borderRadius: 14,
-            boxShadow: 'var(--neu-shadow-raised)',
-            overflow: 'hidden',
-            transformOrigin: 'left center',
-            transformStyle: 'preserve-3d',
-            perspective: 1200,
-          } : {
-            position: 'absolute',
-            top: 16,
-            left: 16,
-            bottom: 16,
-            width: 'min(320px, calc(100vw - 32px))',
-            maxWidth: 'calc(100vw - 32px)',
-            zIndex: 40,
-            display: 'flex',
-            flexDirection: 'column',
-            background: 'hsl(var(--card) / 0.92)',
-            backdropFilter: 'blur(16px)',
-            WebkitBackdropFilter: 'blur(16px)',
-            border: '1px solid hsl(var(--border) / 0.8)',
-            borderRadius: 16,
-            boxShadow: '0 20px 40px -15px rgba(0,0,0,0.35), 0 0 0 1px hsl(var(--border) / 0.4)',
-            overflow: 'hidden',
-            transformOrigin: 'left center',
-            transformStyle: 'preserve-3d',
-          }}
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
-        >
+              isMobile
+                ? { x: '-100%' }
+                : isDocked
+                ? { width: 0, opacity: 0, rotateY: -18, translateZ: -35, scale: 0.94 }
+                : { x: -340, opacity: 0, rotateY: -15 }
+            }
+            animate={
+              isMobile
+                ? { x: 0 }
+                : isDocked
+                ? { width: 320, opacity: 1, rotateY: 0, translateZ: 0, scale: 1 }
+                : { x: 0, opacity: 1, rotateY: 0 }
+            }
+            exit={
+              isMobile
+                ? { x: '-100%' }
+                : isDocked
+                ? { width: 0, opacity: 0, rotateY: -18, translateZ: -35, scale: 0.94 }
+                : { x: -340, opacity: 0, rotateY: -15 }
+            }
+            transition={{
+              type: 'spring',
+              damping: 25,
+              stiffness: 240,
+              mass: 0.85,
+            }}
+            className={`inbox-drawer-panel ${isDocked ? 'inbox-docked' : ''}`}
+            style={
+              isMobile ? {
+                position: 'fixed',
+                top: 0,
+                left: 0,
+                bottom: 0,
+                width: 'min(320px, 86vw)',
+                maxWidth: '86vw',
+                height: '100dvh',
+                zIndex: 150,
+                paddingTop: 'max(8px, var(--sat))',
+                paddingBottom: 'max(14px, var(--sab))',
+                display: 'flex',
+                flexDirection: 'column',
+                backgroundColor: 'hsl(var(--card))',
+                boxShadow: '10px 0 35px rgba(0, 0, 0, 0.45)',
+                borderRight: '1px solid hsl(var(--border) / 0.6)',
+                borderRadius: 0,
+                overflow: 'hidden',
+              } : (isDocked ? {
+                position: 'relative',
+                width: 320,
+                minWidth: 0,
+                height: '100%',
+                flexShrink: 0,
+                display: 'flex',
+                flexDirection: 'column',
+                backgroundColor: 'hsl(var(--card))',
+                border: '1.5px solid hsl(var(--primary) / 0.35)',
+                borderRadius: 14,
+                boxShadow: 'var(--neu-shadow-raised)',
+                overflow: 'hidden',
+                transformOrigin: 'left center',
+                transformStyle: 'preserve-3d',
+                perspective: 1200,
+              } : {
+                position: 'absolute',
+                top: 16,
+                left: 16,
+                bottom: 16,
+                width: 'min(320px, calc(100vw - 32px))',
+                maxWidth: 'calc(100vw - 32px)',
+                zIndex: 40,
+                display: 'flex',
+                flexDirection: 'column',
+                background: 'hsl(var(--card) / 0.92)',
+                backdropFilter: 'blur(16px)',
+                WebkitBackdropFilter: 'blur(16px)',
+                border: '1px solid hsl(var(--border) / 0.8)',
+                borderRadius: 16,
+                boxShadow: '0 20px 40px -15px rgba(0,0,0,0.35), 0 0 0 1px hsl(var(--border) / 0.4)',
+                overflow: 'hidden',
+                transformOrigin: 'left center',
+                transformStyle: 'preserve-3d',
+              })
+            }
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+          >
           <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
             {/* Header */}
             <div
@@ -226,7 +287,7 @@ export function InboxDrawer({
               }}
               title="Close Inbox"
             >
-              <ChevronLeft size={18} />
+              <X size={18} />
             </button>
           </div>
 

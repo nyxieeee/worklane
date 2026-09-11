@@ -5,7 +5,7 @@ import {
   Eye, Image as ImageIcon, Maximize2, AtSign, Reply, Sparkles,
   FileSpreadsheet, FileText, FileCode, FileArchive, File, Lock,
   Edit3, Crown, Shield, Save, Loader2, Globe, Server, Cpu, Briefcase,
-  Link2, ExternalLink
+  Link2, ExternalLink, ArrowRightLeft
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useWorkStore } from '../store/useWorkStore';
@@ -52,6 +52,8 @@ export default function CardModal({ cardId, boardId, onClose }: Props) {
   const boards = useWorkStore(s => s.boards);
   const updateCard = useWorkStore(s => s.updateCard);
   const deleteCard = useWorkStore(s => s.deleteCard);
+  const moveCard = useWorkStore(s => s.moveCard);
+  const moveInboxCardToColumn = useWorkStore(s => s.moveInboxCardToColumn);
   const toggleCardComplete = useWorkStore(s => s.toggleCardComplete);
   const toggleCardLabel = useWorkStore(s => s.toggleCardLabel);
   const toggleCardAssignee = useWorkStore(s => s.toggleCardAssignee);
@@ -993,11 +995,54 @@ export default function CardModal({ cardId, boardId, onClose }: Props) {
         )}
 
         {/* Header */}
-        <div className="modal-header">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div className="modal-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             <span style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>
-              in column: {column?.name || 'Inbox'}
+              in column:
             </span>
+            <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
+              <select
+                aria-label="Move card to column"
+                value={isInbox ? 'inbox' : (column?.id || '')}
+                onChange={(e) => {
+                  const targetColId = e.target.value;
+                  if (!targetColId) return;
+                  if (isInbox && targetColId !== 'inbox') {
+                    moveInboxCardToColumn(card.id, targetColId);
+                    const targetName = board.columns.find(c => c.id === targetColId)?.name || 'column';
+                    showToast(`Moved to "${targetName}"`, 'success');
+                  } else if (column && targetColId !== column.id && targetColId !== 'inbox') {
+                    moveCard(card.id, column.id, targetColId);
+                    const targetName = board.columns.find(c => c.id === targetColId)?.name || 'column';
+                    showToast(`Moved to "${targetName}"`, 'success');
+                  }
+                }}
+                style={{
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: 'hsl(var(--foreground))',
+                  backgroundColor: 'hsl(var(--secondary))',
+                  border: '1px solid hsl(var(--border))',
+                  borderRadius: 6,
+                  padding: '3px 22px 3px 8px',
+                  outline: 'none',
+                  cursor: 'pointer',
+                  appearance: 'none',
+                  WebkitAppearance: 'none',
+                  boxShadow: 'var(--neu-shadow-raised-sm)',
+                }}
+              >
+                {isInbox && <option value="inbox">📥 Inbox</option>}
+                {board.columns.map(c => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+              <div style={{ position: 'absolute', right: 6, pointerEvents: 'none', color: 'hsl(var(--muted-foreground))', display: 'flex', alignItems: 'center' }}>
+                <ArrowRightLeft size={11} />
+              </div>
+            </div>
           </div>
           {!coverAttachment && (
             <motion.button whileTap={{ scale: 0.92 }} className="icon-btn" onClick={handleSafeClose}>

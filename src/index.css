@@ -755,6 +755,19 @@ html, body, #root {
   border-radius: 10px;
 }
 
+.column.drag-over {
+  outline: 2.5px dashed hsl(var(--primary)) !important;
+  outline-offset: -2px !important;
+  background-color: hsl(var(--primary) / 0.08) !important;
+  box-shadow: 0 0 20px hsl(var(--primary) / 0.22) !important;
+  transition: outline 0.15s ease, background-color 0.15s ease;
+}
+
+.board-area.touch-dragging-active {
+  scroll-snap-type: none !important;
+  scroll-behavior: auto !important;
+}
+
 .add-column-btn {
   flex-shrink: 0;
   width: 250px;
@@ -812,6 +825,14 @@ html, body, #root {
 .card.dragging {
   opacity: 0.5;
   box-shadow: var(--neu-shadow-floating);
+}
+
+.card.touch-dragging {
+  cursor: grabbing !important;
+  user-select: none !important;
+  -webkit-user-select: none !important;
+  touch-action: none !important;
+  pointer-events: none !important;
 }
 
 .card.completed {
@@ -1571,25 +1592,28 @@ html, body, #root {
 
   /* Kanban Board Touch Momentum & Snap Scrolling */
   .board-area {
-    padding: 12px 12px calc(14px + var(--sab)) 12px;
+    padding: 12px 14px calc(14px + var(--sab)) 14px;
     gap: 12px;
     scroll-snap-type: x mandatory;
+    scroll-padding-left: 14px;
     -webkit-overflow-scrolling: touch;
     overscroll-behavior-x: contain;
   }
 
   .column {
-    width: calc(100vw - 44px);
-    max-width: 320px;
+    width: calc(100vw - 42px);
+    max-width: 340px;
     min-width: 260px;
-    scroll-snap-align: center;
+    scroll-snap-align: start;
+    scroll-snap-stop: always;
   }
 
   .add-column-btn {
-    width: calc(100vw - 44px);
-    max-width: 280px;
+    width: calc(100vw - 42px);
+    max-width: 300px;
     min-width: 220px;
-    scroll-snap-align: center;
+    scroll-snap-align: start;
+    scroll-snap-stop: always;
   }
 
   /* Dashboard View on Mobile */
@@ -1760,13 +1784,16 @@ html, body, #root {
 /* ── Flip Phones & Ultra-Narrow Displays (<= 380px down to 280px) ── */
 @media (max-width: 380px) {
   .board-area {
-    padding: 8px 6px calc(10px + var(--sab)) 6px !important;
+    padding: 8px 10px calc(10px + var(--sab)) 10px !important;
     gap: 8px !important;
+    scroll-padding-left: 10px !important;
   }
 
   .column {
-    width: calc(100vw - 16px) !important;
+    width: calc(100vw - 24px) !important;
     min-width: 240px !important;
+    scroll-snap-align: start !important;
+    scroll-snap-stop: always;
   }
 
   .column-header {
