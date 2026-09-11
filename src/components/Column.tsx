@@ -130,15 +130,6 @@ export default function Column({ col, colIndex, dragState, setDragState, onOpenC
         </div>
         {!isObserver && (
           <div className="column-actions">
-            <motion.button
-              whileTap={{ scale: 0.9 }}
-              className="icon-btn"
-              style={{ width: 24, height: 24 }}
-              title="Add card"
-              onClick={() => setShowAddCard(true)}
-            >
-              <Plus size={14} />
-            </motion.button>
             <div style={{ position: 'relative' }} ref={menuRef}>
               <motion.button
                 whileTap={{ scale: 0.9 }}
