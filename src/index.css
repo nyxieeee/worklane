@@ -1263,12 +1263,35 @@ html, body, #root {
 
 .modal-body {
   padding: 20px;
-  overflow-y: auto;
+  overflow-y: auto !important;
   overflow-x: hidden;
-  flex: 1;
+  flex: 1 1 auto;
+  min-height: 0 !important;
   display: flex;
   flex-direction: column;
   gap: 14px;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--muted-foreground) / 0.35) transparent;
+}
+
+.modal-body::-webkit-scrollbar {
+  width: 6px;
+}
+.modal-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+.modal-body::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted-foreground) / 0.3);
+  border-radius: 9999px;
+}
+.modal-body::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground) / 0.55);
+}
+
+.card-modal-grid {
+  overflow-y: auto !important;
+  min-height: 0 !important;
 }
 
 @media (max-width: 860px) {

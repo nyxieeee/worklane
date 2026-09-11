@@ -1052,9 +1052,23 @@ export default function CardModal({ cardId, boardId, onClose }: Props) {
         </div>
 
         {/* Modal Body: 2 Columns */}
-        <div className="modal-body card-modal-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 310px', gap: 28, padding: '20px 28px 28px 28px', overflowX: 'hidden', width: '100%', boxSizing: 'border-box' }}>
+        <div
+          className="modal-body card-modal-grid"
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'minmax(0, 1fr) 310px',
+            gap: 28,
+            padding: '20px 28px 28px 28px',
+            overflowX: 'hidden',
+            overflowY: 'auto',
+            minHeight: 0,
+            flex: 1,
+            width: '100%',
+            boxSizing: 'border-box'
+          }}
+        >
           {/* Main Area */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 20, minWidth: 0, width: '100%', overflow: 'hidden' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 20, minWidth: 0, width: '100%', overflow: 'visible' }}>
             {/* Title Field */}
             <div className="form-group" style={{ margin: 0 }}>
               <label className="field-label" style={{ display: 'flex', alignItems: 'center', gap: 6, margin: '0 0 6px 0' }}>
@@ -1527,10 +1541,59 @@ export default function CardModal({ cardId, boardId, onClose }: Props) {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 12 }}>
                   {(() => {
                     const allComments = card.comments || [];
-                    const rootComments = allComments.filter(c => !c.parentId);
+                    const commentMap = new Map<string, (typeof allComments)[0]>();
+                    allComments.forEach(cm => {
+                      if (cm?.id) commentMap.set(cm.id, cm);
+                    });
+
+                    // Determine if a comment is truly a child reply to an existing comment in this card
+                    const isChildReply = (cm: (typeof allComments)[0]): boolean => {
+                      if (!cm?.parentId) return false;
+                      const pid = String(cm.parentId).trim();
+                      if (pid === '' || pid === 'null' || pid === 'undefined') return false;
+                      if (pid === cm.id) return false;
+                      // Must point to an existing comment in this card
+                      return commentMap.has(pid);
+                    };
+
+                    // Trace the root ancestor of any reply
+                    const findRootId = (cm: (typeof allComments)[0]): string => {
+                      let curr = cm;
+                      const seen = new Set<string>([curr.id]);
+                      while (isChildReply(curr)) {
+                        const pid = String(curr.parentId).trim();
+                        const parent = commentMap.get(pid);
+                        if (!parent || seen.has(parent.id)) break;
+                        seen.add(parent.id);
+                        curr = parent;
+                      }
+                      return curr.id;
+                    };
+
+                    // Root comments are comments that are NOT child replies of an existing comment
+                    const rootComments = allComments.filter(cm => !isChildReply(cm));
+
+                    // Group all replies under their root ancestor
+                    const repliesByRoot = new Map<string, (typeof allComments)[0][]>();
+                    rootComments.forEach(r => repliesByRoot.set(r.id, []));
+
+                    allComments.forEach(cm => {
+                      if (isChildReply(cm)) {
+                        const rootId = findRootId(cm);
+                        if (!repliesByRoot.has(rootId)) {
+                          repliesByRoot.set(rootId, []);
+                        }
+                        repliesByRoot.get(rootId)!.push(cm);
+                      }
+                    });
+
+                    // Sort replies chronologically
+                    repliesByRoot.forEach(replies => {
+                      replies.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+                    });
 
                     return rootComments.map(c => {
-                      const childReplies = allComments.filter(r => r.parentId === c.id);
+                      const childReplies = repliesByRoot.get(c.id) || [];
 
                       return (
                         <div key={c.id} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
