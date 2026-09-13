@@ -43,6 +43,15 @@ const item3DVariants: Variants = {
   }
 };
 
+const itemMobileVariants: Variants = {
+  hidden: { opacity: 0, y: 8 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.22, ease: 'easeOut' }
+  }
+};
+
 type TaskFilter = 'all' | 'assigned' | 'dueSoon' | 'urgent' | 'completed';
 
 export default function Dashboard({ onSelectBoard, onCreateBoard, onOpenCard }: Props) {
@@ -174,7 +183,7 @@ export default function Dashboard({ onSelectBoard, onCreateBoard, onOpenCard }: 
       style={isMobile ? { overflowX: 'hidden' } : { perspective: 1200 }}
     >
       {/* Header Greeting & Overview Hero */}
-      <motion.div variants={item3DVariants} className="dashboard-hero">
+      <motion.div variants={isMobile ? itemMobileVariants : item3DVariants} className="dashboard-hero">
         <div>
           <h1 className="dashboard-greeting">
             {getHourGreeting()}, {firstName}
@@ -195,7 +204,7 @@ export default function Dashboard({ onSelectBoard, onCreateBoard, onOpenCard }: 
       </motion.div>
 
       {/* 4-Metric Overview Cards Row */}
-      <motion.div variants={item3DVariants} className="dashboard-stats-row">
+      <motion.div variants={isMobile ? itemMobileVariants : item3DVariants} className="dashboard-stats-row">
         <Tilt3D maxTilt={8} scale={1.02}>
           <div className="dashboard-stat-card">
             <div className="dashboard-stat-icon">
@@ -253,11 +262,11 @@ export default function Dashboard({ onSelectBoard, onCreateBoard, onOpenCard }: 
       </motion.div>
 
       {/* Main Two-Column Content Area */}
-      <div className="dashboard-layout-grid">
+      <div className="dashboard-layout-grid" style={{ width: '100%', minWidth: 0 }}>
         {/* Left Column: Boards + My Tasks */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 24, width: '100%', minWidth: 0 }}>
           {/* Boards Section */}
-          <motion.div variants={item3DVariants} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <motion.div variants={isMobile ? itemMobileVariants : item3DVariants} style={{ display: 'flex', flexDirection: 'column', gap: 14, width: '100%', minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <KanbanSquare size={16} color="hsl(var(--primary))" />
@@ -289,7 +298,7 @@ export default function Dashboard({ onSelectBoard, onCreateBoard, onOpenCard }: 
                 </motion.button>
               </div>
             ) : (
-              <div className="dashboard-boards-grid">
+              <div className="dashboard-boards-grid" style={{ width: '100%', minWidth: 0 }}>
                 {boards.map(board => {
                   const totalCards  = board.columns.reduce((s, c) => s + c.cards.length, 0);
                   const doneCards   = board.columns.reduce((s, c) => s + c.cards.filter(card => card.completed).length, 0);
@@ -299,7 +308,7 @@ export default function Dashboard({ onSelectBoard, onCreateBoard, onOpenCard }: 
                   return (
                     <motion.div
                       key={board.id}
-                      whileHover={colorPickerBoardId === board.id ? undefined : { scale: 1.02, y: -2 }}
+                      whileHover={isMobile || colorPickerBoardId === board.id ? undefined : { scale: 1.02, y: -2 }}
                       whileTap={colorPickerBoardId === board.id ? undefined : { scale: 0.98 }}
                       transition={{ duration: 0.15 }}
                       className="dashboard-board-card"
@@ -307,10 +316,13 @@ export default function Dashboard({ onSelectBoard, onCreateBoard, onOpenCard }: 
                         cursor: 'pointer',
                         position: 'relative',
                         zIndex: colorPickerBoardId === board.id ? 40 : 1,
+                        width: '100%',
+                        minWidth: 0,
+                        boxSizing: 'border-box',
                       }}
                       onClick={() => onSelectBoard(board.id)}
                     >
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, width: '100%', minWidth: 0 }}>
                         {editingBoardId === board.id ? (
                           <div
                             style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1 }}
@@ -364,11 +376,14 @@ export default function Dashboard({ onSelectBoard, onCreateBoard, onOpenCard }: 
                             </motion.button>
                           </div>
                         ) : (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flex: 1, overflow: 'hidden' }}>
                             <div
                               style={{
                                 width: 12,
                                 height: 12,
+                                minWidth: 12,
+                                minHeight: 12,
+                                flexShrink: 0,
                                 borderRadius: '50%',
                                 backgroundColor: board.color,
                                 boxShadow: 'var(--neu-shadow-raised-sm)',
@@ -380,13 +395,24 @@ export default function Dashboard({ onSelectBoard, onCreateBoard, onOpenCard }: 
                                 setColorPickerBoardId(colorPickerBoardId === board.id ? null : board.id);
                               } : undefined}
                             />
-                            <span style={{ fontSize: 14, fontWeight: 700, color: 'hsl(var(--foreground))' }}>
+                            <span
+                              style={{
+                                fontSize: 14,
+                                fontWeight: 700,
+                                color: 'hsl(var(--foreground))',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                                minWidth: 0,
+                              }}
+                              title={board.name}
+                            >
                               {board.name}
                             </span>
                           </div>
                         )}
                         <div
-                          style={{ display: 'flex', alignItems: 'center', gap: 6, position: 'relative', zIndex: 20 }}
+                          style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 3 : 6, flexShrink: 0, position: 'relative', zIndex: 20 }}
                           onClick={e => e.stopPropagation()}
                         >
                           {/* Color & Rename board */}
@@ -396,7 +422,7 @@ export default function Dashboard({ onSelectBoard, onCreateBoard, onOpenCard }: 
                                 type="button"
                                 whileTap={{ scale: 0.88 }}
                                 className="icon-btn"
-                                style={{ width: 28, height: 28, minWidth: 28, minHeight: 28, cursor: 'pointer' }}
+                                style={{ width: isMobile ? 26 : 28, height: isMobile ? 26 : 28, minWidth: isMobile ? 26 : 28, minHeight: isMobile ? 26 : 28, cursor: 'pointer' }}
                                 title="Change board color"
                                 onClick={(e) => {
                                   e.stopPropagation();
@@ -409,7 +435,7 @@ export default function Dashboard({ onSelectBoard, onCreateBoard, onOpenCard }: 
                                 type="button"
                                 whileTap={{ scale: 0.88 }}
                                 className="icon-btn"
-                                style={{ width: 28, height: 28, minWidth: 28, minHeight: 28, cursor: 'pointer' }}
+                                style={{ width: isMobile ? 26 : 28, height: isMobile ? 26 : 28, minWidth: isMobile ? 26 : 28, minHeight: isMobile ? 26 : 28, cursor: 'pointer' }}
                                 title="Rename board"
                                 onClick={(e) => {
                                   e.stopPropagation();
@@ -439,7 +465,7 @@ export default function Dashboard({ onSelectBoard, onCreateBoard, onOpenCard }: 
                               type="button"
                               whileTap={{ scale: 0.88 }}
                               className="icon-btn"
-                              style={{ width: 28, height: 28, minWidth: 28, minHeight: 28, color: 'hsl(var(--destructive))', cursor: 'pointer' }}
+                              style={{ width: isMobile ? 26 : 28, height: isMobile ? 26 : 28, minWidth: isMobile ? 26 : 28, minHeight: isMobile ? 26 : 28, color: 'hsl(var(--destructive))', cursor: 'pointer' }}
                               title="Delete board"
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -463,7 +489,7 @@ export default function Dashboard({ onSelectBoard, onCreateBoard, onOpenCard }: 
                               type="button"
                               whileTap={{ scale: 0.88 }}
                               className="icon-btn"
-                              style={{ width: 28, height: 28, minWidth: 28, minHeight: 28, color: 'hsl(var(--destructive))', cursor: 'pointer' }}
+                              style={{ width: isMobile ? 26 : 28, height: isMobile ? 26 : 28, minWidth: isMobile ? 26 : 28, minHeight: isMobile ? 26 : 28, color: 'hsl(var(--destructive))', cursor: 'pointer' }}
                               title="Leave board"
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -491,7 +517,7 @@ export default function Dashboard({ onSelectBoard, onCreateBoard, onOpenCard }: 
                             type="button"
                             whileTap={{ scale: 0.88 }}
                             className="icon-btn"
-                            style={{ width: 28, height: 28, minWidth: 28, minHeight: 28, cursor: 'pointer' }}
+                            style={{ width: isMobile ? 26 : 28, height: isMobile ? 26 : 28, minWidth: isMobile ? 26 : 28, minHeight: isMobile ? 26 : 28, cursor: 'pointer' }}
                             title="Open board"
                             onClick={(e) => {
                               e.stopPropagation();
@@ -503,10 +529,10 @@ export default function Dashboard({ onSelectBoard, onCreateBoard, onOpenCard }: 
                         </div>
                       </div>
 
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 'auto' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 11.5, color: 'hsl(var(--muted-foreground))' }}>
-                          <span>{doneCards}/{totalCards} tasks done</span>
-                          <span style={{ fontWeight: 700, color: 'hsl(var(--foreground))' }}>{progress}%</span>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 'auto', width: '100%', minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 11.5, color: 'hsl(var(--muted-foreground))', width: '100%', minWidth: 0 }}>
+                          <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{doneCards}/{totalCards} tasks done</span>
+                          <span style={{ fontWeight: 700, color: 'hsl(var(--foreground))', flexShrink: 0 }}>{progress}%</span>
                         </div>
 
                         <div style={{ width: '100%', height: 6, borderRadius: 9999, backgroundColor: 'hsl(var(--card))', boxShadow: 'var(--neu-shadow-input)', overflow: 'hidden' }}>
@@ -522,14 +548,14 @@ export default function Dashboard({ onSelectBoard, onCreateBoard, onOpenCard }: 
                           />
                         </div>
 
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 11, color: 'hsl(var(--muted-foreground))', paddingTop: 6 }}>
-                          <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 11, color: 'hsl(var(--muted-foreground))', paddingTop: 6, width: '100%', minWidth: 0 }}>
+                          <span style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
                             <KanbanSquare size={12} /> {board.columns?.length ?? 0} columns
                           </span>
 
                           {/* Member Avatars */}
                           {memberCount > 0 && (
-                            <div style={{ display: 'flex', alignItems: 'center' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
                               {board.members.slice(0, 3).map((m, idx) => (
                                 <div
                                   key={m.id}
@@ -590,7 +616,7 @@ export default function Dashboard({ onSelectBoard, onCreateBoard, onOpenCard }: 
           </motion.div>
 
           {/* Section: My Tasks & Upcoming Deadlines */}
-          <motion.div variants={item3DVariants} className="dashboard-widget-card">
+          <motion.div variants={isMobile ? itemMobileVariants : item3DVariants} className="dashboard-widget-card" style={{ width: '100%', minWidth: 0, boxSizing: 'border-box' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, width: '100%', minWidth: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flexShrink: 0 }}>
                 <CheckSquare size={16} color="#10b981" />
@@ -732,9 +758,9 @@ export default function Dashboard({ onSelectBoard, onCreateBoard, onOpenCard }: 
         </div>
 
         {/* Right Column: Analytics & Live Activity Feed */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 24, width: '100%', minWidth: 0 }}>
           {/* Priority & Workload Analytics Breakdown */}
-          <motion.div variants={item3DVariants} className="dashboard-widget-card">
+          <motion.div variants={isMobile ? itemMobileVariants : item3DVariants} className="dashboard-widget-card" style={{ width: '100%', minWidth: 0, boxSizing: 'border-box' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <Activity size={16} color="hsl(var(--primary))" />
               <h3 style={{ fontSize: 14, fontWeight: 700, color: 'hsl(var(--foreground))' }}>Workload & Analytics</h3>
@@ -787,7 +813,7 @@ export default function Dashboard({ onSelectBoard, onCreateBoard, onOpenCard }: 
           </motion.div>
 
           {/* Recent Activity & Changelog Feed */}
-          <motion.div variants={item3DVariants} className="dashboard-widget-card">
+          <motion.div variants={isMobile ? itemMobileVariants : item3DVariants} className="dashboard-widget-card" style={{ width: '100%', minWidth: 0, boxSizing: 'border-box' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <Clock size={16} color="#6366f1" />
