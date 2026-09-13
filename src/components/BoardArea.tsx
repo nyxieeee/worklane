@@ -33,7 +33,7 @@ interface ContextMenu {
 }
 
 interface Props {
-  viewMode: 'board' | 'list' | 'calendar';
+  viewMode: 'board' | 'calendar';
   filterMemberId: string | null;
   onClearFilter: () => void;
   onOpenCard: (cardId: string) => void;
@@ -279,124 +279,7 @@ export default function BoardArea({
         </div>
 
       <AnimatePresence mode="wait">
-        {viewMode === 'list' && (
-          <motion.div
-            key="list-view"
-            variants={isMobile ? viewMobileVariants : view3DVariants}
-            initial="initial"
-            animate="animate"
-            exit="exit"
-            className="list-view-container"
-          >
-            <div className="view-header-bar">
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <span style={{ fontSize: 14, fontWeight: 600 }}>List View</span>
-                <span style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))', backgroundColor: 'hsl(var(--card))', boxShadow: 'var(--neu-shadow-input)', padding: '2px 8px', borderRadius: 9999 }}>
-                  {filteredColumns.reduce((sum, c) => sum + c.cards.length, 0)} tasks
-                </span>
-              </div>
-              {!isObserver && (
-                <motion.button whileTap={{ scale: 0.95 }} className="btn btn-primary" onClick={onAddColumn} style={{ fontSize: 12, padding: '6px 12px' }}>
-                  <Plus size={13} /> Add Row
-                </motion.button>
-              )}
-            </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              {filteredColumns.map(col => (
-                <div key={col.id} className="glass-list-group">
-                  <div className="glass-list-group-header">
-                    <span>{col.name}</span>
-                    <span style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))', marginLeft: 'auto' }}>
-                      {col.cards.length}
-                    </span>
-                  </div>
-                  {col.cards.length === 0 ? (
-                    <div style={{ padding: '16px 14px', fontSize: 12.5, color: 'hsl(var(--muted-foreground))' }}>
-                      No tasks in this row
-                    </div>
-                  ) : (
-                    col.cards.map(card => {
-                      const assignees = (card.assignees || []).map(id => board.members?.find((m: Member) => m.id === id)).filter(Boolean);
-                      const labels = (card.labels || []).map(lid => LABELS.find(l => l.id === lid)).filter(Boolean);
-
-                      return (
-                        <motion.div
-                          key={card.id}
-                          whileHover={{ x: 3 }}
-                          className="glass-list-row"
-                          onClick={() => onOpenCard(card.id)}
-                        >
-                          <button
-                            style={{
-                              background: 'none',
-                              border: 'none',
-                              cursor: 'pointer',
-                              color: card.completed ? 'hsl(var(--primary))' : 'hsl(var(--muted-foreground))',
-                              display: 'flex'
-                            }}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              toggleCardComplete(card.id);
-                            }}
-                          >
-                            {card.completed ? <CheckSquare size={16} /> : <Square size={16} />}
-                          </button>
-
-                          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
-                            <span style={{ fontSize: 13, fontWeight: 500, textDecoration: card.completed ? 'line-through' : 'none', color: card.completed ? 'hsl(var(--muted-foreground))' : 'hsl(var(--foreground))' }}>
-                              {card.title}
-                            </span>
-                            {card.description && (
-                              <span style={{ fontSize: 11.5, color: 'hsl(var(--muted-foreground))' }}>
-                                {card.description}
-                              </span>
-                            )}
-                          </div>
-
-                          {labels.length > 0 && (
-                            <div style={{ display: 'flex', gap: 4 }}>
-                              {labels.map(l => l && (
-                                <span
-                                  key={l.id}
-                                  className="card-label-badge"
-                                  style={{ backgroundColor: `${l.color}15`, color: l.color }}
-                                >
-                                  {l.name}
-                                </span>
-                              ))}
-                            </div>
-                          )}
-
-                          {card.dueDate && (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11.5, color: 'hsl(var(--muted-foreground))' }}>
-                              <Calendar size={12} />
-                              <span>{formatDueDate(card.dueDate)}</span>
-                            </div>
-                          )}
-
-                          <div className="card-assignees">
-                            {assignees.map(m => m && (
-                              m.avatarUrl ? (
-                                <img key={m.id} src={m.avatarUrl} alt={m.name} className="card-avatar" title={m.name} />
-                              ) : (
-                                <div key={m.id} className="card-avatar" style={{ backgroundColor: m.color }} title={m.name}>
-                                  {avatarInitials(m.name)}
-                                </div>
-                              )
-                            ))}
-                          </div>
-
-                          <ChevronRight size={15} color="hsl(var(--muted-foreground))" />
-                        </motion.div>
-                      );
-                    })
-                  )}
-                </div>
-              ))}
-            </div>
-          </motion.div>
-        )}
 
         {viewMode === 'calendar' && (
           <motion.div

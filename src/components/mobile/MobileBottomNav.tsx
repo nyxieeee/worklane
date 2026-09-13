@@ -1,13 +1,15 @@
 import React from 'react';
-import { LayoutDashboard, KanbanSquare, List, Calendar, Inbox } from 'lucide-react';
+import { LayoutDashboard, KanbanSquare, Calendar, Inbox, Plus } from 'lucide-react';
+import { motion } from 'framer-motion';
 
 interface MobileBottomNavProps {
   page: 'dashboard' | 'board';
-  viewMode: 'board' | 'list' | 'calendar';
+  viewMode: 'board' | 'calendar';
   showInbox: boolean;
   onGoHome: () => void;
-  onSelectBoardView: (view: 'board' | 'list' | 'calendar') => void;
+  onSelectBoardView: (view: 'board' | 'calendar') => void;
   onOpenBoardSelector?: () => void;
+  onCreateBoard: () => void;
   onToggleInbox: () => void;
 }
 
@@ -18,6 +20,7 @@ export default function MobileBottomNav({
   onGoHome,
   onSelectBoardView,
   onOpenBoardSelector,
+  onCreateBoard,
   onToggleInbox,
 }: MobileBottomNavProps) {
   return (
@@ -48,15 +51,20 @@ export default function MobileBottomNav({
         <span>Board</span>
       </button>
 
-      <button
-        type="button"
-        className={`mobile-nav-tab ${page === 'board' && viewMode === 'list' ? 'active' : ''}`}
-        onClick={() => onSelectBoardView('list')}
-        title="List View"
-      >
-        <List size={17} />
-        <span>List</span>
-      </button>
+      {/* Prominent Neumorphic Center Circle Plus Button */}
+      <div className="mobile-nav-fab-wrapper">
+        <motion.button
+          whileTap={{ scale: 0.9 }}
+          whileHover={{ scale: 1.05 }}
+          type="button"
+          className="mobile-nav-fab"
+          onClick={onCreateBoard}
+          title="Create New Board"
+          aria-label="Create New Board"
+        >
+          <Plus size={22} strokeWidth={2.8} />
+        </motion.button>
+      </div>
 
       <button
         type="button"

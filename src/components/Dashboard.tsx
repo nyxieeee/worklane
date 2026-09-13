@@ -195,7 +195,7 @@ export default function Dashboard({ onSelectBoard, onCreateBoard, onOpenCard }: 
 
         <motion.button
           whileTap={{ scale: 0.95 }}
-          className="btn btn-primary"
+          className="btn btn-primary hide-on-mobile"
           onClick={onCreateBoard}
           style={{ fontSize: 13, padding: '8px 18px', boxShadow: 'var(--neu-shadow-raised-sm)' }}
         >

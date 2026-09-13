@@ -237,11 +237,11 @@ export default function App() {
       const savedBoard = localStorage.getItem('worklane_current_board_id_v1');
       const initialBoardId = urlBoard || savedBoard || null;
 
-      const urlView = params.get('view') as 'board' | 'list' | 'calendar' | null;
+      const urlView = params.get('view') as 'board' | 'calendar' | null;
       const urlCard = params.get('card') || params.get('c');
 
       const savedPage = localStorage.getItem('worklane_current_page_v1') as 'dashboard' | 'board' | null;
-      const savedView = localStorage.getItem('worklane_current_view_mode_v1') as 'board' | 'list' | 'calendar' | null;
+      const savedView = localStorage.getItem('worklane_current_view_mode_v1') as 'board' | 'calendar' | null;
       const savedCard = localStorage.getItem('worklane_current_card_v1');
 
       let initialPage: 'dashboard' | 'board' = 'dashboard';
@@ -249,11 +249,11 @@ export default function App() {
         initialPage = 'board';
       }
 
-      const validViews: Array<'board' | 'list' | 'calendar'> = ['board', 'list', 'calendar'];
+      const validViews: Array<'board' | 'calendar'> = ['board', 'calendar'];
       const initialView = validViews.includes(urlView as any)
-        ? (urlView as 'board' | 'list' | 'calendar')
+        ? (urlView as 'board' | 'calendar')
         : validViews.includes(savedView as any)
-        ? (savedView as 'board' | 'list' | 'calendar')
+        ? (savedView as 'board' | 'calendar')
         : 'board';
 
       return {
@@ -300,7 +300,7 @@ export default function App() {
   }, []);
 
   // Active view layout & team member filter
-  const [viewMode, setViewMode] = useState<'board' | 'list' | 'calendar'>(initialRouting.viewMode);
+  const [viewMode, setViewMode] = useState<'board' | 'calendar'>(initialRouting.viewMode);
   const [filterMemberId, setFilterMemberId] = useState<string | null>(null);
 
   // Synchronize board from URL on initial mount
@@ -753,7 +753,7 @@ function saveAlertedSet(key: string, setObj: Set<string>) {
       {showAddColumn && (
         <AddColumnModal
           onClose={() => setShowAddColumn(false)}
-          mode={viewMode === 'list' ? 'row' : 'column'}
+          mode="column"
         />
       )}
       {showMembers && <MembersModal onClose={() => setShowMembers(false)} />}
@@ -809,6 +809,12 @@ function saveAlertedSet(key: string, setObj: Set<string>) {
         }}
         onOpenBoardSelector={() => {
           setShowBoardSelector(true);
+          setShowInbox(false);
+          setMobileMenuOpen(false);
+        }}
+        onCreateBoard={() => {
+          setShowCreateBoard(true);
+          setShowBoardSelector(false);
           setShowInbox(false);
           setMobileMenuOpen(false);
         }}

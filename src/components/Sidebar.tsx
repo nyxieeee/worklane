@@ -21,8 +21,8 @@ import logoImg from '../assets/logo.png';
 
 interface Props {
   page: 'dashboard' | 'board';
-  activeView: 'board' | 'list' | 'calendar';
-  onSelectView: (view: 'board' | 'list' | 'calendar') => void;
+  activeView: 'board' | 'calendar';
+  onSelectView: (view: 'board' | 'calendar') => void;
   onOpenInbox: () => void;
   isInboxOpen?: boolean;
   onManageMembers: () => void;
@@ -71,7 +71,7 @@ export default function Sidebar({
     onGoToDashboard();
     onCloseMobile?.();
   };
-  const handleSelectView = (view: 'board' | 'list' | 'calendar') => {
+  const handleSelectView = (view: 'board' | 'calendar') => {
     onSelectView(view);
     onCloseMobile?.();
   };
@@ -199,14 +199,6 @@ export default function Sidebar({
                 onClick={() => handleSelectView('board')}
               >
                 <KanbanSquare size={16} />
-              </motion.button>
-              <motion.button
-                whileTap={{ scale: 0.92 }}
-                className={`icon-btn ${activeView === 'list' ? 'active' : ''}`}
-                title="List View"
-                onClick={() => handleSelectView('list')}
-              >
-                <List size={16} />
               </motion.button>
               <motion.button
                 whileTap={{ scale: 0.92 }}
@@ -642,15 +634,6 @@ export default function Sidebar({
                 <KanbanSquare size={14} />
                 <span style={{ flex: 1 }}>Board</span>
                 {activeView === 'board' && <Check size={13} color="hsl(var(--primary))" />}
-              </motion.button>
-              <motion.button
-                whileTap={{ scale: 0.97 }}
-                className={`sidebar-nav-item ${activeView === 'list' ? 'active' : ''}`}
-                onClick={() => handleSelectView('list')}
-              >
-                <List size={14} />
-                <span style={{ flex: 1 }}>List</span>
-                {activeView === 'list' && <Check size={13} color="hsl(var(--primary))" />}
               </motion.button>
               <motion.button
                 whileTap={{ scale: 0.97 }}
