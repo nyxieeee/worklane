@@ -648,6 +648,7 @@ html, body, #root {
   overflow-y: hidden;
   align-items: flex-start;
   flex: 1;
+  height: 100%;
   min-height: 0;
   box-sizing: border-box;
 }
@@ -725,6 +726,7 @@ html, body, #root {
   flex-direction: column;
   gap: 10px;
   overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
   scrollbar-width: thin;
   scrollbar-color: hsl(var(--muted-foreground) / 0.3) transparent;
 }

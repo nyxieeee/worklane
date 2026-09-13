@@ -597,34 +597,21 @@ export default function BoardArea({
             )}
 
             {filteredColumns.map((col, idx) => (
-              <motion.div
+              <Column
                 key={col.id}
-                layout
-                initial={{ opacity: 0, y: 15, rotateY: -8, translateZ: -20 }}
-                animate={{ opacity: 1, y: 0, rotateY: 0, translateZ: 0 }}
-                transition={{
-                  layout: { type: 'spring', damping: 26, stiffness: 220, mass: 0.8 },
-                  duration: 0.3,
-                  delay: idx * 0.04,
-                  ease: [0.25, 1, 0.5, 1]
+                col={col}
+                colIndex={idx}
+                dragState={dragState}
+                setDragState={setDragState}
+                onOpenCard={onOpenCard}
+                onStartRename={(colId, name) => {
+                  setRenameColId(colId);
+                  setRenameValue(name);
+                  setShowRenameModal(true);
                 }}
-                style={{ maxHeight: '100%', minHeight: 0, flexShrink: 0, display: 'flex', flexDirection: 'column', transformStyle: 'preserve-3d' }}
-              >
-                <Column
-                  col={col}
-                  colIndex={idx}
-                  dragState={dragState}
-                  setDragState={setDragState}
-                  onOpenCard={onOpenCard}
-                  onStartRename={(colId, name) => {
-                    setRenameColId(colId);
-                    setRenameValue(name);
-                    setShowRenameModal(true);
-                  }}
-                  isNextColumn={dragState !== null && col.id === nextColId}
-                  isObserver={isObserver}
-                />
-              </motion.div>
+                isNextColumn={dragState !== null && col.id === nextColId}
+                isObserver={isObserver}
+              />
             ))}
             {!isObserver && (
               <motion.button

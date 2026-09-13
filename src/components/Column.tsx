@@ -115,9 +115,24 @@ export default function Column({ col, colIndex, dragState, setDragState, onOpenC
   });
 
   return (
-    <div
+    <motion.div
+      layout
+      initial={{ opacity: 0, y: 15, rotateY: -8, translateZ: -20 }}
+      animate={{ opacity: 1, y: 0, rotateY: 0, translateZ: 0 }}
+      transition={{
+        layout: { type: 'spring', damping: 26, stiffness: 220, mass: 0.8 },
+        duration: 0.3,
+        delay: colIndex * 0.04,
+        ease: [0.25, 1, 0.5, 1]
+      }}
       className="column"
       data-col-id={col.id}
+      style={{ transformStyle: 'preserve-3d' }}
+      onWheel={e => {
+        if (cardsRef.current && !cardsRef.current.contains(e.target as Node)) {
+          cardsRef.current.scrollTop += e.deltaY;
+        }
+      }}
     >
       {/* Header */}
       <div className="column-header">
@@ -332,6 +347,6 @@ export default function Column({ col, colIndex, dragState, setDragState, onOpenC
           )}
         </div>
       )}
-    </div>
+    </motion.div>
   );
 }
