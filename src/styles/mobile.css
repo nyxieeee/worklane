@@ -243,30 +243,46 @@
     background-color: hsl(var(--primary) / 0.1);
   }
 
-  /* Kanban Board Touch Momentum & Snap Scrolling */
+  /* Kanban Board Touch Momentum & Snap Scrolling: Column fits screen width with no peeking */
   .board-area {
     padding: 12px 14px calc(14px + var(--sab)) 14px;
-    gap: 12px;
+    gap: 20px;
     scroll-snap-type: x mandatory;
     scroll-padding-left: 14px;
+    scroll-padding-right: 14px;
     -webkit-overflow-scrolling: touch;
     overscroll-behavior-x: contain;
   }
 
   .column {
-    width: calc(100vw - 42px);
-    max-width: 340px;
-    min-width: 260px;
+    width: calc(100vw - 28px);
+    max-width: calc(100vw - 28px);
+    min-width: calc(100vw - 28px);
+    flex-shrink: 0;
     scroll-snap-align: start;
     scroll-snap-stop: always;
   }
 
   .add-column-btn {
-    width: calc(100vw - 42px);
-    max-width: 300px;
-    min-width: 220px;
+    width: calc(100vw - 28px);
+    max-width: calc(100vw - 28px);
+    min-width: calc(100vw - 28px);
     scroll-snap-align: start;
     scroll-snap-stop: always;
+  }
+
+  /* Medium tablet exception (641px - 860px): allow multiple visible columns */
+  @media (min-width: 641px) {
+    .column {
+      width: 320px !important;
+      min-width: 280px !important;
+      max-width: 340px !important;
+    }
+    .add-column-btn {
+      width: 260px !important;
+      min-width: 220px !important;
+      max-width: 280px !important;
+    }
   }
 
   /* Dashboard View on Mobile */
@@ -522,15 +538,26 @@
 @media (max-width: 380px) {
   .board-area {
     padding: 8px 10px calc(10px + var(--sab)) 10px !important;
-    gap: 8px !important;
+    gap: 16px !important;
     scroll-padding-left: 10px !important;
+    scroll-padding-right: 10px !important;
   }
 
   .column {
-    width: calc(100vw - 24px) !important;
-    min-width: 240px !important;
+    width: calc(100vw - 20px) !important;
+    min-width: calc(100vw - 20px) !important;
+    max-width: calc(100vw - 20px) !important;
+    flex-shrink: 0 !important;
     scroll-snap-align: start !important;
-    scroll-snap-stop: always;
+    scroll-snap-stop: always !important;
+  }
+
+  .add-column-btn {
+    width: calc(100vw - 20px) !important;
+    min-width: calc(100vw - 20px) !important;
+    max-width: calc(100vw - 20px) !important;
+    scroll-snap-align: start !important;
+    scroll-snap-stop: always !important;
   }
 
   .column-header {
