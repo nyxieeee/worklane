@@ -163,25 +163,15 @@ export function scheduleBoardSync(board: Board, delayMs = 60) {
   syncTimers.set(boardId, timer);
 }
 
-// ── Fast Snapshot Cache (Stale-While-Revalidate for Instant Refresh) ─────────
-const BOARDS_CACHE_KEY_PREFIX = 'worklane_boards_cache_';
-
-function getCachedBoards(email: string): Board[] | null {
-  try {
-    const raw = localStorage.getItem(BOARDS_CACHE_KEY_PREFIX + email.toLowerCase().trim());
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+// Clean up any legacy localStorage board cache so stale data never lingers in client storage
+try {
+  for (let i = localStorage.length - 1; i >= 0; i--) {
+    const key = localStorage.key(i);
+    if (key && (key.startsWith('worklane_boards_cache_') || key.startsWith('worklane_data_'))) {
+      localStorage.removeItem(key);
     }
-  } catch {}
-  return null;
-}
-
-function setCachedBoards(email: string, boards: Board[]) {
-  try {
-    localStorage.setItem(BOARDS_CACHE_KEY_PREFIX + email.toLowerCase().trim(), JSON.stringify(boards));
-  } catch {}
-}
+  }
+} catch {}
 
 let inFlightCloudPromise: Promise<void> | null = null;
 let inFlightCloudEmail = '';
@@ -213,25 +203,7 @@ export const useWorkStore = create<WorkState>()(
         }
         const cleanEmail = userEmail.toLowerCase().trim();
 
-        // 1. Instant Cache Hydration: If memory store is empty (e.g. on reload / hard refresh),
-        // restore immediately from local snapshot so the loading screen disappears in 0ms!
-        const currentBoards = get().boards;
-        if (currentBoards.length === 0) {
-          const cached = getCachedBoards(cleanEmail);
-          if (cached && cached.length > 0) {
-            const targetBoardId = get().activeBoardId || getSavedActiveBoardId();
-            const activeId = targetBoardId && cached.some(b => b.id === targetBoardId)
-              ? targetBoardId
-              : (cached[0]?.id ?? null);
-            set({
-              boards: cached,
-              activeBoardId: activeId,
-              hasLoadedOnce: true,
-            });
-          }
-        }
-
-        // 2. In-flight request deduplication: Reuse ongoing request if one is already running
+        // In-flight request deduplication: Reuse ongoing request if one is already running
         if (inFlightCloudPromise && inFlightCloudEmail === cleanEmail) {
           return inFlightCloudPromise;
         }
@@ -375,9 +347,6 @@ export const useWorkStore = create<WorkState>()(
               const activeBoardId = targetBoardId && finalBoards.some(b => b.id === targetBoardId)
                 ? targetBoardId
                 : (finalBoards[0]?.id ?? null);
-
-              // Update local persistent snapshot for instant future reloads
-              setCachedBoards(cleanEmail, finalBoards);
 
               return { boards: finalBoards, activeBoardId, isLoadingCloud: false, hasLoadedOnce: true };
             });
