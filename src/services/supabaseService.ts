@@ -86,82 +86,78 @@ export const supabaseService = {
     try {
       const cleanEmail = email.toLowerCase().trim();
 
-      // 1. Find all board IDs where user is enrolled as a collaborator
-      const { data: memberRows, error: memberErr } = await supabase
-        .from('board_members')
-        .select('board_id')
-        .ilike('email', cleanEmail);
-
-      if (memberErr) {
-        console.warn('[SupabaseService] Error finding member boards:', memberErr);
-      }
-
-      const memberBoardIds = (memberRows || []).map(r => r.board_id).filter(Boolean);
-
-      // 2. Fetch created boards and member boards reliably in parallel
-      const boardQueries = [
+      // 1. Fetch created boards and collaborator board IDs in parallel
+      const [createdRes, memberRowsRes] = await Promise.all([
         supabase.from('boards').select('*').ilike('created_by', cleanEmail),
-      ];
-      if (memberBoardIds.length > 0) {
-        boardQueries.push(
-          supabase.from('boards').select('*').in('id', memberBoardIds)
-        );
-      }
+        supabase.from('board_members').select('board_id').ilike('email', cleanEmail)
+      ]);
 
-      const boardResults = await Promise.all(boardQueries);
-      const boardsMap = new Map<string, any>();
-      for (const res of boardResults) {
-        if (res.data) {
-          res.data.forEach(b => boardsMap.set(b.id, b));
+      const createdBoards = createdRes.data || [];
+      const createdIds = new Set(createdBoards.map(b => b.id));
+      const memberBoardIds = (memberRowsRes.data || [])
+        .map(r => r.board_id)
+        .filter(id => id && !createdIds.has(id));
+
+      let memberBoards: any[] = [];
+      if (memberBoardIds.length > 0) {
+        const { data: mbData, error: mbErr } = await supabase
+          .from('boards')
+          .select('*')
+          .in('id', memberBoardIds);
+        if (!mbErr && mbData) {
+          memberBoards = mbData;
         }
       }
 
-      const boardsData = Array.from(boardsMap.values());
+      const boardsData = [...createdBoards, ...memberBoards];
       if (boardsData.length === 0) return [];
 
       const boardIds = boardsData.map(b => b.id);
 
-      // 2. Fetch all members, columns, cards, and registered user profiles
-      const [membersRes, colsRes, cardsRes, profilesRes] = await Promise.all([
+      // 2. Fetch members, columns, and cards in parallel
+      const [membersRes, colsRes, cardsRes] = await Promise.all([
         supabase.from('board_members').select('*').in('board_id', boardIds),
         supabase.from('columns').select('*').in('board_id', boardIds).order('position'),
         supabase.from('cards').select('*').in('board_id', boardIds).order('position'),
-        supabase.from('profiles').select('email, name, avatar_url, border_style')
       ]);
 
       const allMembers = membersRes.data || [];
       const allCols = colsRes.data || [];
       const allCards = cardsRes.data || [];
-      const allProfiles = profilesRes.data || [];
       const cardIds = allCards.map(c => c.id);
 
-      // Map registered profiles by lowercase email for fast avatar + border lookup
+      // Collect specific member emails to avoid scanning the entire profiles table
+      const memberEmails = Array.from(new Set(
+        allMembers
+          .map(m => m.email ? m.email.toLowerCase().trim() : '')
+          .filter(Boolean)
+      ));
+      if (cleanEmail && !memberEmails.includes(cleanEmail)) {
+        memberEmails.push(cleanEmail);
+      }
+
+      // 3. Fetch card children and specific member profiles in parallel
+      const [assigneesRes, labelsRes, commentsRes, attachmentsRes, profilesRes] = await Promise.all([
+        cardIds.length > 0 ? supabase.from('card_assignees').select('*').in('card_id', cardIds) : Promise.resolve({ data: [] }),
+        cardIds.length > 0 ? supabase.from('card_labels').select('*').in('card_id', cardIds) : Promise.resolve({ data: [] }),
+        cardIds.length > 0 ? supabase.from('comments').select('*').in('card_id', cardIds).order('created_at') : Promise.resolve({ data: [] }),
+        cardIds.length > 0 ? supabase.from('attachments').select('*').in('card_id', cardIds) : Promise.resolve({ data: [] }),
+        memberEmails.length > 0 ? supabase.from('profiles').select('email, name, avatar_url, border_style').in('email', memberEmails) : Promise.resolve({ data: [] })
+      ]);
+
+      const allAssignees = assigneesRes.data || [];
+      const allLabels = labelsRes.data || [];
+      const allComments = commentsRes.data || [];
+      const allAttachments = attachmentsRes.data || [];
+      const allProfiles = profilesRes.data || [];
+
+      // Map profiles by lowercase email for fast avatar + border lookup
       const profileMap = new Map<string, { name?: string; avatar_url?: string; border_style?: string }>();
-      allProfiles.forEach(p => {
+      allProfiles.forEach((p: any) => {
         if (p.email) {
           profileMap.set(p.email.toLowerCase().trim(), p);
         }
       });
-
-      // 3. Fetch card children
-      let allAssignees: any[] = [];
-      let allLabels: any[] = [];
-      let allComments: any[] = [];
-      let allAttachments: any[] = [];
-
-      if (cardIds.length > 0) {
-        const [assigneesRes, labelsRes, commentsRes, attachmentsRes] = await Promise.all([
-          supabase.from('card_assignees').select('*').in('card_id', cardIds),
-          supabase.from('card_labels').select('*').in('card_id', cardIds),
-          supabase.from('comments').select('*').in('card_id', cardIds).order('created_at'),
-          supabase.from('attachments').select('*').in('card_id', cardIds)
-        ]);
-
-        allAssignees = assigneesRes.data || [];
-        allLabels = labelsRes.data || [];
-        allComments = commentsRes.data || [];
-        allAttachments = attachmentsRes.data || [];
-      }
 
       // 4. Assemble domain Board structure
       const assembledBoards: Board[] = boardsData.map(b => {

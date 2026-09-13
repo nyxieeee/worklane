@@ -398,7 +398,8 @@ html, body, #root {
   justify-content: space-between;
   padding: 0 20px;
   flex-shrink: 0;
-  z-index: 10;
+  position: relative;
+  z-index: 60;
 }
 
 .topbar-left {
@@ -465,7 +466,7 @@ html, body, #root {
   align-items: center;
   gap: 8px;
   flex-shrink: 0;
-  overflow: hidden;
+  overflow: visible;
 }
 
 /* ══ Neumorphic Tactile Buttons ════════════════════════════ */

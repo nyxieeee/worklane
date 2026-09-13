@@ -60,10 +60,32 @@ export default function App() {
   // Track whether auth has been resolved (prevents login-page flash on reload)
   const [authInitialized, setAuthInitialized] = useState(false);
 
-  // Initialize Supabase Auth session & listener on mount
+  // Initialize Supabase Auth session & listener on mount with safety timeout
   useEffect(() => {
-    initializeAuth().finally(() => setAuthInitialized(true));
+    let mounted = true;
+    const timer = setTimeout(() => {
+      if (mounted) setAuthInitialized(true);
+    }, 2000);
+
+    initializeAuth().finally(() => {
+      if (mounted) setAuthInitialized(true);
+      clearTimeout(timer);
+    });
+
+    return () => {
+      mounted = false;
+      clearTimeout(timer);
+    };
   }, [initializeAuth]);
+
+  // Safety fallback: Never keep the user on the global loading screen for more than 2.5 seconds
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setAuthInitialized(true);
+      useWorkStore.setState({ hasLoadedOnce: true });
+    }, 2500);
+    return () => clearTimeout(timer);
+  }, []);
 
   // Pending invite link state
   const [pendingInvite, setPendingInvite] = useState<{ boardId: string; role: MemberRole } | null>(null);

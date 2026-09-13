@@ -103,6 +103,8 @@ export const useAuthStore = create<AuthState>()(
 
             set({ user: parsed, isAuthenticated: true });
             supabaseService.upsertProfile(parsed);
+          } else {
+            set({ user: null, isAuthenticated: false });
           }
 
           supabase.auth.onAuthStateChange(async (_event, session) => {

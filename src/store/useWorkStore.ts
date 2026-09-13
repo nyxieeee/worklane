@@ -163,7 +163,28 @@ export function scheduleBoardSync(board: Board, delayMs = 60) {
   syncTimers.set(boardId, timer);
 }
 
-// ── Zustand Store (Cloud-Only, No localStorage) ─────────────────────────────
+// ── Fast Snapshot Cache (Stale-While-Revalidate for Instant Refresh) ─────────
+const BOARDS_CACHE_KEY_PREFIX = 'worklane_boards_cache_';
+
+function getCachedBoards(email: string): Board[] | null {
+  try {
+    const raw = localStorage.getItem(BOARDS_CACHE_KEY_PREFIX + email.toLowerCase().trim());
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch {}
+  return null;
+}
+
+function setCachedBoards(email: string, boards: Board[]) {
+  try {
+    localStorage.setItem(BOARDS_CACHE_KEY_PREFIX + email.toLowerCase().trim(), JSON.stringify(boards));
+  } catch {}
+}
+
+let inFlightCloudPromise: Promise<void> | null = null;
+let inFlightCloudEmail = '';
 
 export const useWorkStore = create<WorkState>()(
   (set, get) => ({
@@ -175,55 +196,110 @@ export const useWorkStore = create<WorkState>()(
 
       // ── Cloud Sync Actions ─────────────────────────────
       loadBoardsFromCloud: async (userEmail: string) => {
-        if (!userEmail || !supabaseService.isConfigured()) return;
+        if (!userEmail || !supabaseService.isConfigured()) {
+          set({ isLoadingCloud: false, hasLoadedOnce: true });
+          return;
+        }
         const cleanEmail = userEmail.toLowerCase().trim();
 
-        set({ isLoadingCloud: true });
-
-        try {
-          const cloudBoards = await supabaseService.getBoardsForUser(cleanEmail);
-
-          if (!cloudBoards) {
-            set({ isLoadingCloud: false });
-            return;
+        // 1. Instant Cache Hydration: If memory store is empty (e.g. on reload / hard refresh),
+        // restore immediately from local snapshot so the loading screen disappears in 0ms!
+        const currentBoards = get().boards;
+        if (currentBoards.length === 0) {
+          const cached = getCachedBoards(cleanEmail);
+          if (cached && cached.length > 0) {
+            set({
+              boards: cached,
+              activeBoardId: get().activeBoardId && cached.some(b => b.id === get().activeBoardId)
+                ? get().activeBoardId
+                : (cached[0]?.id ?? null),
+              hasLoadedOnce: true,
+            });
           }
+        }
 
-          // Supabase is the single source of truth, but we must never drop local in-flight members or edits
-          set(s => {
-            const now = Date.now();
-            for (const [em, t] of recentlyRemovedEmails.entries()) {
-              if (now - t > 6000) recentlyRemovedEmails.delete(em);
-            }
-            for (const [em, t] of recentlyAddedMembers.entries()) {
-              if (now - t > 6000) recentlyAddedMembers.delete(em);
-            }
-            for (const [key, val] of recentlyUpdatedMemberStyles.entries()) {
-              if (now - val.timestamp > 8000) recentlyUpdatedMemberStyles.delete(key);
-            }
-            for (const [key, val] of recentlyUpdatedMemberAvatars.entries()) {
-              if (now - val.timestamp > 8000) recentlyUpdatedMemberAvatars.delete(key);
-            }
-            for (const [bId, t] of lastLocalMutationTimes.entries()) {
-              if (now - t > 10000) lastLocalMutationTimes.delete(bId);
-            }
-            for (const [cId, t] of recentlyDeletedCommentIds.entries()) {
-              if (now - t > 10000) recentlyDeletedCommentIds.delete(cId);
+        // 2. In-flight request deduplication: Reuse ongoing request if one is already running
+        if (inFlightCloudPromise && inFlightCloudEmail === cleanEmail) {
+          return inFlightCloudPromise;
+        }
+
+        inFlightCloudEmail = cleanEmail;
+        inFlightCloudPromise = (async () => {
+          set({ isLoadingCloud: true });
+
+          try {
+            const cloudBoards = await supabaseService.getBoardsForUser(cleanEmail);
+
+            if (!cloudBoards) {
+              set({ isLoadingCloud: false, hasLoadedOnce: true });
+              return;
             }
 
-            const sanitizeCardComments = (card: Card): Card => {
-              if (!card.comments || card.comments.length === 0 || recentlyDeletedCommentIds.size === 0) return card;
-              return {
-                ...card,
-                comments: card.comments.filter(
-                  cm => !recentlyDeletedCommentIds.has(cm.id) && (!cm.parentId || !recentlyDeletedCommentIds.has(cm.parentId))
-                )
+            // Supabase is the single source of truth, but we must never drop local in-flight members or edits
+            set(s => {
+              const now = Date.now();
+              for (const [em, t] of recentlyRemovedEmails.entries()) {
+                if (now - t > 6000) recentlyRemovedEmails.delete(em);
+              }
+              for (const [em, t] of recentlyAddedMembers.entries()) {
+                if (now - t > 6000) recentlyAddedMembers.delete(em);
+              }
+              for (const [key, val] of recentlyUpdatedMemberStyles.entries()) {
+                if (now - val.timestamp > 8000) recentlyUpdatedMemberStyles.delete(key);
+              }
+              for (const [key, val] of recentlyUpdatedMemberAvatars.entries()) {
+                if (now - val.timestamp > 8000) recentlyUpdatedMemberAvatars.delete(key);
+              }
+              for (const [bId, t] of lastLocalMutationTimes.entries()) {
+                if (now - t > 10000) lastLocalMutationTimes.delete(bId);
+              }
+              for (const [cId, t] of recentlyDeletedCommentIds.entries()) {
+                if (now - t > 10000) recentlyDeletedCommentIds.delete(cId);
+              }
+
+              const sanitizeCardComments = (card: Card): Card => {
+                if (!card.comments || card.comments.length === 0 || recentlyDeletedCommentIds.size === 0) return card;
+                return {
+                  ...card,
+                  comments: card.comments.filter(
+                    cm => !recentlyDeletedCommentIds.has(cm.id) && (!cm.parentId || !recentlyDeletedCommentIds.has(cm.parentId))
+                  )
+                };
               };
-            };
 
-            const finalBoards = cloudBoards.map(cb => {
-              const memBoard = s.boards.find(lb => lb.id === cb.id);
-              if (!memBoard) {
-                const cleanMembers = (cb.members || []).filter(
+              const finalBoards = cloudBoards.map(cb => {
+                const memBoard = s.boards.find(lb => lb.id === cb.id);
+                if (!memBoard) {
+                  const cleanMembers = (cb.members || []).filter(
+                    m => !m.email || !recentlyRemovedEmails.has(m.email.toLowerCase().trim())
+                  ).map(m => {
+                    const recentStyleById = recentlyUpdatedMemberStyles.get(m.id);
+                    const recentStyleByEmail = m.email ? recentlyUpdatedMemberStyles.get(m.email.toLowerCase().trim()) : undefined;
+                    const recentStyle = recentStyleById || recentStyleByEmail;
+
+                    const recentAvatarById = recentlyUpdatedMemberAvatars.get(m.id);
+                    const recentAvatarByEmail = m.email ? recentlyUpdatedMemberAvatars.get(m.email.toLowerCase().trim()) : undefined;
+                    const recentAvatar = recentAvatarById || recentAvatarByEmail;
+
+                    let memberObj = m;
+                    if (recentStyle && now - recentStyle.timestamp < 8000) {
+                      memberObj = { ...memberObj, borderStyle: recentStyle.borderStyle };
+                    }
+                    if (recentAvatar && now - recentAvatar.timestamp < 8000) {
+                      memberObj = { ...memberObj, avatarUrl: recentAvatar.avatarUrl };
+                    }
+                    return memberObj;
+                  });
+                  return { ...cb, members: cleanMembers };
+                }
+
+                const hasPendingSync = syncTimers.has(cb.id);
+                const isActivelySyncing = activeSyncBoards.has(cb.id);
+                const lastEdit = lastLocalMutationTimes.get(cb.id) || 0;
+                const isRecentLocalEdit = (now - lastEdit) < 3000;
+
+                // Filter out recently removed members and preserve optimistic styles and avatars
+                const cloudMembersFiltered = (cb.members || []).filter(
                   m => !m.email || !recentlyRemovedEmails.has(m.email.toLowerCase().trim())
                 ).map(m => {
                   const recentStyleById = recentlyUpdatedMemberStyles.get(m.id);
@@ -243,84 +319,65 @@ export const useWorkStore = create<WorkState>()(
                   }
                   return memberObj;
                 });
-                return { ...cb, members: cleanMembers };
-              }
 
-              const hasPendingSync = syncTimers.has(cb.id);
-              const isActivelySyncing = activeSyncBoards.has(cb.id);
-              const lastEdit = lastLocalMutationTimes.get(cb.id) || 0;
-              const isRecentLocalEdit = (now - lastEdit) < 3000;
+                // ONLY preserve locally added members if this client explicitly added them in the last 6s and cloud hasn't returned them yet
+                const cloudEmails = new Set(cloudMembersFiltered.map(m => (m.email || '').toLowerCase().trim()).filter(Boolean));
+                const localPendingMembers = (memBoard.members || []).filter(
+                  m => m.email && !cloudEmails.has(m.email.toLowerCase().trim()) && recentlyAddedMembers.has(m.email.toLowerCase().trim()) && !recentlyRemovedEmails.has(m.email.toLowerCase().trim())
+                );
 
-              // Filter out recently removed members and preserve optimistic styles and avatars
-              const cloudMembersFiltered = (cb.members || []).filter(
-                m => !m.email || !recentlyRemovedEmails.has(m.email.toLowerCase().trim())
-              ).map(m => {
-                const recentStyleById = recentlyUpdatedMemberStyles.get(m.id);
-                const recentStyleByEmail = m.email ? recentlyUpdatedMemberStyles.get(m.email.toLowerCase().trim()) : undefined;
-                const recentStyle = recentStyleById || recentStyleByEmail;
+                const mergedMembers = sortMembersWithOwnerFirst(
+                  [...cloudMembersFiltered, ...localPendingMembers],
+                  cb.createdBy
+                );
 
-                const recentAvatarById = recentlyUpdatedMemberAvatars.get(m.id);
-                const recentAvatarByEmail = m.email ? recentlyUpdatedMemberAvatars.get(m.email.toLowerCase().trim()) : undefined;
-                const recentAvatar = recentAvatarById || recentAvatarByEmail;
-
-                let memberObj = m;
-                if (recentStyle && now - recentStyle.timestamp < 8000) {
-                  memberObj = { ...memberObj, borderStyle: recentStyle.borderStyle };
+                if (hasPendingSync || isActivelySyncing || isRecentLocalEdit) {
+                  return {
+                    ...cb,
+                    name: memBoard.name,
+                    color: memBoard.color,
+                    columns: memBoard.columns?.map(col => ({ ...col, cards: (col.cards || []).map(sanitizeCardComments) })),
+                    inboxCards: memBoard.inboxCards?.map(sanitizeCardComments),
+                    members: memBoard.members?.length ? memBoard.members : mergedMembers,
+                  };
                 }
-                if (recentAvatar && now - recentAvatar.timestamp < 8000) {
-                  memberObj = { ...memberObj, avatarUrl: recentAvatar.avatarUrl };
-                }
-                return memberObj;
-              });
 
-              // ONLY preserve locally added members if this client explicitly added them in the last 6s and cloud hasn't returned them yet
-              const cloudEmails = new Set(cloudMembersFiltered.map(m => (m.email || '').toLowerCase().trim()).filter(Boolean));
-              const localPendingMembers = (memBoard.members || []).filter(
-                m => m.email && !cloudEmails.has(m.email.toLowerCase().trim()) && recentlyAddedMembers.has(m.email.toLowerCase().trim()) && !recentlyRemovedEmails.has(m.email.toLowerCase().trim())
-              );
-
-              const mergedMembers = sortMembersWithOwnerFirst(
-                [...cloudMembersFiltered, ...localPendingMembers],
-                cb.createdBy
-              );
-
-              if (hasPendingSync || isActivelySyncing || isRecentLocalEdit) {
                 return {
                   ...cb,
-                  name: memBoard.name,
-                  color: memBoard.color,
-                  columns: memBoard.columns?.map(col => ({ ...col, cards: (col.cards || []).map(sanitizeCardComments) })),
-                  inboxCards: memBoard.inboxCards?.map(sanitizeCardComments),
-                  members: memBoard.members?.length ? memBoard.members : mergedMembers,
+                  columns: (cb.columns || []).map(col => ({ ...col, cards: (col.cards || []).map(sanitizeCardComments) })),
+                  inboxCards: (cb.inboxCards || []).map(sanitizeCardComments),
+                  members: mergedMembers,
                 };
-              }
+              });
 
-              return {
-                ...cb,
-                columns: (cb.columns || []).map(col => ({ ...col, cards: (col.cards || []).map(sanitizeCardComments) })),
-                inboxCards: (cb.inboxCards || []).map(sanitizeCardComments),
-                members: mergedMembers,
-              };
+              // Include newly created boards that haven't propagated to cloud yet
+              s.boards.forEach(lb => {
+                const hasPendingSync = syncTimers.has(lb.id) || activeSyncBoards.has(lb.id);
+                if (hasPendingSync && !finalBoards.some(b => b.id === lb.id)) {
+                  finalBoards.push(lb);
+                }
+              });
+
+              const activeBoardId = s.activeBoardId && finalBoards.some(b => b.id === s.activeBoardId)
+                ? s.activeBoardId
+                : (finalBoards[0]?.id ?? null);
+
+              // Update local persistent snapshot for instant future reloads
+              setCachedBoards(cleanEmail, finalBoards);
+
+              return { boards: finalBoards, activeBoardId, isLoadingCloud: false, hasLoadedOnce: true };
             });
+          } catch (err) {
+            console.warn('[useWorkStore] Cloud load error:', err);
+            set({ isLoadingCloud: false, hasLoadedOnce: true });
+          } finally {
+            inFlightCloudPromise = null;
+            inFlightCloudEmail = '';
+            set({ isLoadingCloud: false, hasLoadedOnce: true });
+          }
+        })();
 
-            // Include newly created boards that haven't propagated to cloud yet
-            s.boards.forEach(lb => {
-              const hasPendingSync = syncTimers.has(lb.id) || activeSyncBoards.has(lb.id);
-              if (hasPendingSync && !finalBoards.some(b => b.id === lb.id)) {
-                finalBoards.push(lb);
-              }
-            });
-
-            const activeBoardId = s.activeBoardId && finalBoards.some(b => b.id === s.activeBoardId)
-              ? s.activeBoardId
-              : (finalBoards[0]?.id ?? null);
-
-            return { boards: finalBoards, activeBoardId, isLoadingCloud: false, hasLoadedOnce: true };
-          });
-        } catch (err) {
-          console.warn('[useWorkStore] Cloud load error:', err);
-          set({ isLoadingCloud: false, hasLoadedOnce: true });
-        }
+        return inFlightCloudPromise;
       },
 
       syncBoardToCloud: async (boardId: string) => {

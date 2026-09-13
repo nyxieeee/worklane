@@ -256,6 +256,7 @@ export default function Topbar({
         {/* User Account Menu */}
         <div style={{ position: 'relative', flexShrink: 0 }} ref={chipRef}>
           <motion.button
+            type="button"
             whileTap={{ scale: 0.92 }}
             className="icon-btn"
             style={{
@@ -275,16 +276,22 @@ export default function Topbar({
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
+              cursor: 'pointer',
+              position: 'relative',
+              zIndex: 2,
             }}
-            onClick={() => setUserDropOpen(o => !o)}
+            onClick={(e) => {
+              e.stopPropagation();
+              setUserDropOpen(o => !o);
+            }}
             title="User Profile"
           >
-            <AvatarBorder borderStyle={user?.borderStyle} size={32}>
+            <AvatarBorder borderStyle={user?.borderStyle} size={32} style={{ pointerEvents: 'none' }}>
               {user?.avatarUrl ? (
                 <img
                   src={user.avatarUrl}
                   alt={user?.name || 'User'}
-                  style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover', display: 'block' }}
+                  style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover', display: 'block', pointerEvents: 'none' }}
                 />
               ) : (
                 <div style={{
@@ -293,6 +300,7 @@ export default function Topbar({
                   color: 'hsl(var(--primary-foreground))',
                   fontSize: 11, fontWeight: 700,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  pointerEvents: 'none',
                 }}>
                   {avatarInitials(user?.name || 'U')}
                 </div>
@@ -311,12 +319,12 @@ export default function Topbar({
                   position: 'absolute',
                   top: 38,
                   right: 0,
-                  width: 210,
+                  width: 220,
                   backgroundColor: 'hsl(var(--popover))',
                   borderRadius: 'var(--radius)',
                   boxShadow: 'var(--neu-shadow-floating)',
                   padding: '8px',
-                  zIndex: 50,
+                  zIndex: 100,
                   display: 'flex',
                   flexDirection: 'column',
                   gap: 4
@@ -381,18 +389,20 @@ export default function Topbar({
                 </div>
 
                 <motion.button
+                  type="button"
                   whileTap={{ scale: 0.97 }}
                   className="sidebar-nav-item"
-                  style={{ width: '100%', fontSize: 12.5 }}
+                  style={{ width: '100%', fontSize: 12.5, cursor: 'pointer' }}
                   onClick={() => { onOpenSettings?.('profile'); setUserDropOpen(false); }}
                 >
                   <User size={13} />
                   <span>Edit Profile & Avatar</span>
                 </motion.button>
                 <motion.button
+                  type="button"
                   whileTap={{ scale: 0.97 }}
                   className="sidebar-nav-item"
-                  style={{ width: '100%', fontSize: 12.5, color: 'hsl(var(--destructive))' }}
+                  style={{ width: '100%', fontSize: 12.5, color: 'hsl(var(--destructive))', cursor: 'pointer' }}
                   onClick={() => { logout(); setUserDropOpen(false); }}
                 >
                   <LogOut size={13} />
