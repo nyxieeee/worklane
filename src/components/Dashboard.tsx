@@ -11,7 +11,7 @@ import { useNotifStore } from '../store/useNotifStore';
 import { useToastStore } from '../store/useToastStore';
 import { useConfirmStore } from '../store/useConfirmStore';
 import { useSettingsStore } from '../store/useSettingsStore';
-import { formatDueDate, avatarInitials } from '../utils';
+import { formatDueDate, avatarInitials, useIsMobile } from '../utils';
 import { LABELS, type Card, type Board } from '../types';
 import Tilt3D from './ui/Tilt3D';
 import BoardColorPicker from './ui/BoardColorPicker';
@@ -46,6 +46,7 @@ const item3DVariants: Variants = {
 type TaskFilter = 'all' | 'assigned' | 'dueSoon' | 'urgent' | 'completed';
 
 export default function Dashboard({ onSelectBoard, onCreateBoard, onOpenCard }: Props) {
+  const isMobile           = useIsMobile(860);
   const user               = useAuthStore(s => s.user);
   const allBoards          = useWorkStore(s => s.boards);
   const getVisibleBoards   = useWorkStore(s => s.getVisibleBoards);
@@ -170,7 +171,7 @@ export default function Dashboard({ onSelectBoard, onCreateBoard, onOpenCard }: 
       initial="hidden"
       animate="visible"
       className="dashboard-view"
-      style={{ perspective: 1200 }}
+      style={isMobile ? { overflowX: 'hidden' } : { perspective: 1200 }}
     >
       {/* Header Greeting & Overview Hero */}
       <motion.div variants={item3DVariants} className="dashboard-hero">
@@ -590,8 +591,8 @@ export default function Dashboard({ onSelectBoard, onCreateBoard, onOpenCard }: 
 
           {/* Section: My Tasks & Upcoming Deadlines */}
           <motion.div variants={item3DVariants} className="dashboard-widget-card">
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, width: '100%', minWidth: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flexShrink: 0 }}>
                 <CheckSquare size={16} color="#10b981" />
                 <h3 style={{ fontSize: 14, fontWeight: 700, color: 'hsl(var(--foreground))' }}>Tasks & Upcoming Deadlines</h3>
                 <span style={{ fontSize: 11, fontWeight: 600, padding: '1px 7px', borderRadius: 9999, backgroundColor: 'hsl(var(--card))', boxShadow: 'var(--neu-shadow-input)', color: 'hsl(var(--muted-foreground))' }}>
@@ -600,7 +601,7 @@ export default function Dashboard({ onSelectBoard, onCreateBoard, onOpenCard }: 
               </div>
 
               {/* Filter Pills */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 4, backgroundColor: 'hsl(var(--card))', padding: '3px 4px', borderRadius: 9999, boxShadow: 'var(--neu-shadow-input)' }}>
+              <div className="dashboard-filter-pills-bar">
                 {(['all', 'assigned', 'dueSoon', 'urgent', 'completed'] as TaskFilter[]).map(f => {
                   const labels: Record<TaskFilter, string> = {
                     all: 'All',

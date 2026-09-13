@@ -54,41 +54,41 @@
 }
 
 .dark {
-  /* Neumorphic Dark Color Base (#1c1f2b / deep gunmetal slate) */
-  --background: 228 21% 14%;
-  --foreground: 210 30% 95%;
-  --card: 228 21% 14%;
-  --card-foreground: 210 30% 95%;
-  --popover: 228 21% 14%;
-  --popover-foreground: 210 30% 95%;
+  /* Neumorphic Dark Color Base (#161619 / refined graphite dark gray) */
+  --background: 240 4% 10.5%;
+  --foreground: 0 0% 95%;
+  --card: 240 4% 10.5%;
+  --card-foreground: 0 0% 95%;
+  --popover: 240 4% 12%;
+  --popover-foreground: 0 0% 95%;
 
   --primary: 217.2 91.2% 59.8%;
-  --primary-foreground: 222.2 47.4% 11.2%;
-  --primary-hover: 217.2 91.2% 68%;
+  --primary-foreground: 0 0% 100%;
+  --primary-hover: 217.2 91.2% 67%;
 
-  --secondary: 228 20% 17%;
-  --secondary-foreground: 210 30% 95%;
+  --secondary: 240 4% 15%;
+  --secondary-foreground: 0 0% 95%;
 
-  --muted: 228 20% 16%;
-  --muted-foreground: 218 16% 62%;
+  --muted: 240 4% 14%;
+  --muted-foreground: 240 3% 60%;
 
-  --accent: 228 20% 18%;
-  --accent-foreground: 210 30% 95%;
+  --accent: 240 4% 16%;
+  --accent-foreground: 0 0% 95%;
 
-  --destructive: 0 65% 48%;
-  --destructive-foreground: 210 40% 98%;
+  --destructive: 0 68% 52%;
+  --destructive-foreground: 0 0% 98%;
 
-  --border: 228 20% 18%;
-  --input: 228 20% 18%;
-  --ring: 224.3 76.3% 48%;
+  --border: 240 4% 17%;
+  --input: 240 4% 16%;
+  --ring: 217.2 91.2% 59.8%;
 
-  /* Neumorphic Dual Shadow Tokens - Dark (Subtle, Clean & Crisp) */
-  --neu-shadow-raised: 2.5px 2.5px 6px rgba(10, 12, 18, 0.5), -1.5px -1.5px 5px rgba(45, 52, 72, 0.25);
-  --neu-shadow-raised-sm: 1.5px 1.5px 4px rgba(10, 12, 18, 0.4), -1px -1px 3px rgba(45, 52, 72, 0.2);
-  --neu-shadow-raised-hover: 3.5px 3.5px 9px rgba(10, 12, 18, 0.6), -2px -2px 6px rgba(45, 52, 72, 0.3);
-  --neu-shadow-pressed: inset 1.5px 1.5px 3px rgba(10, 12, 18, 0.5), inset -1px -1px 3px rgba(45, 52, 72, 0.2);
-  --neu-shadow-input: inset 1px 1px 3px rgba(10, 12, 18, 0.45), inset -1px -1px 2px rgba(45, 52, 72, 0.18);
-  --neu-shadow-floating: 0 12px 28px -4px rgba(0, 0, 0, 0.35), 0 4px 10px -2px rgba(0, 0, 0, 0.2);
+  /* Neumorphic Dual Shadow Tokens - Dark Gray / Graphite (Subtle, Clean & Crisp) */
+  --neu-shadow-raised: 2.5px 2.5px 6px rgba(0, 0, 0, 0.55), -1.5px -1.5px 5px rgba(255, 255, 255, 0.055);
+  --neu-shadow-raised-sm: 1.5px 1.5px 4px rgba(0, 0, 0, 0.45), -1px -1px 3px rgba(255, 255, 255, 0.045);
+  --neu-shadow-raised-hover: 3.5px 3.5px 9px rgba(0, 0, 0, 0.65), -2px -2px 6px rgba(255, 255, 255, 0.075);
+  --neu-shadow-pressed: inset 1.5px 1.5px 3px rgba(0, 0, 0, 0.55), inset -1px -1px 3px rgba(255, 255, 255, 0.045);
+  --neu-shadow-input: inset 1px 1px 3px rgba(0, 0, 0, 0.5), inset -1px -1px 2px rgba(255, 255, 255, 0.04);
+  --neu-shadow-floating: 0 12px 28px -4px rgba(0, 0, 0, 0.45), 0 4px 10px -2px rgba(0, 0, 0, 0.28);
 }
 
 /* ══ Reset & Base ══════════════════════════════════════════ */
@@ -1067,8 +1067,10 @@ html, body, #root {
 
 .dashboard-hero {
   display: flex;
-  flex-direction: column;
-  gap: 6px;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
 }
 .dashboard-greeting {
   font-size: 24px;
@@ -1156,7 +1158,7 @@ html, body, #root {
 
 @media (max-width: 1060px) {
   .dashboard-layout-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
@@ -1187,6 +1189,16 @@ html, body, #root {
   box-shadow: var(--neu-shadow-raised);
   transform: translateY(-1px);
   border-color: hsl(var(--primary) / 0.2);
+}
+
+.dashboard-filter-pills-bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background-color: hsl(var(--card));
+  border-radius: 9999px;
+  padding: 3px;
+  box-shadow: var(--neu-shadow-input);
 }
 
 .dashboard-filter-pill {
@@ -1408,477 +1420,8 @@ html, body, #root {
 
 /* ══════════════════════════════════════════════════════════
    MOBILE & CROSS-DEVICE RESPONSIVE DESIGN SYSTEM
-   Supports: Apple iPhones (Notch, Dynamic Island, Home Bar),
-   Galaxy Z Flip / Motorola Razr / Foldable Outer & Inner Screens
+   All mobile overrides are strictly isolated in src/styles/mobile.css
+   to protect desktop/computer UI from accidental styling regressions.
    ══════════════════════════════════════════════════════════ */
+@import './mobile.css';
 
-/* Mobile display utility toggles */
-.show-on-mobile {
-  display: none !important;
-}
-
-.hide-on-mobile {
-  display: flex;
-}
-
-/* Sidebar Backdrop (for Mobile Off-Canvas Drawer) */
-.sidebar-backdrop {
-  position: fixed;
-  inset: 0;
-  background-color: rgba(10, 14, 22, 0.6);
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
-  z-index: 90;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-}
-.sidebar-backdrop.open {
-  opacity: 1;
-  pointer-events: auto;
-}
-
-/* Settings Modal 2-Column Desktop vs Mobile Tab Strip */
-.settings-modal-grid {
-  display: grid;
-  grid-template-columns: 210px 1fr;
-  flex: 1;
-  overflow: hidden;
-}
-.settings-modal-tabs {
-  padding: 12px 8px;
-  border-right: 1px solid hsl(var(--border) / 0.4);
-  background-color: hsl(var(--background));
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-/* Mobile Quick Bottom Navigation Bar */
-.mobile-bottom-nav {
-  display: none;
-}
-
-/* ── Tablet & Mobile General Overrides (<= 860px) ────────── */
-@media (max-width: 860px) {
-  .hide-on-mobile {
-    display: none !important;
-  }
-  .show-on-mobile {
-    display: flex !important;
-  }
-
-  /* Off-canvas Mobile Sidebar Drawer */
-  .sidebar {
-    position: fixed !important;
-    left: 0;
-    top: 0;
-    bottom: 0;
-    width: 280px !important;
-    max-width: 86vw !important;
-    min-width: 0 !important;
-    z-index: 100 !important;
-    transform: translateX(-100%);
-    transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.28s ease !important;
-    box-shadow: 8px 0 30px rgba(0, 0, 0, 0.35) !important;
-    padding-top: max(8px, var(--sat)) !important;
-    padding-bottom: max(12px, var(--sab)) !important;
-  }
-
-  .sidebar.mobile-open {
-    transform: translateX(0) !important;
-  }
-
-  /* CRITICAL: On mobile screens, NEVER show a persistent collapsed sidebar strip! */
-  .sidebar.collapsed {
-    display: none !important;
-    width: 0 !important;
-    min-width: 0 !important;
-    transform: translateX(-100%) !important;
-  }
-  .sidebar.collapsed.mobile-open {
-    display: flex !important;
-    width: 280px !important;
-    min-width: 0 !important;
-    transform: translateX(0) !important;
-  }
-
-  .app-window {
-    width: 100% !important;
-  }
-
-  .app-main-content {
-    width: 100% !important;
-    padding-bottom: calc(58px + var(--sab)); /* Reserve room for mobile bottom bar */
-  }
-
-  /* Topbar Mobile Layout (<= 860px) */
-  .topbar {
-    height: calc(52px + var(--sat));
-    padding-top: max(4px, var(--sat));
-    padding-left: max(12px, var(--sal));
-    padding-right: max(12px, var(--sar));
-  }
-  .topbar-shortcut-pill {
-    display: none !important;
-  }
-  .topbar-search-trigger {
-    min-width: unset !important;
-    padding: 7px 9px !important;
-  }
-  .topbar-search-trigger span {
-    display: none !important;
-  }
-  .topbar-crumb-root,
-  .topbar-crumb-sep {
-    display: none !important;
-  }
-  .topbar-breadcrumbs {
-    max-width: 150px;
-    overflow: hidden;
-  }
-  .topbar-crumb-active {
-    font-size: 13.5px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  /* Dashboard Stats Grid 2-columns on mobile */
-  .dashboard-stats-row {
-    grid-template-columns: repeat(2, 1fr) !important;
-    gap: 10px !important;
-  }
-  .dashboard-stat-card {
-    padding: 12px 10px !important;
-    gap: 10px !important;
-  }
-  .dashboard-stat-icon {
-    width: 34px !important;
-    height: 34px !important;
-  }
-  .dashboard-stat-value {
-    font-size: 18px !important;
-  }
-  .dashboard-stat-label {
-    font-size: 11px !important;
-  }
-  .dashboard-hero {
-    flex-direction: column !important;
-    align-items: stretch !important;
-    gap: 12px !important;
-  }
-  .dashboard-hero .btn {
-    width: 100% !important;
-    justify-content: center !important;
-  }
-
-  /* Mobile Bottom Navigation Bar */
-  .mobile-bottom-nav {
-    display: flex !important;
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    height: calc(54px + var(--sab));
-    padding-bottom: var(--sab);
-    background-color: hsl(var(--card));
-    border-top: 1px solid hsl(var(--border) / 0.5);
-    box-shadow: 0 -4px 18px rgba(0, 0, 0, 0.08);
-    align-items: center;
-    justify-content: space-around;
-    z-index: 80;
-    user-select: none;
-  }
-
-  .mobile-nav-tab {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 3px;
-    padding: 6px 12px;
-    border-radius: 10px;
-    border: none;
-    background: transparent;
-    color: hsl(var(--muted-foreground));
-    font-size: 10.5px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.15s ease;
-    flex: 1;
-    max-width: 72px;
-    text-decoration: none;
-  }
-
-  .mobile-nav-tab.active {
-    color: hsl(var(--primary));
-    background-color: hsl(var(--primary) / 0.1);
-  }
-
-  /* Kanban Board Touch Momentum & Snap Scrolling */
-  .board-area {
-    padding: 12px 14px calc(14px + var(--sab)) 14px;
-    gap: 12px;
-    scroll-snap-type: x mandatory;
-    scroll-padding-left: 14px;
-    -webkit-overflow-scrolling: touch;
-    overscroll-behavior-x: contain;
-  }
-
-  .column {
-    width: calc(100vw - 42px);
-    max-width: 340px;
-    min-width: 260px;
-    scroll-snap-align: start;
-    scroll-snap-stop: always;
-  }
-
-  .add-column-btn {
-    width: calc(100vw - 42px);
-    max-width: 300px;
-    min-width: 220px;
-    scroll-snap-align: start;
-    scroll-snap-stop: always;
-  }
-
-  /* Dashboard View on Mobile */
-  .dashboard-view {
-    padding: 16px 14px;
-    gap: 18px;
-    -webkit-overflow-scrolling: touch;
-  }
-
-  /* Settings Modal Horizontal Tabs */
-  .settings-modal-grid {
-    display: flex !important;
-    flex-direction: column !important;
-    overflow: hidden !important;
-  }
-  .settings-modal-tabs {
-    flex-direction: row !important;
-    overflow-x: auto !important;
-    border-right: none !important;
-    border-bottom: 1px solid hsl(var(--border) / 0.4) !important;
-    padding: 8px 10px !important;
-    gap: 6px !important;
-    flex-shrink: 0 !important;
-    scrollbar-width: none;
-    -webkit-overflow-scrolling: touch;
-  }
-  .settings-modal-tabs::-webkit-scrollbar {
-    display: none;
-  }
-  .settings-modal-tabs button {
-    white-space: nowrap !important;
-    flex-shrink: 0 !important;
-    padding: 6px 12px !important;
-    font-size: 12px !important;
-  }
-}
-
-/* ── Standard Mobile Phones (<= 640px) ───────────────────── */
-@media (max-width: 640px) {
-  /* Prevent iOS Auto-Zoom on Form Inputs */
-  .text-input,
-  .select-input,
-  .textarea-input,
-  input[type="text"],
-  input[type="email"],
-  input[type="password"],
-  select,
-  textarea {
-    font-size: 16px !important;
-  }
-
-  /* Topbar adjustments for tight widths */
-  .topbar {
-    padding: 0 10px;
-    padding-top: max(4px, var(--sat));
-  }
-  .topbar-breadcrumbs {
-    max-width: 140px;
-    overflow: hidden;
-  }
-  .topbar-crumb-root,
-  .topbar-crumb-sep {
-    display: none;
-  }
-  .topbar-crumb-active {
-    font-size: 13.5px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .topbar-search-trigger {
-    min-width: unset !important;
-    padding: 7px 9px !important;
-  }
-  .topbar-search-trigger span,
-  .topbar-shortcut-pill {
-    display: none !important;
-  }
-
-  /* Modals Mobile Bottom-Sheet Design */
-  .modal-overlay {
-    padding: max(10px, var(--sat)) 8px max(10px, var(--sab)) 8px;
-    align-items: flex-end;
-  }
-
-  .modal {
-    width: 100% !important;
-    max-width: 100% !important;
-    max-height: calc(94dvh - var(--sat) - var(--sab)) !important;
-    border-bottom-left-radius: 6px !important;
-    border-bottom-right-radius: 6px !important;
-  }
-
-  .modal.large-modal {
-    width: 100% !important;
-    max-width: 100% !important;
-  }
-
-  .modal-header {
-    padding: 14px 16px;
-  }
-  .modal-body {
-    padding: 14px 16px;
-    gap: 12px;
-  }
-  .modal-footer {
-    padding: 12px 16px;
-  }
-
-  /* Dashboard Stats Grid 2-columns */
-  .dashboard-stats-row {
-    grid-template-columns: repeat(2, 1fr) !important;
-    gap: 10px !important;
-  }
-  .dashboard-stat-card {
-    padding: 12px 10px !important;
-    gap: 10px !important;
-  }
-  .dashboard-stat-icon {
-    width: 34px !important;
-    height: 34px !important;
-  }
-  .dashboard-stat-value {
-    font-size: 18px !important;
-  }
-  .dashboard-stat-label {
-    font-size: 11px !important;
-  }
-
-  .dashboard-boards-grid {
-    grid-template-columns: 1fr !important;
-    gap: 12px !important;
-  }
-
-  /* Calendar Compact Month View */
-  .glass-calendar-grid {
-    gap: 4px !important;
-    grid-auto-rows: 64px !important;
-  }
-  .glass-calendar-day {
-    height: 64px !important;
-    min-height: 64px !important;
-    max-height: 64px !important;
-    padding: 3px 3px !important;
-  }
-
-  /* List View Rows Wrap */
-  .glass-list-row {
-    flex-wrap: wrap !important;
-    padding: 10px 12px !important;
-    gap: 8px !important;
-  }
-
-  /* Toast position above mobile bottom bar */
-  .toast-container {
-    bottom: max(68px, calc(var(--sab) + 60px)) !important;
-    width: calc(100vw - 20px) !important;
-    max-width: 440px !important;
-  }
-  .toast {
-    min-width: unset !important;
-    width: 100% !important;
-    padding: 9px 14px !important;
-    font-size: 12px !important;
-  }
-}
-
-/* ── Flip Phones & Ultra-Narrow Displays (<= 380px down to 280px) ── */
-@media (max-width: 380px) {
-  .board-area {
-    padding: 8px 10px calc(10px + var(--sab)) 10px !important;
-    gap: 8px !important;
-    scroll-padding-left: 10px !important;
-  }
-
-  .column {
-    width: calc(100vw - 24px) !important;
-    min-width: 240px !important;
-    scroll-snap-align: start !important;
-    scroll-snap-stop: always;
-  }
-
-  .column-header {
-    padding: 10px 10px !important;
-  }
-
-  .column-cards {
-    padding: 8px 8px 10px 8px !important;
-    gap: 8px !important;
-  }
-
-  .card {
-    padding: 9px 10px !important;
-  }
-
-  .dashboard-view {
-    padding: 10px 8px !important;
-    gap: 14px !important;
-  }
-
-  .dashboard-stats-row {
-    grid-template-columns: 1fr !important;
-    gap: 8px !important;
-  }
-
-  .glass-calendar-grid {
-    gap: 2px !important;
-    grid-auto-rows: 52px !important;
-  }
-  .glass-calendar-day {
-    height: 52px !important;
-    min-height: 52px !important;
-    max-height: 52px !important;
-    padding: 2px 2px !important;
-  }
-
-  .modal-overlay {
-    padding: 0 !important;
-  }
-
-  .modal {
-    border-radius: 0 !important;
-    max-height: 100dvh !important;
-    height: 100dvh !important;
-  }
-}
-
-/* Login Page Right Panel Mobile Sizing */
-@media (max-width: 860px) {
-  .login-right-panel {
-    max-width: 100% !important;
-    border-left: none !important;
-    padding: 28px 20px !important;
-    box-shadow: none !important;
-  }
-}
-
-@media (max-width: 380px) {
-  .login-right-panel {
-    padding: 18px 12px !important;
-  }
-}

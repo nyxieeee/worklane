@@ -638,11 +638,11 @@ export default function SettingsModal({ initialTab = 'profile', onClose }: Props
                       gap: 8
                     }}
                   >
-                    <div style={{ height: 60, borderRadius: 8, backgroundColor: '#0f172a', border: '1px solid #1e293b', padding: 8, display: 'flex', gap: 6 }}>
-                      <div style={{ width: 28, height: '100%', backgroundColor: '#1e293b', borderRadius: 4 }} />
+                    <div style={{ height: 60, borderRadius: 8, backgroundColor: '#161619', border: '1px solid #26262b', padding: 8, display: 'flex', gap: 6 }}>
+                      <div style={{ width: 28, height: '100%', backgroundColor: '#26262b', borderRadius: 4 }} />
                       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                        <div style={{ height: 10, width: '60%', backgroundColor: '#334155', borderRadius: 2 }} />
-                        <div style={{ height: 24, backgroundColor: '#1e293b', borderRadius: 4, boxShadow: '0 1px 3px rgba(0,0,0,0.3)' }} />
+                        <div style={{ height: 10, width: '60%', backgroundColor: '#3f3f46', borderRadius: 2 }} />
+                        <div style={{ height: 24, backgroundColor: '#26262b', borderRadius: 4, boxShadow: '0 1px 3px rgba(0,0,0,0.4)' }} />
                       </div>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>

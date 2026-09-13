@@ -49,6 +49,12 @@ const view3DVariants: Variants = {
   exit: { opacity: 0, rotateY: 6, translateZ: -30, transition: { duration: 0.15 } }
 };
 
+const viewMobileVariants: Variants = {
+  initial: { opacity: 0, y: 6 },
+  animate: { opacity: 1, y: 0, transition: { duration: 0.2, ease: 'easeOut' } },
+  exit: { opacity: 0, y: -6, transition: { duration: 0.15 } }
+};
+
 export default function BoardArea({
   viewMode,
   filterMemberId,
@@ -276,7 +282,7 @@ export default function BoardArea({
         {viewMode === 'list' && (
           <motion.div
             key="list-view"
-            variants={view3DVariants}
+            variants={isMobile ? viewMobileVariants : view3DVariants}
             initial="initial"
             animate="animate"
             exit="exit"
@@ -395,7 +401,7 @@ export default function BoardArea({
         {viewMode === 'calendar' && (
           <motion.div
             key="calendar-view"
-            variants={view3DVariants}
+            variants={isMobile ? viewMobileVariants : view3DVariants}
             initial="initial"
             animate="animate"
             exit="exit"
@@ -571,12 +577,12 @@ export default function BoardArea({
         {viewMode === 'board' && (
           <motion.div
             key="board-view"
-            variants={view3DVariants}
+            variants={isMobile ? viewMobileVariants : view3DVariants}
             initial="initial"
             animate="animate"
             exit="exit"
             className="board-area"
-            style={{ transformStyle: 'preserve-3d' }}
+            style={{ transformStyle: isMobile ? undefined : 'preserve-3d' }}
           >
             {/* Docked Inbox Drawer - sits as first column, shifting all columns to the right (Desktop only) */}
             {!isMobile && (

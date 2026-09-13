@@ -39,7 +39,7 @@ export default function ThreeDBackground({ isDark }: Props) {
     container.appendChild(renderer.domElement);
 
     // 2. Soft Ambient Fog
-    const fogColor = new THREE.Color(isDarkRef.current ? 0x070b16 : 0xf1f5f9);
+    const fogColor = new THREE.Color(isDarkRef.current ? 0x141417 : 0xf1f5f9);
     scene.fog = new THREE.FogExp2(fogColor, 0.014);
 
     // 3. 6 Completely Randomized & Unique Liquid Glass Ribbons
@@ -313,7 +313,7 @@ export default function ThreeDBackground({ isDark }: Props) {
       renderer.toneMappingExposure += ((isDarkActive ? 1.35 : 1.15) - renderer.toneMappingExposure) * 0.08;
 
       if (scene.fog) {
-        const targetFog = isDarkActive ? new THREE.Color(0x070b16) : new THREE.Color(0xf1f5f9);
+        const targetFog = isDarkActive ? new THREE.Color(0x141417) : new THREE.Color(0xf1f5f9);
         (scene.fog as THREE.FogExp2).color.lerp(targetFog, 0.08);
       }
 

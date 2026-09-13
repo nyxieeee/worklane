@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence, type Variants } from 'framer-motion';
-import { LayoutDashboard, KanbanSquare, List, Calendar, Inbox } from 'lucide-react';
 import Sidebar from './components/Sidebar';
 import Topbar from './components/Topbar';
 import BoardArea from './components/BoardArea';
@@ -20,6 +19,7 @@ import ConfirmModal from './components/modals/ConfirmModal';
 import { InboxDrawer } from './components/InboxDrawer';
 import InviteLandingPage from './components/InviteLandingPage';
 import AppLoadingScreen from './components/AppLoadingScreen';
+import { MobileBottomNav } from './components/mobile';
 import { useWorkStore } from './store/useWorkStore';
 import { useNotifStore } from './store/useNotifStore';
 import { useEmailStore } from './store/useEmailStore';
@@ -37,6 +37,12 @@ const page3DVariants: Variants = {
   initial: { opacity: 0, scale: 0.96, rotateY: -8, translateZ: -40 },
   animate: { opacity: 1, scale: 1, rotateY: 0, translateZ: 0, transition: { duration: 0.28, ease: 'easeOut' } },
   exit: { opacity: 0, scale: 0.96, rotateY: 8, translateZ: -40, transition: { duration: 0.18 } }
+};
+
+const pageMobileVariants: Variants = {
+  initial: { opacity: 0, y: 6 },
+  animate: { opacity: 1, y: 0, transition: { duration: 0.2, ease: 'easeOut' } },
+  exit: { opacity: 0, y: -6, transition: { duration: 0.15 } }
 };
 
 export default function App() {
@@ -228,6 +234,9 @@ export default function App() {
       const params = new URLSearchParams(window.location.search);
       const urlPage = params.get('page');
       const urlBoard = params.get('board') || params.get('b');
+      const savedBoard = localStorage.getItem('worklane_current_board_id_v1');
+      const initialBoardId = urlBoard || savedBoard || null;
+
       const urlView = params.get('view') as 'board' | 'list' | 'calendar' | null;
       const urlCard = params.get('card') || params.get('c');
 
@@ -236,7 +245,7 @@ export default function App() {
       const savedCard = localStorage.getItem('worklane_current_card_v1');
 
       let initialPage: 'dashboard' | 'board' = 'dashboard';
-      if (urlPage === 'board' || urlBoard || (urlPage !== 'dashboard' && savedPage === 'board')) {
+      if (urlPage === 'board' || urlBoard || (urlPage !== 'dashboard' && (savedPage === 'board' || (!savedPage && initialBoardId)))) {
         initialPage = 'board';
       }
 
@@ -249,7 +258,7 @@ export default function App() {
 
       return {
         page: initialPage,
-        boardId: urlBoard || null,
+        boardId: initialBoardId,
         viewMode: initialView,
         cardId: urlCard || savedCard || null,
       };
@@ -316,6 +325,9 @@ export default function App() {
 
       localStorage.setItem('worklane_current_page_v1', page);
       localStorage.setItem('worklane_current_view_mode_v1', viewMode);
+      if (activeBoardId) {
+        localStorage.setItem('worklane_current_board_id_v1', activeBoardId);
+      }
       if (openCardId) {
         localStorage.setItem('worklane_current_card_v1', openCardId);
       } else {
@@ -335,18 +347,20 @@ export default function App() {
           params.delete('view');
         } else if (page === 'board') {
           params.delete('page');
-          if (activeBoardId) params.set('board', activeBoardId);
+          const boardToSet = activeBoardId || initialRouting.boardId;
+          if (boardToSet) params.set('board', boardToSet);
           if (viewMode !== 'board') params.set('view', viewMode);
           else params.delete('view');
           if (openCardId) params.set('card', openCardId);
           else params.delete('card');
         }
 
-        const newSearch = params.toString() ? `?${params.toString()}` : window.location.pathname;
-        window.history.replaceState({}, document.title, newSearch);
+        const queryString = params.toString();
+        const newUrl = queryString ? `${window.location.pathname}?${queryString}` : window.location.pathname;
+        window.history.replaceState({}, document.title, newUrl);
       }
     } catch {}
-  }, [page, activeBoardId, viewMode, openCardId, isAuthenticated]);
+  }, [page, activeBoardId, viewMode, openCardId, isAuthenticated, initialRouting.boardId]);
 
   // When user logs out, reset to dashboard and clean storage/URL
   useEffect(() => {
@@ -354,6 +368,7 @@ export default function App() {
       setPage('dashboard');
       try {
         localStorage.setItem('worklane_current_page_v1', 'dashboard');
+        localStorage.removeItem('worklane_current_board_id_v1');
         localStorage.removeItem('worklane_current_card_v1');
         const params = new URLSearchParams(window.location.search);
         if (!params.has('joinBoard') && !params.has('invite') && !params.has('reset') && !params.has('error')) {
@@ -365,23 +380,32 @@ export default function App() {
 
   // If currently on a board that gets deleted or left, safely switch to next board or return to overview
   useEffect(() => {
+    // Wait until boards have loaded once before deciding whether to switch or fallback to dashboard
+    if (!hasLoadedOnce && boards.length === 0) return;
+
     if (page === 'board') {
+      if (boards.length === 0) {
+        if (hasLoadedOnce) setPage('dashboard');
+        return;
+      }
       const boardExists = boards.some(b => b.id === activeBoardId);
       if (!boardExists) {
-        if (boards.length > 0) {
-          switchBoard(boards[0].id);
+        const initialTarget = initialRouting.boardId;
+        if (initialTarget && boards.some(b => b.id === initialTarget)) {
+          switchBoard(initialTarget);
         } else {
-          setPage('dashboard');
+          switchBoard(boards[0].id);
         }
       }
     }
-  }, [page, activeBoardId, boards, switchBoard]);
+  }, [page, activeBoardId, boards, hasLoadedOnce, initialRouting.boardId, switchBoard]);
 
   const handleSelectBoard = useCallback((boardId: string) => {
     switchBoard(boardId);
     setPage('board');
     try {
       localStorage.setItem('worklane_current_page_v1', 'board');
+      localStorage.setItem('worklane_current_board_id_v1', boardId);
     } catch {}
   }, [switchBoard]);
 
@@ -586,7 +610,7 @@ function saveAlertedSet(key: string, setObj: Set<string>) {
   }
 
   return (
-    <div className="app-layout" style={{ perspective: 1400 }}>
+    <div className="app-layout" style={isMobile ? { overflowX: 'hidden' } : { perspective: 1400 }}>
       {/* Mobile Sidebar Backdrop Overlay */}
       <div
         className={`sidebar-backdrop${mobileMenuOpen ? ' open' : ''}`}
@@ -614,16 +638,16 @@ function saveAlertedSet(key: string, setObj: Set<string>) {
           onCloseMobile={() => setMobileMenuOpen(false)}
         />
 
-        <div className="app-main-content" style={{ transformStyle: 'preserve-3d' }}>
+        <div className="app-main-content" style={isMobile ? { overflowX: 'hidden' } : { transformStyle: 'preserve-3d' }}>
           <AnimatePresence mode="wait">
             {page === 'dashboard' ? (
               <motion.div
                 key="page-dashboard"
-                variants={page3DVariants}
+                variants={isMobile ? pageMobileVariants : page3DVariants}
                 initial="initial"
                 animate="animate"
                 exit="exit"
-                style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
+                style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden', maxWidth: '100%' }}
               >
                 <Topbar
                   page="dashboard"
@@ -654,11 +678,11 @@ function saveAlertedSet(key: string, setObj: Set<string>) {
             ) : (
               <motion.div
                 key="page-board"
-                variants={page3DVariants}
+                variants={isMobile ? pageMobileVariants : page3DVariants}
                 initial="initial"
                 animate="animate"
                 exit="exit"
-                style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
+                style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden', maxWidth: '100%' }}
               >
                 <Topbar
                   onOpenSearch={() => setShowSearch(true)}
@@ -765,75 +789,24 @@ function saveAlertedSet(key: string, setObj: Set<string>) {
       )}
 
       {/* Mobile Quick Bottom Navigation Bar */}
-      <nav className="mobile-bottom-nav" aria-label="Quick Mobile Navigation">
-        <button
-          type="button"
-          className={`mobile-nav-tab ${page === 'dashboard' ? 'active' : ''}`}
-          onClick={() => {
-            handleGoToDashboard();
-            setMobileMenuOpen(false);
-          }}
-          title="Dashboard"
-        >
-          <LayoutDashboard size={17} />
-          <span>Home</span>
-        </button>
-
-        <button
-          type="button"
-          className={`mobile-nav-tab ${page === 'board' && viewMode === 'board' ? 'active' : ''}`}
-          onClick={() => {
-            setPage('board');
-            setViewMode('board');
-            setMobileMenuOpen(false);
-          }}
-          title="Board View"
-        >
-          <KanbanSquare size={17} />
-          <span>Board</span>
-        </button>
-
-        <button
-          type="button"
-          className={`mobile-nav-tab ${page === 'board' && viewMode === 'list' ? 'active' : ''}`}
-          onClick={() => {
-            setPage('board');
-            setViewMode('list');
-            setMobileMenuOpen(false);
-          }}
-          title="List View"
-        >
-          <List size={17} />
-          <span>List</span>
-        </button>
-
-        <button
-          type="button"
-          className={`mobile-nav-tab ${page === 'board' && viewMode === 'calendar' ? 'active' : ''}`}
-          onClick={() => {
-            setPage('board');
-            setViewMode('calendar');
-            setMobileMenuOpen(false);
-          }}
-          title="Calendar View"
-        >
-          <Calendar size={17} />
-          <span>Calendar</span>
-        </button>
-
-        <button
-          type="button"
-          className={`mobile-nav-tab ${showInbox ? 'active' : ''}`}
-          onClick={() => {
-            setShowInbox(s => !s);
-            setMobileMenuOpen(false);
-          }}
-          title="Inbox"
-        >
-          <Inbox size={17} />
-          <span>Inbox</span>
-        </button>
-      </nav>
+      <MobileBottomNav
+        page={page}
+        viewMode={viewMode}
+        showInbox={showInbox}
+        onGoHome={() => {
+          handleGoToDashboard();
+          setMobileMenuOpen(false);
+        }}
+        onSelectBoardView={(mode) => {
+          setPage('board');
+          setViewMode(mode);
+          setMobileMenuOpen(false);
+        }}
+        onToggleInbox={() => {
+          setShowInbox(s => !s);
+          setMobileMenuOpen(false);
+        }}
+      />
 
       {/* Toasts */}
       <Toast />

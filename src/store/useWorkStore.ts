@@ -186,10 +186,21 @@ function setCachedBoards(email: string, boards: Board[]) {
 let inFlightCloudPromise: Promise<void> | null = null;
 let inFlightCloudEmail = '';
 
+export function getSavedActiveBoardId(): string | null {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const urlBoard = params.get('board') || params.get('b');
+    if (urlBoard) return urlBoard;
+    return localStorage.getItem('worklane_current_board_id_v1');
+  } catch {
+    return null;
+  }
+}
+
 export const useWorkStore = create<WorkState>()(
   (set, get) => ({
       boards: [],
-      activeBoardId: null,
+      activeBoardId: getSavedActiveBoardId(),
       lastMoveSnapshot: null,
       isLoadingCloud: false,
       hasLoadedOnce: false,
@@ -208,11 +219,13 @@ export const useWorkStore = create<WorkState>()(
         if (currentBoards.length === 0) {
           const cached = getCachedBoards(cleanEmail);
           if (cached && cached.length > 0) {
+            const targetBoardId = get().activeBoardId || getSavedActiveBoardId();
+            const activeId = targetBoardId && cached.some(b => b.id === targetBoardId)
+              ? targetBoardId
+              : (cached[0]?.id ?? null);
             set({
               boards: cached,
-              activeBoardId: get().activeBoardId && cached.some(b => b.id === get().activeBoardId)
-                ? get().activeBoardId
-                : (cached[0]?.id ?? null),
+              activeBoardId: activeId,
               hasLoadedOnce: true,
             });
           }
@@ -358,8 +371,9 @@ export const useWorkStore = create<WorkState>()(
                 }
               });
 
-              const activeBoardId = s.activeBoardId && finalBoards.some(b => b.id === s.activeBoardId)
-                ? s.activeBoardId
+              const targetBoardId = s.activeBoardId || getSavedActiveBoardId();
+              const activeBoardId = targetBoardId && finalBoards.some(b => b.id === targetBoardId)
+                ? targetBoardId
                 : (finalBoards[0]?.id ?? null);
 
               // Update local persistent snapshot for instant future reloads
@@ -592,7 +606,12 @@ export const useWorkStore = create<WorkState>()(
         supabaseService.removeMemberFromBoard(boardId, email, memberId);
       },
 
-      switchBoard: (boardId) => set({ activeBoardId: boardId }),
+      switchBoard: (boardId) => {
+        try {
+          localStorage.setItem('worklane_current_board_id_v1', boardId);
+        } catch {}
+        set({ activeBoardId: boardId });
+      },
 
       joinBoardFromCloud: async (boardId, role, user) => {
         const cleanEmail = user.email.toLowerCase().trim();
