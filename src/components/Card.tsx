@@ -127,6 +127,24 @@ export default function Card({
   const priority  = getPriority(card);
   const icon      = getCardIcon(card);
 
+  // Helper to find target column by touch coordinates using bounding rectangles
+  const getTargetColumn = (clientX: number, clientY: number): HTMLElement | null => {
+    const columns = document.querySelectorAll<HTMLElement>('.column[data-col-id]');
+    for (let i = 0; i < columns.length; i++) {
+      const col = columns[i];
+      const rect = col.getBoundingClientRect();
+      if (
+        clientX >= rect.left &&
+        clientX <= rect.right &&
+        clientY >= rect.top &&
+        clientY <= rect.bottom
+      ) {
+        return col;
+      }
+    }
+    return null;
+  };
+
   // Touch Drag & Drop for Mobile Phones
   const handleTouchStart = (e: React.TouchEvent) => {
     if (isObserver) return;
@@ -140,13 +158,13 @@ export default function Card({
       setIsTouchDragging(true);
       document.querySelector('.board-area')?.classList.add('touch-dragging-active');
       if (navigator.vibrate) {
-        try { navigator.vibrate(35); } catch {}
+        try { navigator.vibrate(40); } catch {}
       }
       onDragStart({
         dataTransfer: { effectAllowed: 'move', setData: () => {} },
         currentTarget: e.currentTarget
       } as any);
-    }, 180);
+    }, 220);
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
@@ -156,7 +174,8 @@ export default function Card({
       if (touchStartRef.current) {
         const dx = Math.abs(touch.clientX - touchStartRef.current.x);
         const dy = Math.abs(touch.clientY - touchStartRef.current.y);
-        if (dx > 8 || dy > 8) {
+        // Allow natural thumb tremor (up to 20px) without cancelling the hold timer
+        if (dx > 20 || dy > 20) {
           if (touchTimerRef.current) {
             clearTimeout(touchTimerRef.current);
             touchTimerRef.current = null;
@@ -175,8 +194,7 @@ export default function Card({
       });
     }
 
-    const el = document.elementFromPoint(touch.clientX, touch.clientY);
-    const targetCol = el?.closest('.column');
+    const targetCol = getTargetColumn(touch.clientX, touch.clientY);
     document.querySelectorAll('.column.drag-over').forEach(c => {
       if (c !== targetCol) c.classList.remove('drag-over');
     });
@@ -186,9 +204,9 @@ export default function Card({
 
     const boardArea = document.querySelector('.board-area');
     if (boardArea) {
-      if (touch.clientX < 70) {
+      if (touch.clientX < 80) {
         boardArea.scrollBy({ left: -16, behavior: 'auto' });
-      } else if (touch.clientX > window.innerWidth - 70) {
+      } else if (touch.clientX > window.innerWidth - 80) {
         boardArea.scrollBy({ left: 16, behavior: 'auto' });
       }
     }
@@ -210,8 +228,7 @@ export default function Card({
       document.querySelectorAll('.column.drag-over').forEach(c => c.classList.remove('drag-over'));
 
       const touch = e.changedTouches[0];
-      const el = document.elementFromPoint(touch.clientX, touch.clientY);
-      const targetCol = el?.closest('.column');
+      const targetCol = getTargetColumn(touch.clientX, touch.clientY);
       const targetColId = targetCol?.getAttribute('data-col-id');
 
       if (targetColId && targetColId !== colId) {
@@ -222,6 +239,21 @@ export default function Card({
           onClick: undoLastMove,
         });
       }
+      onDragEnd();
+    }
+  };
+
+  const handleTouchCancel = () => {
+    if (touchTimerRef.current) {
+      clearTimeout(touchTimerRef.current);
+      touchTimerRef.current = null;
+    }
+    if (isDraggingActiveRef.current) {
+      isDraggingActiveRef.current = false;
+      setIsTouchDragging(false);
+      setTouchDelta({ x: 0, y: 0 });
+      document.querySelector('.board-area')?.classList.remove('touch-dragging-active');
+      document.querySelectorAll('.column.drag-over').forEach(c => c.classList.remove('drag-over'));
       onDragEnd();
     }
   };
@@ -241,6 +273,7 @@ export default function Card({
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
+      onTouchCancel={handleTouchCancel}
       onClick={(e) => {
         if (wasDraggingRef.current) return;
         onClick();
@@ -249,12 +282,11 @@ export default function Card({
         cursor: isObserver ? 'pointer' : 'grab',
         ...(isTouchDragging ? {
           transform: `translate3d(${touchDelta.x}px, ${touchDelta.y}px, 0) scale(1.04) rotate(1.5deg)`,
-          opacity: 0.92,
-          boxShadow: '0 20px 40px rgba(0,0,0,0.5)',
+          opacity: 0.94,
+          boxShadow: '0 24px 48px rgba(0,0,0,0.55)',
           zIndex: 9999,
-          pointerEvents: 'none',
           transition: 'none',
-          border: '1.5px solid hsl(var(--primary))'
+          border: '2px solid hsl(var(--primary))'
         } : {})
       }}
     >

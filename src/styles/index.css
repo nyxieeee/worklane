@@ -835,7 +835,7 @@ html, body, #root {
   user-select: none !important;
   -webkit-user-select: none !important;
   touch-action: none !important;
-  pointer-events: none !important;
+  z-index: 9999 !important;
 }
 
 .card.completed {
