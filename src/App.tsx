@@ -19,7 +19,7 @@ import ConfirmModal from './components/modals/ConfirmModal';
 import { InboxDrawer } from './components/InboxDrawer';
 import InviteLandingPage from './components/InviteLandingPage';
 import AppLoadingScreen from './components/AppLoadingScreen';
-import { MobileBottomNav } from './components/mobile';
+import { MobileBottomNav, MobileBoardSelector } from './components/mobile';
 import { useWorkStore } from './store/useWorkStore';
 import { useNotifStore } from './store/useNotifStore';
 import { useEmailStore } from './store/useEmailStore';
@@ -290,6 +290,7 @@ export default function App() {
   const [showPrivacy, setShowPrivacy] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showInbox, setShowInbox] = useState(false);
+  const [showBoardSelector, setShowBoardSelector] = useState(false);
   const [settingsTab, setSettingsTab] = useState<'profile' | 'appearance' | 'notifications' | 'email' | 'privacy' | 'labels'>('profile');
   const [notifOpen, setNotifOpen] = useState(false);
 
@@ -403,6 +404,7 @@ export default function App() {
   const handleSelectBoard = useCallback((boardId: string) => {
     switchBoard(boardId);
     setPage('board');
+    setShowBoardSelector(false);
     try {
       localStorage.setItem('worklane_current_page_v1', 'board');
       localStorage.setItem('worklane_current_board_id_v1', boardId);
@@ -694,6 +696,7 @@ function saveAlertedSet(key: string, setObj: Set<string>) {
                   onToggleNotif={() => setNotifOpen(o => !o)}
                   notifOpen={notifOpen}
                   onToggleMobileMenu={() => setMobileMenuOpen(o => !o)}
+                  onOpenBoardSelector={() => setShowBoardSelector(true)}
                 />
 
                 <BoardArea
@@ -796,15 +799,40 @@ function saveAlertedSet(key: string, setObj: Set<string>) {
         onGoHome={() => {
           handleGoToDashboard();
           setMobileMenuOpen(false);
+          setShowBoardSelector(false);
         }}
         onSelectBoardView={(mode) => {
           setPage('board');
           setViewMode(mode);
           setMobileMenuOpen(false);
+          setShowBoardSelector(false);
+        }}
+        onOpenBoardSelector={() => {
+          setShowBoardSelector(true);
+          setShowInbox(false);
+          setMobileMenuOpen(false);
         }}
         onToggleInbox={() => {
           setShowInbox(s => !s);
           setMobileMenuOpen(false);
+          setShowBoardSelector(false);
+        }}
+      />
+
+      {/* Mobile Board Selector Bottom Sheet */}
+      <MobileBoardSelector
+        isOpen={showBoardSelector}
+        onClose={() => setShowBoardSelector(false)}
+        boards={boards}
+        activeBoardId={activeBoardId}
+        onSelectBoard={(boardId) => {
+          handleSelectBoard(boardId);
+          setViewMode('board');
+          setShowBoardSelector(false);
+        }}
+        onCreateBoard={() => {
+          setShowBoardSelector(false);
+          setShowCreateBoard(true);
         }}
       />
 

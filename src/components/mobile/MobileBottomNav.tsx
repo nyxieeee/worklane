@@ -7,6 +7,7 @@ interface MobileBottomNavProps {
   showInbox: boolean;
   onGoHome: () => void;
   onSelectBoardView: (view: 'board' | 'list' | 'calendar') => void;
+  onOpenBoardSelector?: () => void;
   onToggleInbox: () => void;
 }
 
@@ -16,6 +17,7 @@ export default function MobileBottomNav({
   showInbox,
   onGoHome,
   onSelectBoardView,
+  onOpenBoardSelector,
   onToggleInbox,
 }: MobileBottomNavProps) {
   return (
@@ -33,7 +35,13 @@ export default function MobileBottomNav({
       <button
         type="button"
         className={`mobile-nav-tab ${page === 'board' && viewMode === 'board' ? 'active' : ''}`}
-        onClick={() => onSelectBoardView('board')}
+        onClick={() => {
+          if (onOpenBoardSelector) {
+            onOpenBoardSelector();
+          } else {
+            onSelectBoardView('board');
+          }
+        }}
         title="Board View"
       >
         <KanbanSquare size={17} />

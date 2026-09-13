@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { Bell, Mail, Search, LogOut, Shield, ChevronRight, Settings, Inbox, Crown, Eye, User, Menu } from 'lucide-react';
+import { Bell, Mail, Search, LogOut, Shield, ChevronRight, ChevronDown, Settings, Inbox, Crown, Eye, User, Menu } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useWorkStore } from '../store/useWorkStore';
 import { useNotifStore } from '../store/useNotifStore';
@@ -22,6 +22,7 @@ interface Props {
   onToggleNotif: () => void;
   notifOpen: boolean;
   onToggleMobileMenu?: () => void;
+  onOpenBoardSelector?: () => void;
 }
 
 export default function Topbar({
@@ -35,7 +36,8 @@ export default function Topbar({
   onOpenSettings,
   onToggleNotif,
   notifOpen,
-  onToggleMobileMenu
+  onToggleMobileMenu,
+  onOpenBoardSelector,
 }: Props) {
   const boards            = useWorkStore(s => s.boards);
   const activeBoard       = useWorkStore(s => s.boards.find(b => b.id === s.activeBoardId));
@@ -129,7 +131,36 @@ export default function Topbar({
                   setShowColorPicker(s => !s);
                 } : undefined}
               />
-              <span>{board.name}</span>
+              {isMobile && onOpenBoardSelector ? (
+                <button
+                  type="button"
+                  onClick={onOpenBoardSelector}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    padding: 0,
+                    margin: 0,
+                    font: 'inherit',
+                    color: 'inherit',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 4,
+                    cursor: 'pointer',
+                    maxWidth: 160,
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                  }}
+                  title="Switch board"
+                >
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {board.name}
+                  </span>
+                  <ChevronDown size={14} style={{ opacity: 0.65, flexShrink: 0 }} />
+                </button>
+              ) : (
+                <span>{board.name}</span>
+              )}
               <AnimatePresence>
                 {showColorPicker && (
                   <BoardColorPicker
