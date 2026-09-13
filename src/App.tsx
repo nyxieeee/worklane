@@ -237,11 +237,11 @@ export default function App() {
       const savedBoard = localStorage.getItem('worklane_current_board_id_v1');
       const initialBoardId = urlBoard || savedBoard || null;
 
-      const urlView = params.get('view') as 'board' | 'calendar' | null;
+      const urlView = params.get('view') as 'board' | 'roadmap' | 'calendar' | null;
       const urlCard = params.get('card') || params.get('c');
 
       const savedPage = localStorage.getItem('worklane_current_page_v1') as 'dashboard' | 'board' | null;
-      const savedView = localStorage.getItem('worklane_current_view_mode_v1') as 'board' | 'calendar' | null;
+      const savedView = localStorage.getItem('worklane_current_view_mode_v1') as 'board' | 'roadmap' | 'calendar' | null;
       const savedCard = localStorage.getItem('worklane_current_card_v1');
 
       let initialPage: 'dashboard' | 'board' = 'dashboard';
@@ -249,11 +249,11 @@ export default function App() {
         initialPage = 'board';
       }
 
-      const validViews: Array<'board' | 'calendar'> = ['board', 'calendar'];
+      const validViews: Array<'board' | 'roadmap' | 'calendar'> = ['board', 'roadmap', 'calendar'];
       const initialView = validViews.includes(urlView as any)
-        ? (urlView as 'board' | 'calendar')
+        ? (urlView as 'board' | 'roadmap' | 'calendar')
         : validViews.includes(savedView as any)
-        ? (savedView as 'board' | 'calendar')
+        ? (savedView as 'board' | 'roadmap' | 'calendar')
         : 'board';
 
       return {
@@ -300,7 +300,7 @@ export default function App() {
   }, []);
 
   // Active view layout & team member filter
-  const [viewMode, setViewMode] = useState<'board' | 'calendar'>(initialRouting.viewMode);
+  const [viewMode, setViewMode] = useState<'board' | 'roadmap' | 'calendar'>(initialRouting.viewMode);
   const [filterMemberId, setFilterMemberId] = useState<string | null>(null);
 
   // Synchronize board from URL on initial mount

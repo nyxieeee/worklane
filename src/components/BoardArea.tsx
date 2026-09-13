@@ -8,6 +8,7 @@ import { useWorkStore } from '../store/useWorkStore';
 import { useToastStore } from '../store/useToastStore';
 import { useAuthStore } from '../store/useAuthStore';
 import Column from './Column';
+import RoadmapView from './RoadmapView';
 import { InboxDrawer } from './InboxDrawer';
 import { formatDueDate, avatarInitials, useIsMobile } from '../utils';
 import { LABELS, type Member, type Card, type Column as ColumnType } from '../types';
@@ -33,7 +34,7 @@ interface ContextMenu {
 }
 
 interface Props {
-  viewMode: 'board' | 'calendar';
+  viewMode: 'board' | 'roadmap' | 'calendar';
   filterMemberId: string | null;
   onClearFilter: () => void;
   onOpenCard: (cardId: string) => void;
@@ -279,7 +280,22 @@ export default function BoardArea({
         </div>
 
       <AnimatePresence mode="wait">
-
+        {viewMode === 'roadmap' && (
+          <motion.div
+            key="roadmap-view"
+            variants={isMobile ? viewMobileVariants : view3DVariants}
+            initial="initial"
+            animate="animate"
+            exit="exit"
+            style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
+          >
+            <RoadmapView
+              board={board}
+              onOpenCard={onOpenCard}
+              isObserver={isObserver}
+            />
+          </motion.div>
+        )}
 
         {viewMode === 'calendar' && (
           <motion.div

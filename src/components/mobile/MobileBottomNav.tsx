@@ -4,10 +4,10 @@ import { motion } from 'framer-motion';
 
 interface MobileBottomNavProps {
   page: 'dashboard' | 'board';
-  viewMode: 'board' | 'calendar';
+  viewMode: 'board' | 'roadmap' | 'calendar';
   showInbox: boolean;
   onGoHome: () => void;
-  onSelectBoardView: (view: 'board' | 'calendar') => void;
+  onSelectBoardView: (view: 'board' | 'roadmap' | 'calendar') => void;
   onOpenBoardSelector?: () => void;
   onCreateBoard: () => void;
   onToggleInbox: () => void;

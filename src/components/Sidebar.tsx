@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  KanbanSquare, List, Calendar, Users, Inbox,
+  KanbanSquare, Milestone, Calendar, Users, Inbox,
   Mail, Shield, Plus, X, ChevronLeft, ChevronRight,
   ArrowLeft, Check, Sun, Moon, LayoutDashboard,
   Eye, EyeOff, LogOut, Settings, Sliders, Pencil, Palette, Clock
@@ -21,8 +21,8 @@ import logoImg from '../assets/logo.png';
 
 interface Props {
   page: 'dashboard' | 'board';
-  activeView: 'board' | 'calendar';
-  onSelectView: (view: 'board' | 'calendar') => void;
+  activeView: 'board' | 'roadmap' | 'calendar';
+  onSelectView: (view: 'board' | 'roadmap' | 'calendar') => void;
   onOpenInbox: () => void;
   isInboxOpen?: boolean;
   onManageMembers: () => void;
@@ -71,7 +71,7 @@ export default function Sidebar({
     onGoToDashboard();
     onCloseMobile?.();
   };
-  const handleSelectView = (view: 'board' | 'calendar') => {
+  const handleSelectView = (view: 'board' | 'roadmap' | 'calendar') => {
     onSelectView(view);
     onCloseMobile?.();
   };
@@ -199,6 +199,14 @@ export default function Sidebar({
                 onClick={() => handleSelectView('board')}
               >
                 <KanbanSquare size={16} />
+              </motion.button>
+              <motion.button
+                whileTap={{ scale: 0.92 }}
+                className={`icon-btn ${activeView === 'roadmap' ? 'active' : ''}`}
+                title="Roadmap (Gantt)"
+                onClick={() => handleSelectView('roadmap')}
+              >
+                <Milestone size={16} />
               </motion.button>
               <motion.button
                 whileTap={{ scale: 0.92 }}
@@ -634,6 +642,15 @@ export default function Sidebar({
                 <KanbanSquare size={14} />
                 <span style={{ flex: 1 }}>Board</span>
                 {activeView === 'board' && <Check size={13} color="hsl(var(--primary))" />}
+              </motion.button>
+              <motion.button
+                whileTap={{ scale: 0.97 }}
+                className={`sidebar-nav-item ${activeView === 'roadmap' ? 'active' : ''}`}
+                onClick={() => handleSelectView('roadmap')}
+              >
+                <Milestone size={14} />
+                <span style={{ flex: 1 }}>Roadmap</span>
+                {activeView === 'roadmap' && <Check size={13} color="hsl(var(--primary))" />}
               </motion.button>
               <motion.button
                 whileTap={{ scale: 0.97 }}
