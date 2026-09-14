@@ -35,6 +35,16 @@ export interface Comment {
   attachments?: Attachment[];
 }
 
+export interface Sprint {
+  id: string;
+  name: string;
+  goal?: string;
+  startDate: string; // ISO date string YYYY-MM-DD
+  endDate: string;   // ISO date string YYYY-MM-DD
+  status: 'planned' | 'active' | 'completed';
+  color?: string;
+}
+
 export interface Card {
   id: string;
   title: string;
@@ -44,6 +54,11 @@ export interface Card {
   labels: string[];
   assignees: string[];
   dueDate: string | null;
+  startDate?: string | null;
+  sprintId?: string | null;
+  isMilestone?: boolean;
+  progress?: number; // 0 to 100 percentage
+  dependencies?: string[]; // card IDs this card depends on
   completed: boolean;
   completedAt: string | null;
   createdAt: string;
@@ -67,6 +82,7 @@ export interface Board {
   members: Member[];
   columns: Column[];
   inboxCards?: Card[];
+  sprints?: Sprint[];
 }
 
 export interface Notification {

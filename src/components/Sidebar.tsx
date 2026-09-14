@@ -103,11 +103,26 @@ export default function Sidebar({
   const isDark  = useThemeStore(s => s.isDark);
   const toggleTheme = useThemeStore(s => s.toggle);
 
-  const activeBoard = useMemo(() => allBoards.find(b => b.id === activeBoardId), [allBoards, activeBoardId]);
+  const activeBoard = useMemo(() => allBoards.find(b => b.id === activeBoardId) || (page === 'board' ? allBoards[0] : undefined), [allBoards, activeBoardId, page]);
   const teamMembers = useMemo(
     () => sortMembersWithOwnerFirst(activeBoard?.members ?? [], activeBoard?.createdBy),
     [activeBoard?.members, activeBoard?.createdBy]
   );
+
+  const activeSprint = useMemo(() => {
+    return activeBoard?.sprints?.find(s => s.status === 'active');
+  }, [activeBoard?.sprints]);
+
+  const scheduledCount = useMemo(() => {
+    if (!activeBoard?.columns) return 0;
+    let count = 0;
+    activeBoard.columns.forEach(col => {
+      col.cards?.forEach(c => {
+        if (c.dueDate || c.startDate || c.sprintId) count++;
+      });
+    });
+    return count;
+  }, [activeBoard]);
 
   const isMobile = useIsMobile(860);
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -203,10 +218,25 @@ export default function Sidebar({
               <motion.button
                 whileTap={{ scale: 0.92 }}
                 className={`icon-btn ${activeView === 'roadmap' ? 'active' : ''}`}
-                title="Roadmap (Gantt)"
+                title={`Roadmap (Gantt & Sprints)${activeSprint ? ` • ${activeSprint.name}` : ''}`}
                 onClick={() => handleSelectView('roadmap')}
+                style={{ position: 'relative' }}
               >
-                <Milestone size={16} />
+                <Milestone size={16} color={activeView === 'roadmap' ? 'hsl(var(--primary))' : undefined} />
+                {activeSprint && (
+                  <span
+                    style={{
+                      position: 'absolute',
+                      top: 3,
+                      right: 3,
+                      width: 6,
+                      height: 6,
+                      borderRadius: '50%',
+                      backgroundColor: 'hsl(var(--primary))',
+                      boxShadow: '0 0 6px hsl(var(--primary))',
+                    }}
+                  />
+                )}
               </motion.button>
               <motion.button
                 whileTap={{ scale: 0.92 }}
@@ -647,9 +677,42 @@ export default function Sidebar({
                 whileTap={{ scale: 0.97 }}
                 className={`sidebar-nav-item ${activeView === 'roadmap' ? 'active' : ''}`}
                 onClick={() => handleSelectView('roadmap')}
+                title="Roadmap & Gantt chart for sprint development and project timelines"
               >
-                <Milestone size={14} />
-                <span style={{ flex: 1 }}>Roadmap</span>
+                <Milestone size={14} color="hsl(var(--primary))" />
+                <span style={{ flex: 1, fontWeight: activeView === 'roadmap' ? 700 : 500 }}>
+                  Roadmap (Gantt)
+                </span>
+                {activeSprint ? (
+                  <span
+                    style={{
+                      fontSize: 9.5,
+                      fontWeight: 700,
+                      padding: '1px 6px',
+                      borderRadius: 4,
+                      background: 'hsl(var(--primary) / 0.15)',
+                      color: 'hsl(var(--primary))',
+                      letterSpacing: '0.03em',
+                      textTransform: 'uppercase',
+                    }}
+                    title={`Active Sprint: ${activeSprint.name}`}
+                  >
+                    Sprint
+                  </span>
+                ) : scheduledCount > 0 ? (
+                  <span
+                    style={{
+                      fontSize: 10,
+                      fontWeight: 700,
+                      padding: '1px 6px',
+                      borderRadius: 10,
+                      background: 'hsl(var(--muted))',
+                      color: 'hsl(var(--muted-foreground))',
+                    }}
+                  >
+                    {scheduledCount}
+                  </span>
+                ) : null}
                 {activeView === 'roadmap' && <Check size={13} color="hsl(var(--primary))" />}
               </motion.button>
               <motion.button

@@ -5,7 +5,8 @@ import {
   Eye, Image as ImageIcon, Maximize2, AtSign, Reply, Sparkles,
   FileSpreadsheet, FileText, FileCode, FileArchive, File, Lock,
   Edit3, Crown, Shield, Save, Loader2, Globe, Server, Cpu, Briefcase,
-  Link2, ExternalLink, ArrowRightLeft
+  Link2, ExternalLink, ArrowRightLeft,
+  Milestone, Layers, Activity
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useWorkStore } from '../store/useWorkStore';
@@ -2282,16 +2283,100 @@ export default function CardModal({ cardId, boardId, onClose }: Props) {
               </motion.button>
             </div>
 
-            {/* Due Date */}
-            <div className="form-group">
-              <label className="field-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <Calendar size={12} /> Due Date & Time
-              </label>
-              <NeumorphicDatePicker
-                value={card.dueDate}
-                onChange={newDue => {
-                  updateCard(cardId, { dueDate: newDue });
+            {/* Start Date & Due Date */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              <div className="form-group">
+                <label className="field-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <Calendar size={12} /> Start Date
+                </label>
+                <NeumorphicDatePicker
+                  value={card.startDate || null}
+                  onChange={newStart => {
+                    updateCard(cardId, { startDate: newStart });
+                  }}
+                />
+              </div>
+              <div className="form-group">
+                <label className="field-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <Calendar size={12} /> Due Date
+                </label>
+                <NeumorphicDatePicker
+                  value={card.dueDate}
+                  onChange={newDue => {
+                    updateCard(cardId, { dueDate: newDue });
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* Sprint & Milestone */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 10, alignItems: 'end', marginBottom: 16 }}>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="field-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <Layers size={12} /> Sprint
+                </label>
+                <select
+                  value={card.sprintId || ''}
+                  onChange={e => {
+                    updateCard(cardId, { sprintId: e.target.value || null });
+                  }}
+                  className="select-input"
+                  style={{ width: '100%', fontSize: 12, height: 32, padding: '4px 8px', borderRadius: 8 }}
+                >
+                  <option value="">No Sprint (Backlog)</option>
+                  {(board?.sprints || []).map(sp => (
+                    <option key={sp.id} value={sp.id}>
+                      {sp.name} {sp.status === 'active' ? '(Active)' : `(${sp.status})`}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <motion.button
+                type="button"
+                whileTap={{ scale: 0.95 }}
+                className={`btn ${card.isMilestone ? 'btn-primary' : 'btn-secondary'}`}
+                style={{
+                  height: 32,
+                  fontSize: 11.5,
+                  padding: '4px 10px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 5,
+                  borderRadius: 8,
                 }}
+                onClick={() => updateCard(cardId, { isMilestone: !card.isMilestone })}
+                title="Toggle as a major Milestone / Release deliverable"
+              >
+                <Milestone size={13} color={card.isMilestone ? '#fff' : 'hsl(var(--primary))'} />
+                <span>{card.isMilestone ? 'Milestone' : 'Set Milestone'}</span>
+              </motion.button>
+            </div>
+
+            {/* Progress Slider (0% to 100%) */}
+            <div className="form-group">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                <label className="field-label" style={{ display: 'flex', alignItems: 'center', gap: 6, margin: 0 }}>
+                  <Activity size={12} /> Progress
+                </label>
+                <span style={{ fontSize: 11.5, fontWeight: 700, color: 'hsl(var(--primary))' }}>
+                  {card.progress ?? (card.completed ? 100 : 0)}%
+                </span>
+              </div>
+              <input
+                type="range"
+                min="0"
+                max="100"
+                step="5"
+                value={card.progress ?? (card.completed ? 100 : 0)}
+                onChange={e => {
+                  const val = Number(e.target.value);
+                  updateCard(cardId, {
+                    progress: val,
+                    completed: val === 100 ? true : card.completed,
+                    completedAt: val === 100 ? (card.completedAt || new Date().toISOString()) : card.completedAt
+                  });
+                }}
+                style={{ width: '100%', accentColor: 'hsl(var(--primary))', cursor: 'pointer' }}
               />
             </div>
 

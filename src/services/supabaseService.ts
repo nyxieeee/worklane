@@ -1,5 +1,5 @@
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
-import type { Board, Column, Card, Comment, Attachment, Member, MemberRole, Notification } from '../types';
+import type { Board, Column, Card, Comment, Attachment, Member, MemberRole, Notification, Sprint } from '../types';
 import { uid, sortMembersWithOwnerFirst } from '../utils';
 
 // Active WebSocket channel reference for instant peer broadcasting
@@ -121,15 +121,15 @@ export const supabaseService = {
         supabase.from('cards').select('*').in('board_id', boardIds).order('position'),
       ]);
 
-      const allMembers = membersRes.data || [];
-      const allCols = colsRes.data || [];
-      const allCards = cardsRes.data || [];
-      const cardIds = allCards.map(c => c.id);
+      const allMembers: any[] = membersRes.data || [];
+      const allCols: any[] = colsRes.data || [];
+      const allCards: any[] = cardsRes.data || [];
+      const cardIds = allCards.map((c: any) => c.id);
 
       // Collect specific member emails to avoid scanning the entire profiles table
       const memberEmails = Array.from(new Set(
         allMembers
-          .map(m => m.email ? m.email.toLowerCase().trim() : '')
+          .map((m: any) => m.email ? m.email.toLowerCase().trim() : '')
           .filter(Boolean)
       ));
       if (cleanEmail && !memberEmails.includes(cleanEmail)) {
@@ -163,8 +163,8 @@ export const supabaseService = {
       const assembledBoards: Board[] = boardsData.map(b => {
         const bMembers: Member[] = sortMembersWithOwnerFirst(
           allMembers
-            .filter(m => m.board_id === b.id)
-            .map(m => {
+            .filter((m: any) => m.board_id === b.id)
+            .map((m: any) => {
               const mCleanEmail = m.email ? m.email.toLowerCase().trim() : '';
               const realProfile = profileMap.get(mCleanEmail);
 
@@ -228,14 +228,46 @@ export const supabaseService = {
               addedAt: att.added_at,
             }));
 
+          let desc = card.description || '';
+          let startDate: string | null = card.created_at ? card.created_at.split('T')[0] : null;
+          let sprintId: string | null = null;
+          let isMilestone: boolean = card.priority === 'urgent';
+          let progress: number = card.completed ? 100 : 0;
+          let dependencies: string[] = [];
+
+          // Parse embedded roadmap metadata from card description
+          const rMatch = desc.match(/<!--worklane_roadmap:([\s\S]*?)-->/);
+          if (rMatch) {
+            try {
+              const meta = JSON.parse(rMatch[1]);
+              if (meta.startDate !== undefined) startDate = meta.startDate;
+              if (meta.sprintId !== undefined) sprintId = meta.sprintId;
+              if (meta.isMilestone !== undefined) isMilestone = !!meta.isMilestone;
+              if (meta.progress !== undefined) progress = meta.progress;
+              if (meta.dependencies !== undefined) dependencies = meta.dependencies;
+              desc = desc.replace(rMatch[0], '').trimEnd();
+            } catch {}
+          }
+
+          // Strip any embedded board sprints tag from card description
+          const spMatch = desc.match(/<!--worklane_board_sprints:[\s\S]*?-->/);
+          if (spMatch) {
+            desc = desc.replace(spMatch[0], '').trimEnd();
+          }
+
           return {
             id: card.id,
             title: card.title,
-            description: card.description || '',
+            description: desc,
             priority: card.priority,
             completed: card.completed,
             completedAt: card.completed_at,
             dueDate: card.due_date,
+            startDate,
+            sprintId,
+            isMilestone,
+            progress,
+            dependencies,
             coverAttachmentId: card.cover_attachment_id,
             createdAt: card.created_at,
             isInbox: !!card.is_inbox,
@@ -247,10 +279,10 @@ export const supabaseService = {
         };
 
         let bColumns: Column[] = allCols
-          .filter(c => c.board_id === b.id)
-          .map(col => {
+          .filter((c: any) => c.board_id === b.id)
+          .map((col: any) => {
             const colCards: Card[] = allCards
-              .filter(card => card.column_id === col.id && !card.is_inbox)
+              .filter((card: any) => card.column_id === col.id && !card.is_inbox)
               .map(mapDbCardToCard);
 
             return {
@@ -271,8 +303,25 @@ export const supabaseService = {
         }
 
         const bInboxCards: Card[] = allCards
-          .filter(card => card.board_id === b.id && card.is_inbox)
+          .filter((card: any) => card.board_id === b.id && card.is_inbox)
           .map(mapDbCardToCard);
+
+        // Assemble Sprints from embedded backup in card descriptions
+        let bSprints: Sprint[] = [];
+        for (const card of allCards) {
+          if (card.board_id === b.id && card.description) {
+            const sMatch = card.description.match(/<!--worklane_board_sprints:([\s\S]*?)-->/);
+            if (sMatch) {
+              try {
+                const parsed = JSON.parse(sMatch[1]);
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                  bSprints = parsed;
+                  break;
+                }
+              } catch {}
+            }
+          }
+        }
 
         return {
           id: b.id,
@@ -282,6 +331,7 @@ export const supabaseService = {
           members: bMembers,
           columns: bColumns,
           inboxCards: bInboxCards,
+          sprints: bSprints,
         };
       });
 
@@ -362,21 +412,50 @@ export const supabaseService = {
       const currentCardIds = allCardsWithMeta.map(item => item.card.id).filter(Boolean);
 
       if (allCardsWithMeta.length > 0) {
-        const cardRows = allCardsWithMeta.map(item => ({
-          id: item.card.id,
-          board_id: board.id,
-          column_id: item.colId,
-          title: item.card.title,
-          description: item.card.description || '',
-          priority: item.card.priority || 'medium',
-          completed: !!item.card.completed,
-          completed_at: item.card.completedAt || null,
-          due_date: item.card.dueDate || null,
-          cover_attachment_id: item.card.coverAttachmentId || null,
-          position: item.pos,
-          is_inbox: item.isInbox,
-          updated_at: new Date().toISOString(),
-        }));
+        const cardRows = allCardsWithMeta.map((item, index) => {
+          const hasRoadmapMeta = !!(
+            item.card.startDate ||
+            item.card.sprintId ||
+            item.card.isMilestone ||
+            (item.card.progress !== undefined && item.card.progress !== (item.card.completed ? 100 : 0)) ||
+            (item.card.dependencies && item.card.dependencies.length > 0)
+          );
+
+          let encodedDescription = item.card.description || '';
+          // Strip any existing worklane_roadmap or worklane_board_sprints tag first
+          encodedDescription = encodedDescription.replace(/<!--worklane_roadmap:[\s\S]*?-->/g, '').replace(/<!--worklane_board_sprints:[\s\S]*?-->/g, '').trimEnd();
+
+          if (hasRoadmapMeta) {
+            const rMeta: any = {};
+            if (item.card.startDate) rMeta.startDate = item.card.startDate;
+            if (item.card.sprintId) rMeta.sprintId = item.card.sprintId;
+            if (item.card.isMilestone) rMeta.isMilestone = true;
+            if (item.card.progress !== undefined) rMeta.progress = item.card.progress;
+            if (item.card.dependencies?.length) rMeta.dependencies = item.card.dependencies;
+            encodedDescription = `${encodedDescription}\n<!--worklane_roadmap:${JSON.stringify(rMeta)}-->`.trim();
+          }
+
+          // If this is the first card and board has sprints, embed board sprints tag as bulletproof backup
+          if (index === 0 && board.sprints && board.sprints.length > 0) {
+            encodedDescription = `${encodedDescription}\n<!--worklane_board_sprints:${JSON.stringify(board.sprints)}-->`.trim();
+          }
+
+          return {
+            id: item.card.id,
+            board_id: board.id,
+            column_id: item.colId,
+            title: item.card.title,
+            description: encodedDescription,
+            priority: item.card.priority || 'medium',
+            completed: !!item.card.completed,
+            completed_at: item.card.completedAt || null,
+            due_date: item.card.dueDate || null,
+            cover_attachment_id: item.card.coverAttachmentId || null,
+            position: item.pos,
+            is_inbox: item.isInbox,
+            updated_at: new Date().toISOString(),
+          };
+        });
 
         await supabase.from('cards').upsert(cardRows, { onConflict: 'id' });
 
@@ -805,14 +884,14 @@ export const supabaseService = {
         supabase.from('profiles').select('email, name, avatar_url, border_style'),
       ]);
 
-      const allMembers = membersRes.data || [];
-      const allCols = colsRes.data || [];
-      const allCards = cardsRes.data || [];
-      const allProfiles = profilesRes.data || [];
-      const cardIds = allCards.map(c => c.id);
+      const allMembers: any[] = membersRes.data || [];
+      const allCols: any[] = colsRes.data || [];
+      const allCards: any[] = cardsRes.data || [];
+      const allProfiles: any[] = profilesRes.data || [];
+      const cardIds = allCards.map((c: any) => c.id);
 
       const profileMap = new Map<string, { name?: string; avatar_url?: string; border_style?: string }>();
-      allProfiles.forEach(p => {
+      allProfiles.forEach((p: any) => {
         if (p.email) profileMap.set(p.email.toLowerCase().trim(), p);
       });
 
@@ -836,7 +915,7 @@ export const supabaseService = {
       }
 
       const bMembers: Member[] = sortMembersWithOwnerFirst(
-        allMembers.map(m => {
+        allMembers.map((m: any) => {
           const mCleanEmail = m.email ? m.email.toLowerCase().trim() : '';
           const realProfile = profileMap.get(mCleanEmail);
           return {
@@ -899,14 +978,46 @@ export const supabaseService = {
             addedAt: att.added_at,
           }));
 
+        let desc = card.description || '';
+        let startDate: string | null = card.created_at ? card.created_at.split('T')[0] : null;
+        let sprintId: string | null = null;
+        let isMilestone: boolean = card.priority === 'urgent';
+        let progress: number = card.completed ? 100 : 0;
+        let dependencies: string[] = [];
+
+        // Parse embedded roadmap metadata from card description
+        const rMatch = desc.match(/<!--worklane_roadmap:([\s\S]*?)-->/);
+        if (rMatch) {
+          try {
+            const meta = JSON.parse(rMatch[1]);
+            if (meta.startDate !== undefined) startDate = meta.startDate;
+            if (meta.sprintId !== undefined) sprintId = meta.sprintId;
+            if (meta.isMilestone !== undefined) isMilestone = !!meta.isMilestone;
+            if (meta.progress !== undefined) progress = meta.progress;
+            if (meta.dependencies !== undefined) dependencies = meta.dependencies;
+            desc = desc.replace(rMatch[0], '').trimEnd();
+          } catch {}
+        }
+
+        // Strip any embedded board sprints tag from card description
+        const spMatch = desc.match(/<!--worklane_board_sprints:[\s\S]*?-->/);
+        if (spMatch) {
+          desc = desc.replace(spMatch[0], '').trimEnd();
+        }
+
         return {
           id: card.id,
           title: card.title,
-          description: card.description || '',
+          description: desc,
           priority: card.priority,
           completed: card.completed,
           completedAt: card.completed_at,
           dueDate: card.due_date,
+          startDate,
+          sprintId,
+          isMilestone,
+          progress,
+          dependencies,
           coverAttachmentId: card.cover_attachment_id,
           createdAt: card.created_at,
           isInbox: !!card.is_inbox,
@@ -917,9 +1028,9 @@ export const supabaseService = {
         };
       };
 
-      let bColumns: Column[] = allCols.map(col => {
+      let bColumns: Column[] = allCols.map((col: any) => {
         const colCards: Card[] = allCards
-          .filter(card => card.column_id === col.id && !card.is_inbox)
+          .filter((card: any) => card.column_id === col.id && !card.is_inbox)
           .map(mapDbCardToCard);
 
         return {
@@ -940,8 +1051,25 @@ export const supabaseService = {
       }
 
       const bInboxCards: Card[] = allCards
-        .filter(card => card.board_id === b.id && card.is_inbox)
+        .filter((card: any) => card.board_id === b.id && card.is_inbox)
         .map(mapDbCardToCard);
+
+      // Assemble Sprints from embedded backup in card descriptions
+      let bSprints: Sprint[] = [];
+      for (const card of allCards) {
+        if (card.description) {
+          const sMatch = card.description.match(/<!--worklane_board_sprints:([\s\S]*?)-->/);
+          if (sMatch) {
+            try {
+              const parsed = JSON.parse(sMatch[1]);
+              if (Array.isArray(parsed) && parsed.length > 0) {
+                bSprints = parsed;
+                break;
+              }
+            } catch {}
+          }
+        }
+      }
 
       return {
         id: b.id,
@@ -951,6 +1079,7 @@ export const supabaseService = {
         members: bMembers,
         columns: bColumns,
         inboxCards: bInboxCards,
+        sprints: bSprints,
       };
     } catch (err) {
       console.warn('[SupabaseService] Exception fetching board by ID:', err);

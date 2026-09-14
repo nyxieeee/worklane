@@ -1,7 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import {
   Plus, Edit3, Trash2, Layout, Check, X, Inbox,
-  Calendar, CheckSquare, Square, Filter, ChevronRight, ChevronLeft, User, Eye
+  Calendar, CheckSquare, Square, Filter, ChevronRight, ChevronLeft, User, Eye,
+  KanbanSquare, Milestone
 } from 'lucide-react';
 import { motion, AnimatePresence, type Variants } from 'framer-motion';
 import { useWorkStore } from '../store/useWorkStore';
@@ -35,6 +36,7 @@ interface ContextMenu {
 
 interface Props {
   viewMode: 'board' | 'roadmap' | 'calendar';
+  onSelectView?: (view: 'board' | 'roadmap' | 'calendar') => void;
   filterMemberId: string | null;
   onClearFilter: () => void;
   onOpenCard: (cardId: string) => void;
@@ -58,6 +60,7 @@ const viewMobileVariants: Variants = {
 
 export default function BoardArea({
   viewMode,
+  onSelectView,
   filterMemberId,
   onClearFilter,
   onOpenCard,
@@ -242,6 +245,39 @@ export default function BoardArea({
               </span>
             )}
           </motion.button>
+
+          {/* In-Board View Switcher Tabs */}
+          {onSelectView && (
+            <div className="board-view-segmented-tabs">
+              <button
+                type="button"
+                className={`board-view-tab-btn ${viewMode === 'board' ? 'active' : ''}`}
+                onClick={() => onSelectView('board')}
+                title="Kanban Board View"
+              >
+                <KanbanSquare size={13} />
+                <span>Board</span>
+              </button>
+              <button
+                type="button"
+                className={`board-view-tab-btn ${viewMode === 'roadmap' ? 'active' : ''}`}
+                onClick={() => onSelectView('roadmap')}
+                title="Roadmap & Gantt Chart (Sprint Development & Timeline)"
+              >
+                <Milestone size={13} />
+                <span>Roadmap</span>
+              </button>
+              <button
+                type="button"
+                className={`board-view-tab-btn ${viewMode === 'calendar' ? 'active' : ''}`}
+                onClick={() => onSelectView('calendar')}
+                title="Calendar View"
+              >
+                <Calendar size={13} />
+                <span>Calendar</span>
+              </button>
+            </div>
+          )}
 
             {/* Observer Role Indicator */}
             {isObserver && (

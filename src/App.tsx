@@ -701,6 +701,7 @@ function saveAlertedSet(key: string, setObj: Set<string>) {
 
                 <BoardArea
                   viewMode={viewMode}
+                  onSelectView={setViewMode}
                   filterMemberId={filterMemberId}
                   onClearFilter={() => setFilterMemberId(null)}
                   onOpenCard={cardId => handleOpenCard(cardId)}

@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Board, Column, Card, Member, MemberRole, Attachment, Comment } from '../types';
+import type { Board, Column, Card, Member, MemberRole, Attachment, Comment, Sprint } from '../types';
 import { AVATAR_COLORS, LABELS } from '../types';
 import { uid, avatarInitials, sortMembersWithOwnerFirst } from '../utils';
 import { useEmailStore } from './useEmailStore';
@@ -36,6 +36,14 @@ interface WorkState {
   addColumn: (name: string) => void;
   deleteColumn: (colId: string) => void;
   renameColumn: (colId: string, name: string) => void;
+
+  // Sprint actions
+  createSprint: (boardId: string, name: string, startDate: string, endDate: string, goal?: string, color?: string) => Sprint;
+  updateSprint: (boardId: string, sprintId: string, patch: Partial<Sprint>) => void;
+  deleteSprint: (boardId: string, sprintId: string) => void;
+  startSprint: (boardId: string, sprintId: string) => void;
+  completeSprint: (boardId: string, sprintId: string) => void;
+  assignCardToSprint: (cardId: string, sprintId: string | null) => void;
 
   // Card actions
   addCard: (colId: string, title: string) => Card;
@@ -324,6 +332,7 @@ export const useWorkStore = create<WorkState>()(
                     columns: memBoard.columns?.map(col => ({ ...col, cards: (col.cards || []).map(sanitizeCardComments) })),
                     inboxCards: memBoard.inboxCards?.map(sanitizeCardComments),
                     members: memBoard.members?.length ? memBoard.members : mergedMembers,
+                    sprints: memBoard.sprints?.length ? memBoard.sprints : (cb.sprints || []),
                   };
                 }
 
@@ -332,6 +341,7 @@ export const useWorkStore = create<WorkState>()(
                   columns: (cb.columns || []).map(col => ({ ...col, cards: (col.cards || []).map(sanitizeCardComments) })),
                   inboxCards: (cb.inboxCards || []).map(sanitizeCardComments),
                   members: mergedMembers,
+                  sprints: cb.sprints || [],
                 };
               });
 
@@ -662,6 +672,108 @@ export const useWorkStore = create<WorkState>()(
             updateColumns(b, colId, c => ({ ...c, name }))
           );
           targetBoard = updatedBoards.find(b => b.id === s.activeBoardId);
+          return { boards: updatedBoards };
+        });
+        if (targetBoard) scheduleBoardSync(targetBoard, 50);
+      },
+
+      // ── Sprint actions ──────────────────────────────────
+      createSprint: (boardId, name, startDate, endDate, goal, color) => {
+        const newSprint: Sprint = {
+          id: uid(),
+          name,
+          startDate,
+          endDate,
+          goal: goal || '',
+          status: 'planned',
+          color: color || '#6366f1',
+        };
+        let targetBoard: Board | undefined;
+        set(s => {
+          const updatedBoards = updateBoards(s.boards, boardId, b => ({
+            ...b,
+            sprints: [...(b.sprints || []), newSprint],
+          }));
+          targetBoard = updatedBoards.find(b => b.id === boardId);
+          return { boards: updatedBoards };
+        });
+        if (targetBoard) scheduleBoardSync(targetBoard, 50);
+        return newSprint;
+      },
+
+      updateSprint: (boardId, sprintId, patch) => {
+        let targetBoard: Board | undefined;
+        set(s => {
+          const updatedBoards = updateBoards(s.boards, boardId, b => ({
+            ...b,
+            sprints: (b.sprints || []).map(sp => sp.id === sprintId ? { ...sp, ...patch } : sp),
+          }));
+          targetBoard = updatedBoards.find(b => b.id === boardId);
+          return { boards: updatedBoards };
+        });
+        if (targetBoard) scheduleBoardSync(targetBoard, 50);
+      },
+
+      deleteSprint: (boardId, sprintId) => {
+        let targetBoard: Board | undefined;
+        set(s => {
+          const updatedBoards = updateBoards(s.boards, boardId, b => ({
+            ...b,
+            sprints: (b.sprints || []).filter(sp => sp.id !== sprintId),
+            columns: (b.columns || []).map(col => ({
+              ...col,
+              cards: (col.cards || []).map(c => c.sprintId === sprintId ? { ...c, sprintId: null } : c),
+            })),
+          }));
+          targetBoard = updatedBoards.find(b => b.id === boardId);
+          return { boards: updatedBoards };
+        });
+        if (targetBoard) scheduleBoardSync(targetBoard, 50);
+      },
+
+      startSprint: (boardId, sprintId) => {
+        let targetBoard: Board | undefined;
+        set(s => {
+          const updatedBoards = updateBoards(s.boards, boardId, b => ({
+            ...b,
+            sprints: (b.sprints || []).map(sp => {
+              if (sp.id === sprintId) return { ...sp, status: 'active' as const };
+              if (sp.status === 'active') return { ...sp, status: 'planned' as const };
+              return sp;
+            }),
+          }));
+          targetBoard = updatedBoards.find(b => b.id === boardId);
+          return { boards: updatedBoards };
+        });
+        if (targetBoard) scheduleBoardSync(targetBoard, 50);
+      },
+
+      completeSprint: (boardId, sprintId) => {
+        let targetBoard: Board | undefined;
+        set(s => {
+          const updatedBoards = updateBoards(s.boards, boardId, b => ({
+            ...b,
+            sprints: (b.sprints || []).map(sp => sp.id === sprintId ? { ...sp, status: 'completed' as const } : sp),
+          }));
+          targetBoard = updatedBoards.find(b => b.id === boardId);
+          return { boards: updatedBoards };
+        });
+        if (targetBoard) scheduleBoardSync(targetBoard, 50);
+      },
+
+      assignCardToSprint: (cardId, sprintId) => {
+        let targetBoard: Board | undefined;
+        set(s => {
+          const tb = s.boards.find(b =>
+            b.columns?.some(col => col.cards?.some(c => c.id === cardId)) ||
+            (b.inboxCards || []).some(c => c.id === cardId)
+          ) || s.boards.find(b => b.id === s.activeBoardId);
+          if (!tb) return s;
+
+          const updatedBoards = updateBoards(s.boards, tb.id, b =>
+            updateCardInBoard(b, cardId, c => ({ ...c, sprintId: sprintId || null }))
+          );
+          targetBoard = updatedBoards.find(b => b.id === tb.id);
           return { boards: updatedBoards };
         });
         if (targetBoard) scheduleBoardSync(targetBoard, 50);
