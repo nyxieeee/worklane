@@ -711,7 +711,7 @@
   }
 
   /* Responsive Controls Toolbar */
-  .roadmap-header-right {
+  .roadmap-controls-bar {
     display: flex !important;
     flex-direction: column !important;
     align-items: stretch !important;

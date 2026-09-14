@@ -1488,11 +1488,6 @@ select option {
   background-color: hsl(0 84% 60% / 0.08);
 }
 
-.roadmap-header-right {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
 
 .roadmap-scale-group {
   display: flex;
@@ -1543,11 +1538,37 @@ select option {
   text-align: center;
 }
 
-/* Toolbar Rows (defaults to display: contents on desktop) */
-.roadmap-toolbar-row-1,
-.roadmap-toolbar-row-2,
+/* Controls Bar (Filters & Timeline Navigation on Row 2) */
+.roadmap-controls-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+  width: 100%;
+}
+
+.roadmap-toolbar-row-1 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.roadmap-toolbar-row-2 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
 .roadmap-toolbar-row-3 {
-  display: contents;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+  flex-shrink: 0;
 }
 
 .roadmap-toolbar-row-3 .btn {

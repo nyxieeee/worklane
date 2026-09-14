@@ -827,187 +827,187 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
           </div>
         </div>
 
-        {/* Header Right: GroupBy, Search, Scales, Actions */}
-        <div className="roadmap-header-right">
-          {/* Row 1: Search & Filter Selectors */}
-          <div className="roadmap-toolbar-row-1">
-            {/* Search bar */}
-            <div className="roadmap-search-box">
-              <Search size={13} color="hsl(var(--muted-foreground))" />
-              <input
-                type="text"
-                placeholder="Search roadmap..."
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-                className="roadmap-search-input"
-              />
-              {searchQuery && (
-                <button onClick={() => setSearchQuery('')} className="roadmap-search-clear">
-                  <X size={12} />
-                </button>
-              )}
-            </div>
+        {/* Row 3: Action Buttons (Aligned to top header row on desktop) */}
+        <div className="roadmap-toolbar-row-3">
+          {!isObserver && (
+            <>
+              <motion.button
+                whileTap={{ scale: 0.95 }}
+                type="button"
+                className="btn btn-secondary roadmap-btn-phase"
+                onClick={() => {
+                  setEditingSprint(null);
+                  setSprintName(`Sprint ${(board.sprints?.length || 0) + 1}`);
+                  setSprintGoal('');
+                  const now = new Date();
+                  setSprintStartDate(now.toISOString().split('T')[0]);
+                  const twoWeeks = new Date(now);
+                  twoWeeks.setDate(twoWeeks.getDate() + 14);
+                  setSprintEndDate(twoWeeks.toISOString().split('T')[0]);
+                  setShowSprintModal(true);
+                }}
+                title="Create a new project delivery phase"
+              >
+                <Layers size={13} />
+                <span>+ Phase</span>
+              </motion.button>
 
-            {/* Group By Selector */}
-            <NeumorphicSelect<GroupByMode>
-              value={groupBy}
-              options={groupByOptions}
-              onChange={setGroupBy}
-              prefix="Group:"
-              size="sm"
-              style={{ minWidth: 140, flex: '1 1 auto' }}
+              <motion.button
+                whileTap={{ scale: 0.95 }}
+                type="button"
+                className="btn btn-primary roadmap-btn-add-task"
+                onClick={() => setShowQuickAddModal(true)}
+                title="Quick add a new task to roadmap"
+              >
+                <Plus size={13} />
+                <span className="hide-on-mobile-inline">Add Task</span>
+                <span className="show-on-mobile-inline">Task</span>
+              </motion.button>
+            </>
+          )}
+
+          <motion.button
+            whileTap={{ scale: 0.95 }}
+            type="button"
+            className={`btn ${showProjectionComparison ? 'btn-primary' : 'btn-secondary'} roadmap-btn-compare`}
+            onClick={() => setShowProjectionComparison(s => !s)}
+            title="Toggle Target Baseline vs Actual / Projected Schedule Comparison"
+          >
+            <GitCompare size={13} />
+            <span className="hide-on-mobile-inline">{showProjectionComparison ? 'Target vs Actual: ON' : 'Single Bar'}</span>
+            <span className="show-on-mobile-inline">{showProjectionComparison ? 'Target/Actual' : 'Single'}</span>
+          </motion.button>
+
+          <motion.button
+            whileTap={{ scale: 0.95 }}
+            type="button"
+            className="btn btn-secondary roadmap-btn-export"
+            onClick={handleExportCSV}
+            title="Export Roadmap report as CSV"
+          >
+            <Download size={13} />
+            <span>Export</span>
+          </motion.button>
+        </div>
+      </div>
+
+      {/* Controls Bar: Search, GroupBy, Status, Scale, Navigation, Legend */}
+      <div className="roadmap-controls-bar">
+        {/* Row 1: Search & Filter Selectors */}
+        <div className="roadmap-toolbar-row-1">
+          {/* Search bar */}
+          <div className="roadmap-search-box">
+            <Search size={13} color="hsl(var(--muted-foreground))" />
+            <input
+              type="text"
+              placeholder="Search roadmap..."
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              className="roadmap-search-input"
             />
-
-            {/* Status Filter */}
-            <NeumorphicSelect<StatusFilter>
-              value={statusFilter}
-              options={statusFilterOptions}
-              onChange={setStatusFilter}
-              size="sm"
-              style={{ minWidth: 125, flex: '1 1 auto' }}
-            />
-          </div>
-
-          {/* Row 2: Scale Switcher & Time Navigation */}
-          <div className="roadmap-toolbar-row-2">
-            {/* Scale Switcher */}
-            <div className="roadmap-scale-group">
-              <button
-                type="button"
-                className={`scale-btn ${scale === 'days' ? 'active' : ''}`}
-                onClick={() => setScale('days')}
-              >
-                Days
+            {searchQuery && (
+              <button onClick={() => setSearchQuery('')} className="roadmap-search-clear">
+                <X size={12} />
               </button>
-              <button
-                type="button"
-                className={`scale-btn ${scale === 'weeks' ? 'active' : ''}`}
-                onClick={() => setScale('weeks')}
-              >
-                Weeks
-              </button>
-              <button
-                type="button"
-                className={`scale-btn ${scale === 'months' ? 'active' : ''}`}
-                onClick={() => setScale('months')}
-              >
-                Months
-              </button>
-            </div>
-
-            {/* Time Navigation */}
-            <div className="roadmap-nav-group">
-              <motion.button
-                whileTap={{ scale: 0.94 }}
-                type="button"
-                className="btn btn-secondary today-btn"
-                onClick={handleJumpToday}
-                title="Jump to Today"
-              >
-                Today
-              </motion.button>
-              <motion.button
-                whileTap={{ scale: 0.92 }}
-                type="button"
-                className="icon-btn"
-                onClick={() => handleNav('prev')}
-                title="Previous window"
-                style={{ width: 28, height: 28, minWidth: 28 }}
-              >
-                <ChevronLeft size={15} />
-              </motion.button>
-              <span className="roadmap-date-label">
-                {viewStart.toLocaleDateString([], { month: 'short', year: 'numeric' })}
-                {viewStart.getMonth() !== viewEnd.getMonth() && (
-                  <span> – {viewEnd.toLocaleDateString([], { month: 'short', year: 'numeric' })}</span>
-                )}
-              </span>
-              <motion.button
-                whileTap={{ scale: 0.92 }}
-                type="button"
-                className="icon-btn"
-                onClick={() => handleNav('next')}
-                title="Next window"
-                style={{ width: 28, height: 28, minWidth: 28 }}
-              >
-                <ChevronRight size={15} />
-              </motion.button>
-            </div>
-
-            {/* Visual Legend matching Excel S-curve reference (Target on top in Green, Actual on bottom in Orange) */}
-            <div className="roadmap-legend-container" title="Schedule Tracking Legend">
-              <div className="roadmap-legend-item">
-                <div className="roadmap-legend-swatch" style={{ backgroundColor: '#10b981' }} />
-                <span>Target (Planned)</span>
-              </div>
-              <div className="roadmap-legend-item">
-                <div className="roadmap-legend-swatch" style={{ backgroundColor: '#f97316' }} />
-                <span>Actual (Accomplished)</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Row 3: Action Buttons */}
-          <div className="roadmap-toolbar-row-3">
-            {!isObserver && (
-              <>
-                <motion.button
-                  whileTap={{ scale: 0.95 }}
-                  type="button"
-                  className="btn btn-secondary"
-                  onClick={() => {
-                    setEditingSprint(null);
-                    setSprintName(`Sprint ${(board.sprints?.length || 0) + 1}`);
-                    setSprintGoal('');
-                    const now = new Date();
-                    setSprintStartDate(now.toISOString().split('T')[0]);
-                    const twoWeeks = new Date(now);
-                    twoWeeks.setDate(twoWeeks.getDate() + 14);
-                    setSprintEndDate(twoWeeks.toISOString().split('T')[0]);
-                    setShowSprintModal(true);
-                  }}
-                  title="Create a new project delivery phase"
-                >
-                  <Layers size={13} />
-                  <span>+ Phase</span>
-                </motion.button>
-
-                <motion.button
-                  whileTap={{ scale: 0.95 }}
-                  type="button"
-                  className="btn btn-primary roadmap-btn-add-task"
-                  onClick={() => setShowQuickAddModal(true)}
-                  title="Quick add a new task to roadmap"
-                >
-                  <Plus size={13} />
-                  <span className="hide-on-mobile-inline">Add Task</span>
-                  <span className="show-on-mobile-inline">Task</span>
-                </motion.button>
-              </>
             )}
+          </div>
 
-            <motion.button
-              whileTap={{ scale: 0.95 }}
-              type="button"
-              className={`btn ${showProjectionComparison ? 'btn-primary' : 'btn-secondary'} roadmap-btn-compare`}
-              onClick={() => setShowProjectionComparison(s => !s)}
-              title="Toggle Target Baseline vs Actual / Projected Schedule Comparison"
-            >
-              <GitCompare size={13} />
-              <span className="hide-on-mobile-inline">{showProjectionComparison ? 'Target vs Actual: ON' : 'Single Bar'}</span>
-              <span className="show-on-mobile-inline">{showProjectionComparison ? 'Target/Actual' : 'Single'}</span>
-            </motion.button>
+          {/* Group By Selector */}
+          <NeumorphicSelect<GroupByMode>
+            value={groupBy}
+            options={groupByOptions}
+            onChange={setGroupBy}
+            prefix="Group:"
+            size="sm"
+            style={{ minWidth: 140, flex: '1 1 auto' }}
+          />
 
-            <motion.button
-              whileTap={{ scale: 0.95 }}
+          {/* Status Filter */}
+          <NeumorphicSelect<StatusFilter>
+            value={statusFilter}
+            options={statusFilterOptions}
+            onChange={setStatusFilter}
+            size="sm"
+            style={{ minWidth: 125, flex: '1 1 auto' }}
+          />
+        </div>
+
+        {/* Row 2: Scale Switcher & Time Navigation & Legend */}
+        <div className="roadmap-toolbar-row-2">
+          {/* Scale Switcher */}
+          <div className="roadmap-scale-group">
+            <button
               type="button"
-              className="btn btn-secondary roadmap-btn-export"
-              onClick={handleExportCSV}
-              title="Export Roadmap report as CSV"
+              className={`scale-btn ${scale === 'days' ? 'active' : ''}`}
+              onClick={() => setScale('days')}
             >
-              <Download size={13} />
-              <span>Export</span>
+              Days
+            </button>
+            <button
+              type="button"
+              className={`scale-btn ${scale === 'weeks' ? 'active' : ''}`}
+              onClick={() => setScale('weeks')}
+            >
+              Weeks
+            </button>
+            <button
+              type="button"
+              className={`scale-btn ${scale === 'months' ? 'active' : ''}`}
+              onClick={() => setScale('months')}
+            >
+              Months
+            </button>
+          </div>
+
+          {/* Time Navigation */}
+          <div className="roadmap-nav-group">
+            <motion.button
+              whileTap={{ scale: 0.94 }}
+              type="button"
+              className="btn btn-secondary today-btn"
+              onClick={handleJumpToday}
+              title="Jump to Today"
+            >
+              Today
             </motion.button>
+            <motion.button
+              whileTap={{ scale: 0.92 }}
+              type="button"
+              className="icon-btn"
+              onClick={() => handleNav('prev')}
+              title="Previous window"
+              style={{ width: 28, height: 28, minWidth: 28 }}
+            >
+              <ChevronLeft size={15} />
+            </motion.button>
+            <span className="roadmap-date-label">
+              {viewStart.toLocaleDateString([], { month: 'short', year: 'numeric' })}
+              {viewStart.getMonth() !== viewEnd.getMonth() && (
+                <span> – {viewEnd.toLocaleDateString([], { month: 'short', year: 'numeric' })}</span>
+              )}
+            </span>
+            <motion.button
+              whileTap={{ scale: 0.92 }}
+              type="button"
+              className="icon-btn"
+              onClick={() => handleNav('next')}
+              title="Next window"
+              style={{ width: 28, height: 28, minWidth: 28 }}
+            >
+              <ChevronRight size={15} />
+            </motion.button>
+          </div>
+
+          {/* Visual Legend matching Excel S-curve reference */}
+          <div className="roadmap-legend-container" title="Schedule Tracking Legend">
+            <div className="roadmap-legend-item">
+              <div className="roadmap-legend-swatch" style={{ backgroundColor: '#10b981' }} />
+              <span>Target (Planned)</span>
+            </div>
+            <div className="roadmap-legend-item">
+              <div className="roadmap-legend-swatch" style={{ backgroundColor: '#f97316' }} />
+              <span>Actual (Accomplished)</span>
+            </div>
           </div>
         </div>
       </div>
