@@ -1794,10 +1794,6 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
         {(showSprintModal || showQuickAddModal) && (
           <div
             className="roadmap-modal-overlay"
-            onClick={() => {
-              setShowSprintModal(false);
-              setShowQuickAddModal(false);
-            }}
           >
             <div
               className="roadmap-modal-container"

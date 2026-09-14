@@ -2403,40 +2403,72 @@ export default function CardModal({ cardId, boardId, onClose }: Props) {
                     <div
                       key={idx}
                       style={{
-                        display: 'grid',
-                        gridTemplateColumns: '1fr 1fr 1fr auto',
+                        position: 'relative',
+                        display: 'flex',
+                        flexDirection: 'column',
                         gap: 6,
-                        alignItems: 'end',
                         padding: '8px 10px',
+                        paddingRight: 38,
                         borderRadius: 8,
                         background: 'hsl(var(--card) / 0.6)',
                         border: '1px solid hsl(var(--border) / 0.5)',
                       }}
                     >
-                      <div>
-                        <label style={{ fontSize: 10, fontWeight: 600, color: 'hsl(var(--muted-foreground))', display: 'block', marginBottom: 3 }}>From</label>
-                        <NeumorphicDatePicker
-                          value={s.from}
-                          onChange={val => {
-                            const updated = [...(card.workSuspensions as WorkSuspension[])];
-                            updated[idx] = { ...updated[idx], from: val || updated[idx].from };
-                            updateCard(cardId, { workSuspensions: updated });
-                          }}
-                          align="left"
-                        />
+                      {/* Delete button - top right */}
+                      <button
+                        type="button"
+                        title="Remove this suspension"
+                        onClick={() => {
+                          const updated = (card.workSuspensions as WorkSuspension[]).filter((_, i) => i !== idx);
+                          updateCard(cardId, { workSuspensions: updated });
+                        }}
+                        style={{
+                          position: 'absolute',
+                          top: 8,
+                          right: 6,
+                          width: 26,
+                          height: 26,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          borderRadius: 7,
+                          border: '1px solid hsl(var(--border) / 0.6)',
+                          background: 'transparent',
+                          color: '#ef4444',
+                          cursor: 'pointer',
+                          flexShrink: 0,
+                        }}
+                      >
+                        <X size={13} />
+                      </button>
+                      {/* Row 1: From / To */}
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                        <div>
+                          <label style={{ fontSize: 10, fontWeight: 600, color: 'hsl(var(--muted-foreground))', display: 'block', marginBottom: 3 }}>From</label>
+                          <NeumorphicDatePicker
+                            value={s.from}
+                            onChange={val => {
+                              const updated = [...(card.workSuspensions as WorkSuspension[])];
+                              updated[idx] = { ...updated[idx], from: val || updated[idx].from };
+                              updateCard(cardId, { workSuspensions: updated });
+                            }}
+                            align="left"
+                          />
+                        </div>
+                        <div>
+                          <label style={{ fontSize: 10, fontWeight: 600, color: 'hsl(var(--muted-foreground))', display: 'block', marginBottom: 3 }}>To</label>
+                          <NeumorphicDatePicker
+                            value={s.to}
+                            onChange={val => {
+                              const updated = [...(card.workSuspensions as WorkSuspension[])];
+                              updated[idx] = { ...updated[idx], to: val || updated[idx].to };
+                              updateCard(cardId, { workSuspensions: updated });
+                            }}
+                            align="left"
+                          />
+                        </div>
                       </div>
-                      <div>
-                        <label style={{ fontSize: 10, fontWeight: 600, color: 'hsl(var(--muted-foreground))', display: 'block', marginBottom: 3 }}>To</label>
-                        <NeumorphicDatePicker
-                          value={s.to}
-                          onChange={val => {
-                            const updated = [...(card.workSuspensions as WorkSuspension[])];
-                            updated[idx] = { ...updated[idx], to: val || updated[idx].to };
-                            updateCard(cardId, { workSuspensions: updated });
-                          }}
-                          align="left"
-                        />
-                      </div>
+                      {/* Row 2: Reason (full width) */}
                       <div>
                         <label style={{ fontSize: 10, fontWeight: 600, color: 'hsl(var(--muted-foreground))', display: 'block', marginBottom: 3 }}>Reason (optional)</label>
                         <input
@@ -2462,30 +2494,6 @@ export default function CardModal({ cardId, boardId, onClose }: Props) {
                           }}
                         />
                       </div>
-                      <button
-                        type="button"
-                        title="Remove this suspension"
-                        onClick={() => {
-                          const updated = (card.workSuspensions as WorkSuspension[]).filter((_, i) => i !== idx);
-                          updateCard(cardId, { workSuspensions: updated });
-                        }}
-                        style={{
-                          width: 28,
-                          height: 28,
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          borderRadius: 7,
-                          border: '1px solid hsl(var(--border) / 0.6)',
-                          background: 'transparent',
-                          color: '#ef4444',
-                          cursor: 'pointer',
-                          flexShrink: 0,
-                          marginBottom: 1,
-                        }}
-                      >
-                        <X size={13} />
-                      </button>
                     </div>
                   ))}
                 </div>
