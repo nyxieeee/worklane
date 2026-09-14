@@ -933,6 +933,18 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
                 <ChevronRight size={15} />
               </motion.button>
             </div>
+
+            {/* Visual Legend matching Excel S-curve reference (Target on top in Green, Actual on bottom in Orange) */}
+            <div className="roadmap-legend-container" title="Schedule Tracking Legend">
+              <div className="roadmap-legend-item">
+                <div className="roadmap-legend-swatch" style={{ backgroundColor: '#10b981' }} />
+                <span>Target (Planned)</span>
+              </div>
+              <div className="roadmap-legend-item">
+                <div className="roadmap-legend-swatch" style={{ backgroundColor: '#f97316' }} />
+                <span>Actual (Accomplished)</span>
+              </div>
+            </div>
           </div>
 
           {/* Row 3: Action Buttons */}
@@ -1423,19 +1435,24 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
                           const progressPct = deriveCardProgress(t.card, t.columnName);
                           const isMilestone = isMilestoneTask(t.card);
 
-                          // Target baseline positions
+                          // Target baseline positions (Top Track: Planned Schedule)
                           const targetStartMs = Math.max(viewStart.getTime(), t.targetStartDate.getTime());
                           const targetEndMs = Math.min(viewEnd.getTime(), t.targetEndDate.getTime());
                           const targetLeftPct = Math.max(0, Math.min(100, ((targetStartMs - viewStart.getTime()) / totalViewMs) * 100));
                           const targetRightPct = Math.max(0, Math.min(100, ((targetEndMs - viewStart.getTime()) / totalViewMs) * 100));
-                          const targetWidthPct = Math.max(1.5, targetRightPct - targetLeftPct);
+                          const targetWidthPct = Math.max(2.0, targetRightPct - targetLeftPct);
 
-                          // Actual / Projected positions
+                          // Actual schedule positions (Bottom Track: Accomplished / Done)
                           const actualStartMs = Math.max(viewStart.getTime(), t.actualStartDate.getTime());
                           const actualEndMs = Math.min(viewEnd.getTime(), t.actualOrProjectedEndDate.getTime());
                           const actualLeftPct = Math.max(0, Math.min(100, ((actualStartMs - viewStart.getTime()) / totalViewMs) * 100));
                           const actualRightPct = Math.max(0, Math.min(100, ((actualEndMs - viewStart.getTime()) / totalViewMs) * 100));
-                          const actualWidthPct = Math.max(1.8, actualRightPct - actualLeftPct);
+                          const actualTotalWidthPct = Math.max(2.0, actualRightPct - actualLeftPct);
+                          const actualWidthPct = actualTotalWidthPct;
+
+                          // Ratio of work actually completed (0.0 to 1.0)
+                          // The actual will only fill for every task or deliverable done for that day
+                          const doneRatio = t.card.completed ? 1 : Math.max(0, Math.min(1, progressPct / 100));
 
                           return (
                             <div key={t.card.id} className="roadmap-bar-row">
@@ -1446,28 +1463,29 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
 
                               {showProjectionComparison ? (
                                 <>
-                                  {/* Top Track: Target Baseline */}
+                                  {/* Top Track: Target Baseline (Solid Green Bar matching Excel reference) */}
                                   <div
                                     className="roadmap-target-baseline-bar"
                                     style={{
                                       left: `${targetLeftPct}%`,
                                       width: `${targetWidthPct}%`,
-                                      top: 5,
                                     }}
                                     onClick={() => onOpenCard(t.card.id)}
-                                    title={`Target Baseline: ${formatShortDate(t.targetStartDate)} → ${formatShortDate(t.targetEndDate)}`}
+                                    title={`Target (Planned): ${formatShortDate(t.targetStartDate)} → ${formatShortDate(t.targetEndDate)}`}
                                   >
-                                    <span>Target: {formatShortDate(t.targetEndDate)}</span>
+                                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                      Target: {formatShortDate(t.targetEndDate)}
+                                    </span>
                                   </div>
 
-                                  {/* Bottom Track: Actual / Projected Bar */}
+                                  {/* Bottom Track: Actual / Accomplished (Fills ONLY for deliverables/tasks done for that day) */}
                                   {isMilestone ? (
                                     <motion.div
                                       whileHover={{ scale: 1.2, y: -2 }}
                                       className="roadmap-milestone-marker"
                                       style={{
                                         left: `${actualLeftPct}%`,
-                                        top: 18,
+                                        top: 25,
                                       }}
                                       onClick={() => onOpenCard(t.card.id)}
                                       title={`Milestone: ${t.card.title}\nTarget Date: ${formatShortDate(t.targetEndDate)}\nActual / Proj: ${formatShortDate(t.actualOrProjectedEndDate)}`}
@@ -1476,54 +1494,56 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
                                       <span className="milestone-label">{t.card.title}</span>
                                     </motion.div>
                                   ) : (
-                                    <motion.div
-                                      whileHover={{ y: -1, scale: 1.01 }}
-                                      className={`roadmap-gantt-bar ${t.card.completed ? 'completed' : ''}`}
+                                    <div
+                                      className="roadmap-actual-track"
                                       style={{
                                         left: `${actualLeftPct}%`,
-                                        width: `${actualWidthPct}%`,
-                                        top: 21,
-                                        backgroundColor: t.card.completed
-                                          ? '#10b981'
-                                          : (t.varianceDays > 0
-                                              ? '#ef4444'
-                                              : (section.color || t.columnColor || 'hsl(var(--primary))')),
+                                        width: `${actualTotalWidthPct}%`,
                                       }}
                                       onClick={() => onOpenCard(t.card.id)}
-                                      title={`${t.card.title}\nTarget Date: ${formatShortDate(t.targetEndDate)}\n${t.card.completed ? 'Actual Date' : 'Projected Date'}: ${formatShortDate(t.actualOrProjectedEndDate)} (${t.varianceDays > 0 ? `+${t.varianceDays}d delay` : (t.varianceDays < 0 ? `${t.varianceDays}d early` : 'On track')})`}
+                                      title={`Actual Schedule: ${formatShortDate(t.actualStartDate)} → ${formatShortDate(t.actualOrProjectedEndDate)}\nStatus: ${t.card.completed ? 'Completed' : (doneRatio > 0 ? `${progressPct}% accomplished` : 'Not started (0% done)')}`}
                                     >
-                                      {/* Progress Fill Layer */}
+                                      {/* Filled portion: Fills ONLY for task or deliverable done for that day */}
                                       <div
-                                        className="roadmap-bar-progress-fill"
-                                        style={{ width: `${progressPct}%` }}
-                                      />
+                                        className={`roadmap-actual-filled-bar ${t.card.completed ? 'completed' : ''}`}
+                                        style={{
+                                          width: `${doneRatio * 100}%`,
+                                        }}
+                                      >
+                                        {doneRatio > 0 && (
+                                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                                            {t.card.completed ? (
+                                              <>
+                                                <span>Done</span>
+                                                <CheckCircle2 size={10} color="#fff" />
+                                              </>
+                                            ) : (
+                                              <span>{progressPct}%</span>
+                                            )}
+                                          </span>
+                                        )}
+                                      </div>
 
                                       {/* Slipped extension striped zone if delayed */}
                                       {t.varianceDays > 0 && !t.card.completed && targetRightPct < actualRightPct && (
                                         <div
                                           className="roadmap-slipped-extension"
                                           style={{
-                                            left: `${Math.max(0, ((targetRightPct - actualLeftPct) / actualWidthPct) * 100)}%`,
+                                            left: `${Math.max(0, ((targetRightPct - actualLeftPct) / actualTotalWidthPct) * 100)}%`,
                                             right: 0,
                                           }}
                                           title={`Projected Delay: +${t.varianceDays} days`}
                                         />
                                       )}
 
-                                      <div className="roadmap-bar-content" style={{ zIndex: 2 }}>
-                                        <span className="bar-title">{t.card.title}</span>
-                                        {t.card.completed && <CheckCircle2 size={11} color="#fff" style={{ flexShrink: 0 }} />}
-                                        {t.varianceDays > 0 && !t.card.completed && (
-                                          <span className="variance-tag delay">+{t.varianceDays}d</span>
-                                        )}
-                                        {t.varianceDays < 0 && t.card.completed && (
-                                          <span className="variance-tag early">{t.varianceDays}d</span>
-                                        )}
-                                        {!t.card.completed && t.varianceDays === 0 && progressPct > 0 && (
-                                          <span className="bar-progress-tag">{progressPct}%</span>
-                                        )}
-                                      </div>
-                                    </motion.div>
+                                      {/* Unfilled track label if progress < 60% */}
+                                      {doneRatio < 0.6 && (
+                                        <span className="roadmap-actual-track-label">
+                                          {doneRatio === 0 ? '0% done' : `${progressPct}%`}
+                                          {t.varianceDays > 0 && !t.card.completed && ` (+${t.varianceDays}d)`}
+                                        </span>
+                                      )}
+                                    </div>
                                   )}
                                 </>
                               ) : (

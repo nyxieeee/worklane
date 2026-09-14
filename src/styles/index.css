@@ -1809,7 +1809,7 @@ select option {
 }
 
 .roadmap-bar-row {
-  height: 48px;
+  height: 52px;
   position: relative;
   display: flex;
   align-items: center;
@@ -1817,33 +1817,120 @@ select option {
   border-bottom: 1px solid transparent;
 }
 
+/* ── Top Track: Target (Baseline / Planned) ── */
 .roadmap-target-baseline-bar {
   position: absolute;
-  height: 12px;
+  top: 6px;
+  height: 17px;
   border-radius: 4px;
-  border: 1px dashed hsl(var(--muted-foreground) / 0.7);
-  background-color: hsl(var(--secondary) / 0.55);
+  background-color: #10b981; /* Solid emerald green matching Excel reference */
+  color: #ffffff;
+  box-shadow: 0 1px 4px rgba(16, 185, 129, 0.35);
   display: flex;
   align-items: center;
-  padding: 0 5px;
-  font-size: 8.5px;
+  justify-content: space-between;
+  padding: 0 7px;
+  font-size: 9.5px;
   font-weight: 700;
-  color: hsl(var(--muted-foreground));
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
+  letter-spacing: 0.02em;
   white-space: nowrap;
   overflow: hidden;
   cursor: pointer;
   box-sizing: border-box;
-  z-index: 4;
+  z-index: 5;
   transition: all 0.15s ease;
+  min-width: 24px;
 }
 
 .roadmap-target-baseline-bar:hover {
-  border-color: hsl(var(--primary));
-  color: hsl(var(--foreground));
-  background-color: hsl(var(--secondary) / 0.85);
-  z-index: 9;
+  filter: brightness(1.1);
+  transform: translateY(-0.5px);
+  z-index: 10;
+}
+
+/* ── Bottom Track: Actual / Accomplished ── */
+.roadmap-actual-track {
+  position: absolute;
+  top: 27px;
+  height: 17px;
+  border-radius: 4px;
+  background-color: hsl(var(--secondary) / 0.45);
+  border: 1px dashed hsl(var(--border) / 0.8);
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  overflow: hidden;
+  z-index: 4;
+  transition: border-color 0.15s ease;
+  min-width: 24px;
+}
+
+.roadmap-actual-track:hover {
+  border-color: #f97316;
+  z-index: 10;
+}
+
+.roadmap-actual-filled-bar {
+  height: 100%;
+  background: linear-gradient(135deg, #f97316, #ea580c); /* Vibrant orange fill */
+  border-radius: 3px 0 0 3px;
+  display: flex;
+  align-items: center;
+  padding: 0 6px;
+  color: #ffffff;
+  font-size: 9.5px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  box-shadow: 0 1px 5px rgba(249, 115, 22, 0.35);
+  transition: width 0.25s ease;
+  box-sizing: border-box;
+}
+
+.roadmap-actual-filled-bar.completed {
+  background: linear-gradient(135deg, #10b981, #059669);
+  border-radius: 3px;
+}
+
+.roadmap-actual-track-label {
+  position: absolute;
+  right: 6px;
+  font-size: 9px;
+  font-weight: 700;
+  color: hsl(var(--muted-foreground));
+  pointer-events: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Target vs Actual Legend ── */
+.roadmap-legend-container {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 3px 10px;
+  border-radius: 8px;
+  background-color: hsl(var(--card));
+  box-shadow: var(--neu-shadow-input);
+  font-size: 11px;
+  font-weight: 600;
+  color: hsl(var(--muted-foreground));
+  user-select: none;
+}
+
+.roadmap-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.roadmap-legend-swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  flex-shrink: 0;
 }
 
 .roadmap-slipped-extension {
