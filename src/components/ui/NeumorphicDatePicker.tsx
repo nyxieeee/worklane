@@ -251,6 +251,7 @@ export default function NeumorphicDatePicker({
           cursor: 'pointer',
           padding: '8px 12px',
           fontSize: 12.5,
+          fontWeight: 300,
           color: displayString ? 'hsl(var(--foreground))' : 'hsl(var(--muted-foreground))',
           backgroundColor: 'hsl(var(--card))',
           boxShadow: isOpen ? 'var(--neu-shadow-pressed)' : 'var(--neu-shadow-input)',
@@ -259,8 +260,8 @@ export default function NeumorphicDatePicker({
         onClick={() => setIsOpen(o => !o)}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <CalendarIcon size={14} color="hsl(var(--primary))" />
-          <span style={{ fontWeight: displayString ? 600 : 400 }}>
+          <CalendarIcon size={14} color="hsl(var(--primary))" style={{ flexShrink: 0 }} />
+          <span style={{ fontWeight: 300, fontSize: 12.5, lineHeight: 1.35 }}>
             {displayString || placeholder}
           </span>
         </div>
