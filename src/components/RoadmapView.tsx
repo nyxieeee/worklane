@@ -619,6 +619,18 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
     setCurrentDate(new Date());
   };
 
+  // Escape key listener for roadmap modals
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && (showSprintModal || showQuickAddModal)) {
+        setShowSprintModal(false);
+        setShowQuickAddModal(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [showSprintModal, showQuickAddModal]);
+
   // Nav prev/next
   const handleNav = (direction: 'prev' | 'next') => {
     const delta = direction === 'next' ? 1 : -1;
@@ -648,11 +660,11 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
   // Save Sprint Handler
   const handleSaveSprint = () => {
     if (!sprintName.trim()) {
-      showToast('Sprint name is required', 'warning');
+      showToast('Phase name is required', 'warning');
       return;
     }
     if (!sprintStartDate || !sprintEndDate) {
-      showToast('Start and end dates are required for a sprint', 'warning');
+      showToast('Start and end dates are required for a phase', 'warning');
       return;
     }
 
@@ -664,9 +676,9 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
         endDate: sprintEndDate,
         color: sprintColor,
       });
-      showToast(`Updated sprint "${sprintName.trim()}"`, 'success');
+      showToast(`Updated phase "${sprintName.trim()}"`, 'success');
     } else {
-      createSprint(
+      const created = createSprint(
         board.id,
         sprintName.trim(),
         sprintStartDate,
@@ -674,7 +686,10 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
         sprintGoal.trim(),
         sprintColor
       );
-      showToast(`Created new sprint "${sprintName.trim()}"`, 'success');
+      if (created?.id) {
+        setQuickTaskSprintId(created.id);
+      }
+      showToast(`Created new phase "${sprintName.trim()}"`, 'success');
     }
 
     setShowSprintModal(false);
@@ -1678,284 +1693,366 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
         </div>
       )}
 
-      {/* ── Sprint Create / Edit Modal ── */}
+      {/* ── Roadmap Modals (Side-by-Side & Centered) ── */}
       <AnimatePresence>
-        {showSprintModal && (
-          <div className="modal-backdrop" onClick={() => setShowSprintModal(false)}>
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              className="modal-card"
-              style={{ maxWidth: 440, padding: 22 }}
+        {(showSprintModal || showQuickAddModal) && (
+          <div
+            className="roadmap-modal-overlay"
+            onClick={() => {
+              setShowSprintModal(false);
+              setShowQuickAddModal(false);
+            }}
+          >
+            <div
+              className="roadmap-modal-container"
               onClick={e => e.stopPropagation()}
             >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <Layers size={18} color="hsl(var(--primary))" />
-                  <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>
-                    {editingSprint ? 'Edit Phase' : 'Create Project Phase'}
-                  </h3>
-                </div>
-                <button
-                  type="button"
-                  className="icon-btn"
-                  onClick={() => setShowSprintModal(false)}
+              {/* Sprint / Phase Modal Card */}
+              {showSprintModal && (
+                <motion.div
+                  key="sprint-modal"
+                  initial={{ opacity: 0, scale: 0.96, y: 10 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.96, y: 10 }}
+                  transition={{ duration: 0.18, ease: 'easeOut' }}
+                  className="roadmap-modal-card"
+                  style={{ width: 440, maxWidth: '100%' }}
                 >
-                  <X size={15} />
-                </button>
-              </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                <div className="form-group">
-                  <label className="field-label">Phase / Package Name</label>
-                  <input
-                    type="text"
-                    value={sprintName}
-                    onChange={e => setSprintName(e.target.value)}
-                    placeholder="e.g. Phase 1 - Foundation & Rough-In"
-                    className="text-input"
-                    autoFocus
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label className="field-label">Scope & Key Objectives</label>
-                  <textarea
-                    value={sprintGoal}
-                    onChange={e => setSprintGoal(e.target.value)}
-                    placeholder="What are the main deliverables and scope for this phase?"
-                    className="text-input"
-                    rows={2}
-                    style={{ resize: 'none' }}
-                  />
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                  <div className="form-group">
-                    <label className="field-label">Start Date</label>
-                    <input
-                      type="date"
-                      value={sprintStartDate}
-                      onChange={e => setSprintStartDate(e.target.value)}
-                      className="text-input"
-                    />
+                  <div className="roadmap-modal-header">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <Layers size={18} color="hsl(var(--primary))" />
+                      <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>
+                        {editingSprint ? 'Edit Phase' : 'Create Project Phase'}
+                      </h3>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      {!showQuickAddModal && !isObserver && (
+                        <button
+                          type="button"
+                          className="btn btn-secondary"
+                          style={{ fontSize: 11, padding: '3px 9px', height: 26, borderRadius: 6 }}
+                          onClick={() => setShowQuickAddModal(true)}
+                          title="Open Add Task side-by-side"
+                        >
+                          <Plus size={12} />
+                          <span>+ Add Task</span>
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        className="icon-btn"
+                        onClick={() => setShowSprintModal(false)}
+                      >
+                        <X size={15} />
+                      </button>
+                    </div>
                   </div>
-                  <div className="form-group">
-                    <label className="field-label">End Date</label>
-                    <input
-                      type="date"
-                      value={sprintEndDate}
-                      onChange={e => setSprintEndDate(e.target.value)}
-                      className="text-input"
-                    />
-                  </div>
-                </div>
 
-                <div className="form-group">
-                  <label className="field-label">Color Theme</label>
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    {['#6366f1', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#ec4899', '#8b5cf6'].map(col => (
-                      <div
-                        key={col}
-                        onClick={() => setSprintColor(col)}
-                        style={{
-                          width: 24,
-                          height: 24,
-                          borderRadius: '50%',
-                          backgroundColor: col,
-                          cursor: 'pointer',
-                          boxShadow: sprintColor === col ? '0 0 0 2px hsl(var(--card)), 0 0 0 4px ' + col : 'none',
-                        }}
+                  <div className="roadmap-modal-body">
+                    <div className="form-group">
+                      <label className="field-label">Phase / Package Name</label>
+                      <input
+                        type="text"
+                        value={sprintName}
+                        onChange={e => setSprintName(e.target.value)}
+                        placeholder="e.g. Phase 1 - Foundation & Rough-In"
+                        className="text-input"
+                        autoFocus
                       />
-                    ))}
-                  </div>
-                </div>
+                    </div>
 
-                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 8 }}>
-                  {editingSprint && (
+                    <div className="form-group">
+                      <label className="field-label">Scope & Key Objectives</label>
+                      <textarea
+                        value={sprintGoal}
+                        onChange={e => setSprintGoal(e.target.value)}
+                        placeholder="What are the main deliverables and scope for this phase?"
+                        className="text-input"
+                        rows={2}
+                        style={{ resize: 'none' }}
+                      />
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                      <div className="form-group">
+                        <label className="field-label">Start Date</label>
+                        <NeumorphicDatePicker
+                          value={sprintStartDate || null}
+                          onChange={val => setSprintStartDate(val ? val.split('T')[0] : '')}
+                          align="left"
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label className="field-label">End Date</label>
+                        <NeumorphicDatePicker
+                          value={sprintEndDate || null}
+                          onChange={val => setSprintEndDate(val ? val.split('T')[0] : '')}
+                          align="right"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="form-group">
+                      <label className="field-label">Color Theme</label>
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        {['#6366f1', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#ec4899', '#8b5cf6'].map(col => (
+                          <div
+                            key={col}
+                            onClick={() => setSprintColor(col)}
+                            style={{
+                              width: 24,
+                              height: 24,
+                              borderRadius: '50%',
+                              backgroundColor: col,
+                              cursor: 'pointer',
+                              boxShadow: sprintColor === col ? '0 0 0 2px hsl(var(--card)), 0 0 0 4px ' + col : 'none',
+                            }}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="roadmap-modal-footer">
+                    {editingSprint && (
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        style={{ color: 'hsl(var(--destructive))', marginRight: 'auto' }}
+                        onClick={() => {
+                          deleteSprint(board.id, editingSprint.id);
+                          showToast(`Deleted phase "${editingSprint.name}"`, 'info');
+                          setShowSprintModal(false);
+                        }}
+                      >
+                        Delete
+                      </button>
+                    )}
                     <button
                       type="button"
                       className="btn btn-secondary"
-                      style={{ color: 'hsl(var(--destructive))' }}
-                      onClick={() => {
-                        deleteSprint(board.id, editingSprint.id);
-                        showToast(`Deleted phase "${editingSprint.name}"`, 'info');
-                        setShowSprintModal(false);
-                      }}
+                      onClick={() => setShowSprintModal(false)}
                     >
-                      Delete
+                      Cancel
                     </button>
-                  )}
-                  <button
-                    type="button"
-                    className="btn btn-secondary"
-                    onClick={() => setShowSprintModal(false)}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-primary"
-                    onClick={handleSaveSprint}
-                  >
-                    {editingSprint ? 'Save Changes' : 'Create Phase'}
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      onClick={handleSaveSprint}
+                    >
+                      {editingSprint ? 'Save Changes' : 'Create Phase'}
+                    </button>
+                  </div>
+                </motion.div>
+              )}
 
-      {/* ── Quick Add Task Modal ── */}
-      <AnimatePresence>
-        {showQuickAddModal && (
-          <div className="modal-backdrop" onClick={() => setShowQuickAddModal(false)}>
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              className="modal-card"
-              style={{ maxWidth: 460, padding: 22 }}
-              onClick={e => e.stopPropagation()}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <Plus size={18} color="hsl(var(--primary))" />
-                  <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>
-                    Add Task / Milestone to Roadmap
-                  </h3>
-                </div>
-                <button
-                  type="button"
-                  className="icon-btn"
-                  onClick={() => setShowQuickAddModal(false)}
+              {/* Quick Add Task Modal Card */}
+              {showQuickAddModal && (
+                <motion.div
+                  key="task-modal"
+                  initial={{ opacity: 0, scale: 0.96, y: 10 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.96, y: 10 }}
+                  transition={{ duration: 0.18, ease: 'easeOut' }}
+                  className="roadmap-modal-card"
+                  style={{ width: 460, maxWidth: '100%' }}
                 >
-                  <X size={15} />
-                </button>
-              </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                <div className="form-group">
-                  <label className="field-label">Task Title</label>
-                  <input
-                    type="text"
-                    value={quickTaskTitle}
-                    onChange={e => setQuickTaskTitle(e.target.value)}
-                    placeholder="e.g. Implement user authentication flow"
-                    className="text-input"
-                    autoFocus
-                  />
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                  <div className="form-group">
-                    <label className="field-label">Stage / Column</label>
-                    <NeumorphicSelect
-                      value={quickTaskColumnId}
-                      options={(board.columns || []).map(c => ({
-                        value: c.id,
-                        label: c.name,
-                        icon: <Kanban size={12} color="hsl(var(--primary))" />,
-                      }))}
-                      onChange={setQuickTaskColumnId}
-                      size="sm"
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label className="field-label">Assign Project Phase</label>
-                    <NeumorphicSelect
-                      value={quickTaskSprintId}
-                      options={[
-                        { value: '', label: 'No Phase (General Timeline)', icon: <Layers size={12} /> },
-                        ...(board.sprints || []).map(s => ({
-                          value: s.id,
-                          label: `${s.name}${s.status === 'active' ? ' (Current Phase)' : ''}`,
-                          icon: <Layers size={12} color={s.color || '#6366f1'} />,
-                        }))
-                      ]}
-                      onChange={setQuickTaskSprintId}
-                      size="sm"
-                    />
-                  </div>
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                  <div className="form-group">
-                    <label className="field-label">Target Start</label>
-                    <NeumorphicDatePicker
-                      value={quickTaskStartDate || null}
-                      onChange={val => setQuickTaskStartDate(val || '')}
-                      align="left"
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label className="field-label">Target Date (Due)</label>
-                    <NeumorphicDatePicker
-                      value={quickTaskDueDate || null}
-                      onChange={val => setQuickTaskDueDate(val || '')}
-                      align="right"
-                    />
-                  </div>
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 10, alignItems: 'end' }}>
-                  <div className="form-group" style={{ marginBottom: 0 }}>
-                    <label className="field-label">Assignee</label>
-                    <NeumorphicSelect
-                      value={quickTaskAssignee}
-                      options={[
-                        { value: '', label: 'Unassigned', icon: <User size={12} /> },
-                        ...(board.members || []).map(m => ({
-                          value: m.id,
-                          label: m.name,
-                          icon: <User size={12} color={m.color || '#6366f1'} />,
-                        }))
-                      ]}
-                      onChange={setQuickTaskAssignee}
-                      size="sm"
-                    />
+                  <div className="roadmap-modal-header">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <Plus size={18} color="hsl(var(--primary))" />
+                      <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>
+                        Add Task / Milestone to Roadmap
+                      </h3>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      {!showSprintModal && !isObserver && (
+                        <button
+                          type="button"
+                          className="btn btn-secondary"
+                          style={{ fontSize: 11, padding: '3px 9px', height: 26, borderRadius: 6 }}
+                          onClick={() => {
+                            setEditingSprint(null);
+                            setSprintName(`Sprint ${(board.sprints?.length || 0) + 1}`);
+                            setSprintGoal('');
+                            const now = new Date();
+                            setSprintStartDate(now.toISOString().split('T')[0]);
+                            const twoWeeks = new Date(now);
+                            twoWeeks.setDate(twoWeeks.getDate() + 14);
+                            setSprintEndDate(twoWeeks.toISOString().split('T')[0]);
+                            setShowSprintModal(true);
+                          }}
+                          title="Open Create Phase side-by-side"
+                        >
+                          <Layers size={12} />
+                          <span>+ Phase</span>
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        className="icon-btn"
+                        onClick={() => setShowQuickAddModal(false)}
+                      >
+                        <X size={15} />
+                      </button>
+                    </div>
                   </div>
 
-                  <motion.button
-                    type="button"
-                    whileTap={{ scale: 0.95 }}
-                    className={`btn ${quickTaskIsMilestone ? 'btn-primary' : 'btn-secondary'}`}
-                    style={{
-                      height: 32,
-                      fontSize: 11.5,
-                      padding: '4px 10px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 5,
-                      borderRadius: 8,
-                    }}
-                    onClick={() => setQuickTaskIsMilestone(s => !s)}
-                  >
-                    <Milestone size={13} color={quickTaskIsMilestone ? '#fff' : 'hsl(var(--primary))'} />
-                    <span>{quickTaskIsMilestone ? 'Milestone' : 'Set Milestone'}</span>
-                  </motion.button>
-                </div>
+                  <div className="roadmap-modal-body">
+                    <div className="form-group">
+                      <label className="field-label">Task Title</label>
+                      <input
+                        type="text"
+                        value={quickTaskTitle}
+                        onChange={e => setQuickTaskTitle(e.target.value)}
+                        placeholder="e.g. Implement user authentication flow"
+                        className="text-input"
+                        autoFocus
+                      />
+                    </div>
 
-                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 10 }}>
-                  <button
-                    type="button"
-                    className="btn btn-secondary"
-                    onClick={() => setShowQuickAddModal(false)}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-primary"
-                    onClick={handleQuickAddTask}
-                  >
-                    Add to Roadmap
-                  </button>
-                </div>
-              </div>
-            </motion.div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                      <div className="form-group">
+                        <label className="field-label">Stage / Column</label>
+                        <NeumorphicSelect
+                          value={quickTaskColumnId}
+                          options={(board.columns || []).map(c => ({
+                            value: c.id,
+                            label: c.name,
+                            icon: <Kanban size={12} color="hsl(var(--primary))" />,
+                          }))}
+                          onChange={setQuickTaskColumnId}
+                          size="sm"
+                        />
+                      </div>
+                      <div className="form-group">
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
+                          <label className="field-label" style={{ margin: 0 }}>Assign Phase</label>
+                          {!showSprintModal && !isObserver && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingSprint(null);
+                                setSprintName(`Sprint ${(board.sprints?.length || 0) + 1}`);
+                                setSprintGoal('');
+                                const now = new Date();
+                                setSprintStartDate(now.toISOString().split('T')[0]);
+                                const twoWeeks = new Date(now);
+                                twoWeeks.setDate(twoWeeks.getDate() + 14);
+                                setSprintEndDate(twoWeeks.toISOString().split('T')[0]);
+                                setShowSprintModal(true);
+                              }}
+                              style={{
+                                background: 'none',
+                                border: 'none',
+                                color: 'hsl(var(--primary))',
+                                fontSize: 11,
+                                cursor: 'pointer',
+                                fontWeight: 600,
+                                padding: 0,
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 2,
+                              }}
+                              title="Create a new phase side-by-side"
+                            >
+                              <Plus size={11} />
+                              <span>New</span>
+                            </button>
+                          )}
+                        </div>
+                        <NeumorphicSelect
+                          value={quickTaskSprintId}
+                          options={[
+                            { value: '', label: 'No Phase (General Timeline)', icon: <Layers size={12} /> },
+                            ...(board.sprints || []).map(s => ({
+                              value: s.id,
+                              label: `${s.name}${s.status === 'active' ? ' (Current Phase)' : ''}`,
+                              icon: <Layers size={12} color={s.color || '#6366f1'} />,
+                            }))
+                          ]}
+                          onChange={setQuickTaskSprintId}
+                          size="sm"
+                        />
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                      <div className="form-group">
+                        <label className="field-label">Target Start</label>
+                        <NeumorphicDatePicker
+                          value={quickTaskStartDate || null}
+                          onChange={val => setQuickTaskStartDate(val ? val.split('T')[0] : '')}
+                          align="left"
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label className="field-label">Target Date (Due)</label>
+                        <NeumorphicDatePicker
+                          value={quickTaskDueDate || null}
+                          onChange={val => setQuickTaskDueDate(val ? val.split('T')[0] : '')}
+                          align="right"
+                        />
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 10, alignItems: 'end' }}>
+                      <div className="form-group" style={{ marginBottom: 0 }}>
+                        <label className="field-label">Assignee</label>
+                        <NeumorphicSelect
+                          value={quickTaskAssignee}
+                          options={[
+                            { value: '', label: 'Unassigned', icon: <User size={12} /> },
+                            ...(board.members || []).map(m => ({
+                              value: m.id,
+                              label: m.name,
+                              icon: <User size={12} color={m.color || '#6366f1'} />,
+                            }))
+                          ]}
+                          onChange={setQuickTaskAssignee}
+                          size="sm"
+                        />
+                      </div>
+
+                      <motion.button
+                        type="button"
+                        whileTap={{ scale: 0.95 }}
+                        className={`btn ${quickTaskIsMilestone ? 'btn-primary' : 'btn-secondary'}`}
+                        style={{
+                          height: 32,
+                          fontSize: 11.5,
+                          padding: '4px 10px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 5,
+                          borderRadius: 8,
+                        }}
+                        onClick={() => setQuickTaskIsMilestone(s => !s)}
+                      >
+                        <Milestone size={13} color={quickTaskIsMilestone ? '#fff' : 'hsl(var(--primary))'} />
+                        <span>{quickTaskIsMilestone ? 'Milestone' : 'Set Milestone'}</span>
+                      </motion.button>
+                    </div>
+                  </div>
+
+                  <div className="roadmap-modal-footer">
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      onClick={() => setShowQuickAddModal(false)}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      onClick={handleQuickAddTask}
+                    >
+                      Add to Roadmap
+                    </button>
+                  </div>
+                </motion.div>
+              )}
+            </div>
           </div>
         )}
       </AnimatePresence>

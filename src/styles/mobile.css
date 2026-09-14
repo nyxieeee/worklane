@@ -918,5 +918,23 @@
     overflow: hidden !important;
     text-overflow: ellipsis !important;
   }
+
+  /* Responsive styling for side-by-side roadmap modals */
+  .roadmap-modal-overlay {
+    padding: 12px !important;
+    align-items: flex-start !important;
+  }
+
+  .roadmap-modal-container {
+    flex-direction: column !important;
+    gap: 14px !important;
+    width: 100% !important;
+  }
+
+  .roadmap-modal-card {
+    width: 100% !important;
+    max-width: 100% !important;
+    max-height: none !important;
+  }
 }
 
