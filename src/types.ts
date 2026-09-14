@@ -55,6 +55,8 @@ export interface Card {
   assignees: string[];
   dueDate: string | null;
   startDate?: string | null;
+  actualStartDate?: string | null;
+  actualEndDate?: string | null;
   sprintId?: string | null;
   isMilestone?: boolean;
   progress?: number; // 0 to 100 percentage

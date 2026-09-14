@@ -6,7 +6,7 @@ import {
   FileSpreadsheet, FileText, FileCode, FileArchive, File, Lock,
   Edit3, Crown, Shield, Save, Loader2, Globe, Server, Cpu, Briefcase,
   Link2, ExternalLink, ArrowRightLeft, Inbox,
-  Milestone, Layers, Activity
+  Milestone, Layers, Activity, CalendarCheck, Clock
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useWorkStore } from '../store/useWorkStore';
@@ -2265,30 +2265,96 @@ export default function CardModal({ cardId, boardId, onClose }: Props) {
               </motion.button>
             </div>
 
-            {/* Start Date & Due Date */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-              <div className="form-group">
-                <label className="field-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <Calendar size={12} /> Start Date
-                </label>
-                <NeumorphicDatePicker
-                  value={card.startDate || null}
-                  onChange={newStart => {
-                    updateCard(cardId, { startDate: newStart });
-                  }}
-                  align="left"
-                />
+            {/* Target Dates & Actual / Projected Schedule */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <div className="form-group">
+                  <label className="field-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <Calendar size={12} /> Target Start
+                  </label>
+                  <NeumorphicDatePicker
+                    value={card.startDate || null}
+                    onChange={newStart => {
+                      updateCard(cardId, { startDate: newStart });
+                    }}
+                    align="left"
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="field-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <Calendar size={12} /> Target Date
+                  </label>
+                  <NeumorphicDatePicker
+                    value={card.dueDate}
+                    onChange={newDue => {
+                      updateCard(cardId, { dueDate: newDue });
+                    }}
+                    align="right"
+                  />
+                </div>
               </div>
+
+              {/* Actual / Projected Completion */}
               <div className="form-group">
-                <label className="field-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <Calendar size={12} /> Due Date
-                </label>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
+                  <label className="field-label" style={{ display: 'flex', alignItems: 'center', gap: 6, margin: 0 }}>
+                    <CalendarCheck size={12} color={card.completed ? '#10b981' : 'hsl(var(--primary))'} />
+                    {card.completed ? 'Actual Completion Date' : 'Actual / Projected Date'}
+                  </label>
+                  {/* Dynamic Projection / Variance badge */}
+                  {(() => {
+                    const targetDue = card.dueDate ? new Date(card.dueDate) : null;
+                    const actualOrProj = card.actualEndDate
+                      ? new Date(card.actualEndDate)
+                      : (card.completed && card.completedAt ? new Date(card.completedAt) : null);
+
+                    if (!targetDue) return null;
+                    if (actualOrProj) {
+                      const diffDays = Math.round((actualOrProj.getTime() - targetDue.getTime()) / 86400000);
+                      if (diffDays > 0) {
+                        return (
+                          <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 6, backgroundColor: 'rgba(239,68,68,0.15)', color: '#ef4444' }}>
+                            +{diffDays}d Delay
+                          </span>
+                        );
+                      } else if (diffDays < 0) {
+                        return (
+                          <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 6, backgroundColor: 'rgba(16,185,129,0.15)', color: '#10b981' }}>
+                            {Math.abs(diffDays)}d Early
+                          </span>
+                        );
+                      } else {
+                        return (
+                          <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 6, backgroundColor: 'rgba(59,130,246,0.15)', color: '#3b82f6' }}>
+                            On Target
+                          </span>
+                        );
+                      }
+                    } else {
+                      const now = new Date();
+                      if (now.getTime() > targetDue.getTime() && !card.completed) {
+                        const diffDays = Math.max(1, Math.round((now.getTime() - targetDue.getTime()) / 86400000));
+                        return (
+                          <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 6, backgroundColor: 'rgba(245,158,11,0.15)', color: '#f59e0b' }}>
+                            Projected +{diffDays}d
+                          </span>
+                        );
+                      }
+                      return (
+                        <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 6, backgroundColor: 'rgba(16,185,129,0.15)', color: '#10b981' }}>
+                          On Track
+                        </span>
+                      );
+                    }
+                  })()}
+                </div>
                 <NeumorphicDatePicker
-                  value={card.dueDate}
-                  onChange={newDue => {
-                    updateCard(cardId, { dueDate: newDue });
+                  value={card.actualEndDate || (card.completed ? (card.completedAt || null) : null)}
+                  onChange={newActual => {
+                    updateCard(cardId, { actualEndDate: newActual });
                   }}
-                  align="right"
+                  placeholder={card.completed ? 'Set actual completion date...' : 'Auto-projected (or set override)...'}
+                  align="left"
                 />
               </div>
             </div>

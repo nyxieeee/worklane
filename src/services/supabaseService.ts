@@ -230,6 +230,8 @@ export const supabaseService = {
 
           let desc = card.description || '';
           let startDate: string | null = card.created_at ? card.created_at.split('T')[0] : null;
+          let actualStartDate: string | null = null;
+          let actualEndDate: string | null = null;
           let sprintId: string | null = null;
           let isMilestone: boolean = card.priority === 'urgent';
           let progress: number = card.completed ? 100 : 0;
@@ -241,6 +243,8 @@ export const supabaseService = {
             try {
               const meta = JSON.parse(rMatch[1]);
               if (meta.startDate !== undefined) startDate = meta.startDate;
+              if (meta.actualStartDate !== undefined) actualStartDate = meta.actualStartDate;
+              if (meta.actualEndDate !== undefined) actualEndDate = meta.actualEndDate;
               if (meta.sprintId !== undefined) sprintId = meta.sprintId;
               if (meta.isMilestone !== undefined) isMilestone = !!meta.isMilestone;
               if (meta.progress !== undefined) progress = meta.progress;
@@ -264,6 +268,8 @@ export const supabaseService = {
             completedAt: card.completed_at,
             dueDate: card.due_date,
             startDate,
+            actualStartDate,
+            actualEndDate,
             sprintId,
             isMilestone,
             progress,
@@ -426,8 +432,10 @@ export const supabaseService = {
           encodedDescription = encodedDescription.replace(/<!--worklane_roadmap:[\s\S]*?-->/g, '').replace(/<!--worklane_board_sprints:[\s\S]*?-->/g, '').trimEnd();
 
           if (hasRoadmapMeta) {
-            const rMeta: any = {};
+            const rMeta: Record<string, any> = {};
             if (item.card.startDate) rMeta.startDate = item.card.startDate;
+            if (item.card.actualStartDate) rMeta.actualStartDate = item.card.actualStartDate;
+            if (item.card.actualEndDate) rMeta.actualEndDate = item.card.actualEndDate;
             if (item.card.sprintId) rMeta.sprintId = item.card.sprintId;
             if (item.card.isMilestone) rMeta.isMilestone = true;
             if (item.card.progress !== undefined) rMeta.progress = item.card.progress;
@@ -980,6 +988,8 @@ export const supabaseService = {
 
         let desc = card.description || '';
         let startDate: string | null = card.created_at ? card.created_at.split('T')[0] : null;
+        let actualStartDate: string | null = null;
+        let actualEndDate: string | null = null;
         let sprintId: string | null = null;
         let isMilestone: boolean = card.priority === 'urgent';
         let progress: number = card.completed ? 100 : 0;
@@ -991,6 +1001,8 @@ export const supabaseService = {
           try {
             const meta = JSON.parse(rMatch[1]);
             if (meta.startDate !== undefined) startDate = meta.startDate;
+            if (meta.actualStartDate !== undefined) actualStartDate = meta.actualStartDate;
+            if (meta.actualEndDate !== undefined) actualEndDate = meta.actualEndDate;
             if (meta.sprintId !== undefined) sprintId = meta.sprintId;
             if (meta.isMilestone !== undefined) isMilestone = !!meta.isMilestone;
             if (meta.progress !== undefined) progress = meta.progress;
@@ -1014,6 +1026,8 @@ export const supabaseService = {
           completedAt: card.completed_at,
           dueDate: card.due_date,
           startDate,
+          actualStartDate,
+          actualEndDate,
           sprintId,
           isMilestone,
           progress,

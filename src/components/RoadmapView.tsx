@@ -4,7 +4,7 @@ import {
   CheckSquare, Square, Clock, AlertCircle, CheckCircle2,
   ChevronDown, ChevronUp, User, Layers, Plus, Search, Filter,
   Download, Play, Check, Trash2, Edit3, Flag, ArrowRight, Tag,
-  Sparkles, X, Target, BarChart2, Kanban, Link2
+  Sparkles, X, Target, BarChart2, Kanban, Link2, GitCompare, TrendingUp
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { Board, Card as CardType, Member, Sprint } from '../types';
@@ -27,11 +27,26 @@ type TimeScale = 'days' | 'weeks' | 'months';
 type GroupByMode = 'sprint' | 'column' | 'assignee' | 'label';
 type StatusFilter = 'all' | 'active' | 'completed' | 'overdue';
 
+export function formatShortDate(d: Date | string | null | undefined): string {
+  if (!d) return '—';
+  const dateObj = typeof d === 'string' ? new Date(d) : d;
+  if (isNaN(dateObj.getTime())) return '—';
+  return dateObj.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
 interface TaskWithSchedule {
   card: CardType;
   columnId: string;
   columnName: string;
   columnColor?: string;
+  // Target Baseline Schedule
+  targetStartDate: Date;
+  targetEndDate: Date;
+  // Actual / Projected Schedule
+  actualStartDate: Date;
+  actualOrProjectedEndDate: Date;
+  isProjected: boolean;
+  varianceDays: number;
   startDate: Date;
   endDate: Date;
   hasExplicitDates: boolean;
@@ -91,6 +106,7 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
   const [showUnscheduled, setShowUnscheduled] = useState(false);
+  const [showProjectionComparison, setShowProjectionComparison] = useState(true);
 
   // Group By options with Lucide icons (Universal across Construction, Systems Integration & Business PM)
   const groupByOptions: SelectOption<GroupByMode>[] = useMemo(() => [
@@ -244,51 +260,116 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
         const hasStartDate = Boolean(card.startDate);
         const sprint = board.sprints?.find(s => s.id === card.sprintId);
 
-        let end: Date;
+        // 1. Target End Date (Baseline Target Date)
+        let targetEnd: Date;
         if (card.dueDate) {
-          end = new Date(card.dueDate);
+          targetEnd = new Date(card.dueDate);
         } else if (sprint?.endDate) {
-          end = new Date(sprint.endDate);
+          targetEnd = new Date(sprint.endDate);
         } else if (card.createdAt) {
-          end = new Date(card.createdAt);
-          end.setDate(end.getDate() + 4);
+          targetEnd = new Date(card.createdAt);
+          targetEnd.setDate(targetEnd.getDate() + 4);
         } else {
-          end = new Date();
-          end.setDate(end.getDate() + 4);
+          targetEnd = new Date();
+          targetEnd.setDate(targetEnd.getDate() + 4);
         }
-        end.setHours(23, 59, 59, 999);
+        targetEnd.setHours(23, 59, 59, 999);
 
-        let start: Date;
+        // 2. Target Start Date (Baseline Target Start)
+        let targetStart: Date;
         if (card.startDate) {
-          start = new Date(card.startDate);
+          targetStart = new Date(card.startDate);
         } else if (sprint?.startDate) {
-          start = new Date(sprint.startDate);
+          targetStart = new Date(sprint.startDate);
         } else if (card.dueDate && card.createdAt) {
           const created = new Date(card.createdAt);
-          const daysDiff = (end.getTime() - created.getTime()) / (1000 * 3600 * 24);
+          const daysDiff = (targetEnd.getTime() - created.getTime()) / (1000 * 3600 * 24);
           if (daysDiff > 21) {
-            start = new Date(end.getTime() - 14 * 86400000);
+            targetStart = new Date(targetEnd.getTime() - 14 * 86400000);
           } else {
-            start = created;
+            targetStart = created;
           }
         } else if (card.createdAt) {
-          start = new Date(card.createdAt);
+          targetStart = new Date(card.createdAt);
         } else {
-          start = new Date(end.getTime() - 4 * 86400000);
+          targetStart = new Date(targetEnd.getTime() - 4 * 86400000);
         }
-        start.setHours(0, 0, 0, 0);
+        targetStart.setHours(0, 0, 0, 0);
 
-        if (start > end) {
-          start = new Date(end.getTime() - 3 * 86400000);
+        if (targetStart > targetEnd) {
+          targetStart = new Date(targetEnd.getTime() - 1 * 86400000);
         }
+
+        // 3. Actual Start Date
+        let actStart: Date;
+        if (card.actualStartDate) {
+          actStart = new Date(card.actualStartDate);
+        } else {
+          actStart = new Date(targetStart);
+        }
+        actStart.setHours(0, 0, 0, 0);
+
+        // 4. Actual / Projected End Date
+        let actOrProjEnd: Date;
+        let isProjected = false;
+        const progressPct = deriveCardProgress(card, col.name);
+
+        if (card.completed) {
+          if (card.actualEndDate) {
+            actOrProjEnd = new Date(card.actualEndDate);
+          } else if (card.completedAt) {
+            actOrProjEnd = new Date(card.completedAt);
+          } else {
+            actOrProjEnd = new Date(targetEnd);
+          }
+          isProjected = false;
+        } else {
+          if (card.actualEndDate) {
+            actOrProjEnd = new Date(card.actualEndDate);
+            isProjected = false;
+          } else {
+            isProjected = true;
+            const plannedDays = Math.max(1, Math.round((targetEnd.getTime() - targetStart.getTime()) / 86400000));
+            if (today.getTime() > targetEnd.getTime()) {
+              // Task past target date: projected date extends from today based on remaining progress
+              const remainingPct = Math.max(0.1, (100 - progressPct) / 100);
+              const extraDays = Math.max(1, Math.ceil(plannedDays * remainingPct));
+              actOrProjEnd = new Date(today.getTime() + extraDays * 86400000);
+            } else if (today.getTime() > targetStart.getTime()) {
+              // Task in flight: project slippage if pace is lagging
+              const elapsedDays = Math.max(1, Math.round((today.getTime() - targetStart.getTime()) / 86400000));
+              const expectedPct = Math.min(100, Math.round((elapsedDays / plannedDays) * 100));
+              if (progressPct < expectedPct - 15) {
+                const pace = Math.max(0.05, progressPct / elapsedDays);
+                const totalProjDays = Math.ceil(100 / pace);
+                const slip = Math.max(1, totalProjDays - plannedDays);
+                actOrProjEnd = new Date(targetEnd.getTime() + slip * 86400000);
+              } else {
+                actOrProjEnd = new Date(targetEnd);
+              }
+            } else {
+              actOrProjEnd = new Date(targetEnd);
+            }
+          }
+        }
+        actOrProjEnd.setHours(23, 59, 59, 999);
+
+        // 5. Variance (in days)
+        const varianceDays = Math.round((actOrProjEnd.getTime() - targetEnd.getTime()) / 86400000);
 
         list.push({
           card,
           columnId: col.id,
           columnName: col.name,
           columnColor: colColor,
-          startDate: start,
-          endDate: end,
+          targetStartDate: targetStart,
+          targetEndDate: targetEnd,
+          actualStartDate: actStart,
+          actualOrProjectedEndDate: actOrProjEnd,
+          isProjected,
+          varianceDays,
+          startDate: targetStart,
+          endDate: actOrProjEnd,
           hasExplicitDates: hasDueDate || hasStartDate,
           sprint,
         });
@@ -848,6 +929,18 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
             <motion.button
               whileTap={{ scale: 0.95 }}
               type="button"
+              className={`btn ${showProjectionComparison ? 'btn-primary' : 'btn-secondary'}`}
+              onClick={() => setShowProjectionComparison(s => !s)}
+              title="Toggle Target Baseline vs Actual / Projected Schedule Comparison"
+              style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', fontSize: 11.5 }}
+            >
+              <GitCompare size={13} />
+              <span>{showProjectionComparison ? 'Target vs Actual: ON' : 'Single Bar'}</span>
+            </motion.button>
+
+            <motion.button
+              whileTap={{ scale: 0.95 }}
+              type="button"
               className="btn btn-secondary"
               onClick={handleExportCSV}
               title="Export Roadmap report as CSV"
@@ -922,8 +1015,9 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
         <div className="roadmap-tasks-pane">
           <div className="roadmap-pane-header">
             <span style={{ flex: 1, paddingLeft: 8 }}>Task & Deliverable</span>
-            <span style={{ width: 48, textAlign: 'center' }}>Prog</span>
-            <span style={{ width: 85, textAlign: 'right', paddingRight: 8 }}>Timeline</span>
+            <span style={{ width: 38, textAlign: 'center' }}>Prog</span>
+            <span style={{ width: 68, textAlign: 'center' }}>Target</span>
+            <span style={{ width: 95, textAlign: 'right', paddingRight: 8 }}>Actual / Proj</span>
           </div>
 
           <div
@@ -1095,14 +1189,43 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
                               )}
 
                               {/* Progress % */}
-                              <span style={{ width: 36, fontSize: 10.5, fontWeight: 600, textAlign: 'right', color: 'hsl(var(--muted-foreground))' }}>
+                              <span style={{ width: 38, fontSize: 10.5, fontWeight: 600, textAlign: 'center', color: 'hsl(var(--muted-foreground))' }}>
                                 {progressPct}%
                               </span>
 
-                              {/* Timeline dates */}
-                              <span className={`roadmap-task-due ${isOverdue ? 'overdue' : ''}`}>
-                                {formatDueDate(t.card.dueDate || t.endDate.toISOString())}
+                              {/* Target Date */}
+                              <span
+                                style={{
+                                  width: 68,
+                                  fontSize: 10.5,
+                                  fontWeight: 500,
+                                  textAlign: 'center',
+                                  color: 'hsl(var(--foreground) / 0.8)',
+                                  whiteSpace: 'nowrap',
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis'
+                                }}
+                                title={`Target Date: ${t.targetEndDate.toLocaleDateString()}`}
+                              >
+                                {formatShortDate(t.targetEndDate)}
                               </span>
+
+                              {/* Actual / Projected Date with variance */}
+                              <div style={{ width: 95, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', paddingRight: 8, whiteSpace: 'nowrap' }}>
+                                <span style={{ fontSize: 10.5, fontWeight: 600, color: t.card.completed ? '#10b981' : (t.varianceDays > 0 ? '#ef4444' : 'hsl(var(--foreground))') }}>
+                                  {formatShortDate(t.actualOrProjectedEndDate)}
+                                </span>
+                                {t.varianceDays !== 0 && (
+                                  <span className={`variance-tag ${t.varianceDays > 0 ? 'delay' : 'early'}`}>
+                                    {t.varianceDays > 0 ? `+${t.varianceDays}d` : `${t.varianceDays}d`}
+                                  </span>
+                                )}
+                                {t.varianceDays === 0 && (
+                                  <span className="variance-tag on-track">
+                                    {t.card.completed ? 'On Time' : 'On Track'}
+                                  </span>
+                                )}
+                              </div>
                             </div>
                           );
                         })
@@ -1224,63 +1347,149 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
                         <div style={{ height: 38 }} />
                       ) : (
                         tasks.map(t => {
-                          const taskStartMs = Math.max(viewStart.getTime(), t.startDate.getTime());
-                          const taskEndMs = Math.min(viewEnd.getTime(), t.endDate.getTime());
-
-                          // Position percentages across timeline
-                          const leftPct = Math.max(0, Math.min(100, ((taskStartMs - viewStart.getTime()) / totalViewMs) * 100));
-                          const rightPct = Math.max(0, Math.min(100, ((taskEndMs - viewStart.getTime()) / totalViewMs) * 100));
-                          const widthPct = Math.max(1.8, rightPct - leftPct);
-
-                          const isOverdue = !t.card.completed && t.endDate < today;
                           const progressPct = deriveCardProgress(t.card, t.columnName);
                           const isMilestone = isMilestoneTask(t.card);
 
+                          // Target baseline positions
+                          const targetStartMs = Math.max(viewStart.getTime(), t.targetStartDate.getTime());
+                          const targetEndMs = Math.min(viewEnd.getTime(), t.targetEndDate.getTime());
+                          const targetLeftPct = Math.max(0, Math.min(100, ((targetStartMs - viewStart.getTime()) / totalViewMs) * 100));
+                          const targetRightPct = Math.max(0, Math.min(100, ((targetEndMs - viewStart.getTime()) / totalViewMs) * 100));
+                          const targetWidthPct = Math.max(1.5, targetRightPct - targetLeftPct);
+
+                          // Actual / Projected positions
+                          const actualStartMs = Math.max(viewStart.getTime(), t.actualStartDate.getTime());
+                          const actualEndMs = Math.min(viewEnd.getTime(), t.actualOrProjectedEndDate.getTime());
+                          const actualLeftPct = Math.max(0, Math.min(100, ((actualStartMs - viewStart.getTime()) / totalViewMs) * 100));
+                          const actualRightPct = Math.max(0, Math.min(100, ((actualEndMs - viewStart.getTime()) / totalViewMs) * 100));
+                          const actualWidthPct = Math.max(1.8, actualRightPct - actualLeftPct);
+
                           return (
                             <div key={t.card.id} className="roadmap-bar-row">
-                              {/* Milestone Diamond Marker vs Regular Bar */}
-                              {isMilestone ? (
-                                <motion.div
-                                  whileHover={{ scale: 1.2, y: -2 }}
-                                  className="roadmap-milestone-marker"
-                                  style={{
-                                    left: `${leftPct}%`,
-                                  }}
-                                  onClick={() => onOpenCard(t.card.id)}
-                                  title={`Milestone: ${t.card.title} (${formatDueDate(t.card.dueDate || t.endDate.toISOString())})`}
-                                >
-                                  <div className="milestone-diamond" />
-                                  <span className="milestone-label">{t.card.title}</span>
-                                </motion.div>
-                              ) : (
-                                <motion.div
-                                  whileHover={{ y: -1.5, scale: 1.01 }}
-                                  className={`roadmap-gantt-bar ${t.card.completed ? 'completed' : ''} ${isOverdue ? 'overdue' : ''}`}
-                                  style={{
-                                    left: `${leftPct}%`,
-                                    width: `${widthPct}%`,
-                                    backgroundColor: t.card.completed
-                                      ? 'hsl(142 76% 36%)'
-                                      : isOverdue
-                                      ? '#ef4444'
-                                      : (section.color || t.columnColor || 'hsl(var(--primary))'),
-                                  }}
-                                  onClick={() => onOpenCard(t.card.id)}
-                                >
-                                  {/* Progress Fill Layer */}
+                              {showProjectionComparison ? (
+                                <>
+                                  {/* Top Track: Target Baseline */}
                                   <div
-                                    className="roadmap-bar-progress-fill"
-                                    style={{ width: `${progressPct}%` }}
-                                  />
-
-                                  <div className="roadmap-bar-content">
-                                    <span className="bar-title">{t.card.title}</span>
-                                    {t.card.completed && <CheckCircle2 size={12} color="#fff" style={{ flexShrink: 0 }} />}
-                                    {!t.card.completed && progressPct > 0 && (
-                                      <span className="bar-progress-tag">{progressPct}%</span>
-                                    )}
+                                    className="roadmap-target-baseline-bar"
+                                    style={{
+                                      left: `${targetLeftPct}%`,
+                                      width: `${targetWidthPct}%`,
+                                      top: 5,
+                                    }}
+                                    onClick={() => onOpenCard(t.card.id)}
+                                    title={`Target Baseline: ${formatShortDate(t.targetStartDate)} → ${formatShortDate(t.targetEndDate)}`}
+                                  >
+                                    <span>Target: {formatShortDate(t.targetEndDate)}</span>
                                   </div>
-                                </motion.div>
+
+                                  {/* Bottom Track: Actual / Projected Bar */}
+                                  {isMilestone ? (
+                                    <motion.div
+                                      whileHover={{ scale: 1.2, y: -2 }}
+                                      className="roadmap-milestone-marker"
+                                      style={{
+                                        left: `${actualLeftPct}%`,
+                                        top: 18,
+                                      }}
+                                      onClick={() => onOpenCard(t.card.id)}
+                                      title={`Milestone: ${t.card.title}\nTarget Date: ${formatShortDate(t.targetEndDate)}\nActual / Proj: ${formatShortDate(t.actualOrProjectedEndDate)}`}
+                                    >
+                                      <div className="milestone-diamond" />
+                                      <span className="milestone-label">{t.card.title}</span>
+                                    </motion.div>
+                                  ) : (
+                                    <motion.div
+                                      whileHover={{ y: -1, scale: 1.01 }}
+                                      className={`roadmap-gantt-bar ${t.card.completed ? 'completed' : ''}`}
+                                      style={{
+                                        left: `${actualLeftPct}%`,
+                                        width: `${actualWidthPct}%`,
+                                        top: 21,
+                                        backgroundColor: t.card.completed
+                                          ? '#10b981'
+                                          : (t.varianceDays > 0
+                                              ? '#ef4444'
+                                              : (section.color || t.columnColor || 'hsl(var(--primary))')),
+                                      }}
+                                      onClick={() => onOpenCard(t.card.id)}
+                                      title={`${t.card.title}\nTarget Date: ${formatShortDate(t.targetEndDate)}\n${t.card.completed ? 'Actual Date' : 'Projected Date'}: ${formatShortDate(t.actualOrProjectedEndDate)} (${t.varianceDays > 0 ? `+${t.varianceDays}d delay` : (t.varianceDays < 0 ? `${t.varianceDays}d early` : 'On track')})`}
+                                    >
+                                      {/* Progress Fill Layer */}
+                                      <div
+                                        className="roadmap-bar-progress-fill"
+                                        style={{ width: `${progressPct}%` }}
+                                      />
+
+                                      {/* Slipped extension striped zone if delayed */}
+                                      {t.varianceDays > 0 && !t.card.completed && targetRightPct < actualRightPct && (
+                                        <div
+                                          className="roadmap-slipped-extension"
+                                          style={{
+                                            left: `${Math.max(0, ((targetRightPct - actualLeftPct) / actualWidthPct) * 100)}%`,
+                                            right: 0,
+                                          }}
+                                          title={`Projected Delay: +${t.varianceDays} days`}
+                                        />
+                                      )}
+
+                                      <div className="roadmap-bar-content" style={{ zIndex: 2 }}>
+                                        <span className="bar-title">{t.card.title}</span>
+                                        {t.card.completed && <CheckCircle2 size={11} color="#fff" style={{ flexShrink: 0 }} />}
+                                        {t.varianceDays > 0 && !t.card.completed && (
+                                          <span className="variance-tag delay">+{t.varianceDays}d</span>
+                                        )}
+                                        {t.varianceDays < 0 && t.card.completed && (
+                                          <span className="variance-tag early">{t.varianceDays}d</span>
+                                        )}
+                                        {!t.card.completed && t.varianceDays === 0 && progressPct > 0 && (
+                                          <span className="bar-progress-tag">{progressPct}%</span>
+                                        )}
+                                      </div>
+                                    </motion.div>
+                                  )}
+                                </>
+                              ) : (
+                                /* Standard Single Bar Fallback */
+                                isMilestone ? (
+                                  <motion.div
+                                    whileHover={{ scale: 1.2, y: -2 }}
+                                    className="roadmap-milestone-marker"
+                                    style={{
+                                      left: `${actualLeftPct}%`,
+                                    }}
+                                    onClick={() => onOpenCard(t.card.id)}
+                                    title={`Milestone: ${t.card.title} (${formatShortDate(t.actualOrProjectedEndDate)})`}
+                                  >
+                                    <div className="milestone-diamond" />
+                                    <span className="milestone-label">{t.card.title}</span>
+                                  </motion.div>
+                                ) : (
+                                  <motion.div
+                                    whileHover={{ y: -1.5, scale: 1.01 }}
+                                    className={`roadmap-gantt-bar ${t.card.completed ? 'completed' : ''}`}
+                                    style={{
+                                      left: `${actualLeftPct}%`,
+                                      width: `${actualWidthPct}%`,
+                                      top: 13,
+                                      backgroundColor: t.card.completed
+                                        ? '#10b981'
+                                        : (section.color || t.columnColor || 'hsl(var(--primary))'),
+                                    }}
+                                    onClick={() => onOpenCard(t.card.id)}
+                                  >
+                                    <div
+                                      className="roadmap-bar-progress-fill"
+                                      style={{ width: `${progressPct}%` }}
+                                    />
+                                    <div className="roadmap-bar-content">
+                                      <span className="bar-title">{t.card.title}</span>
+                                      {t.card.completed && <CheckCircle2 size={12} color="#fff" style={{ flexShrink: 0 }} />}
+                                      {!t.card.completed && progressPct > 0 && (
+                                        <span className="bar-progress-tag">{progressPct}%</span>
+                                      )}
+                                    </div>
+                                  </motion.div>
+                                )
                               )}
                             </div>
                           );
@@ -1547,7 +1756,7 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                   <div className="form-group">
-                    <label className="field-label">Start Date</label>
+                    <label className="field-label">Target Start</label>
                     <NeumorphicDatePicker
                       value={quickTaskStartDate || null}
                       onChange={val => setQuickTaskStartDate(val || '')}
@@ -1555,7 +1764,7 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
                     />
                   </div>
                   <div className="form-group">
-                    <label className="field-label">Due Date</label>
+                    <label className="field-label">Target Date (Due)</label>
                     <NeumorphicDatePicker
                       value={quickTaskDueDate || null}
                       onChange={val => setQuickTaskDueDate(val || '')}
