@@ -76,11 +76,14 @@ interface TaskWithSchedule {
   actualOrProjectedEndDate: Date;
   isProjected: boolean;
   varianceDays: number;
+  /** Total suspended (paused) calendar days already factored into variance */
+  suspendedDays: number;
   startDate: Date;
   endDate: Date;
   hasExplicitDates: boolean;
   sprint?: Sprint;
 }
+
 
 interface GroupSection {
   id: string;
@@ -114,6 +117,30 @@ export function isMilestoneTask(card: CardType): boolean {
   if (card.priority === 'urgent') return true;
   if ((card.labels || []).some(l => l.toLowerCase() === 'urgent' || l.toLowerCase() === 'planning')) return true;
   return false;
+}
+
+/**
+ * Returns the total number of suspended calendar days that fall between
+ * a task's actual start date and the given reference date (usually today).
+ * Days in suspension ranges are excluded from elapsed-time variance calc.
+ */
+export function computeSuspendedDays(card: CardType, from: Date, upTo: Date): number {
+  const suspensions = card.workSuspensions;
+  if (!suspensions || suspensions.length === 0) return 0;
+  let total = 0;
+  for (const s of suspensions) {
+    const sFrom = new Date(s.from);
+    sFrom.setHours(0, 0, 0, 0);
+    const sTo = new Date(s.to);
+    sTo.setHours(23, 59, 59, 999);
+    // Clamp to [from, upTo] window
+    const overlapStart = Math.max(from.getTime(), sFrom.getTime());
+    const overlapEnd = Math.min(upTo.getTime(), sTo.getTime());
+    if (overlapEnd > overlapStart) {
+      total += Math.round((overlapEnd - overlapStart) / 86400000);
+    }
+  }
+  return total;
 }
 
 export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
@@ -351,6 +378,9 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
         let isProjected = false;
         const progressPct = deriveCardProgress(card, col.name);
 
+        // Total suspended calendar days between actual start and today (excluded from elapsed work time)
+        const suspendedDays = computeSuspendedDays(card, actStart, today);
+
         if (card.completed) {
           if (card.actualEndDate) {
             actOrProjEnd = new Date(card.actualEndDate);
@@ -368,21 +398,27 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
             isProjected = true;
             const plannedDays = Math.max(1, Math.round((targetEnd.getTime() - targetStart.getTime()) / 86400000));
             if (today.getTime() > targetEnd.getTime()) {
-              // Task past target date: projected date extends from today based on remaining progress
+              // Task past target date: projected date extends from today based on remaining progress.
+              // Subtract suspended days so paused periods don't inflate the delay.
               const remainingPct = Math.max(0.1, (100 - progressPct) / 100);
-              const extraDays = Math.max(1, Math.ceil(plannedDays * remainingPct));
+              const extraDays = Math.max(1, Math.ceil(plannedDays * remainingPct) - suspendedDays);
               actOrProjEnd = new Date(today.getTime() + extraDays * 86400000);
             } else if (today.getTime() > targetStart.getTime()) {
-              // Task in flight: project slippage if pace is lagging
-              const elapsedDays = Math.max(1, Math.round((today.getTime() - targetStart.getTime()) / 86400000));
-              const expectedPct = Math.min(100, Math.round((elapsedDays / plannedDays) * 100));
+              // Task in flight: project slippage if pace is lagging.
+              // Use net elapsed days (calendar days minus suspended days) for pace calculation.
+              const calendarElapsed = Math.max(1, Math.round((today.getTime() - targetStart.getTime()) / 86400000));
+              const netElapsedDays = Math.max(1, calendarElapsed - suspendedDays);
+              const expectedPct = Math.min(100, Math.round((netElapsedDays / plannedDays) * 100));
               if (progressPct < expectedPct - 15) {
-                const pace = Math.max(0.05, progressPct / elapsedDays);
+                const pace = Math.max(0.05, progressPct / netElapsedDays);
                 const totalProjDays = Math.ceil(100 / pace);
-                const slip = Math.max(1, totalProjDays - plannedDays);
+                // Add suspended days back so the projected end date falls on a real calendar day
+                const slip = Math.max(1, (totalProjDays - plannedDays) + suspendedDays);
                 actOrProjEnd = new Date(targetEnd.getTime() + slip * 86400000);
               } else {
-                actOrProjEnd = new Date(targetEnd);
+                // On track: project end == target end + any suspension time that still lies ahead
+                const futureSuspended = computeSuspendedDays(card, today, targetEnd);
+                actOrProjEnd = new Date(targetEnd.getTime() + futureSuspended * 86400000);
               }
             } else {
               actOrProjEnd = new Date(targetEnd);
@@ -391,7 +427,9 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
         }
         actOrProjEnd.setHours(23, 59, 59, 999);
 
-        // 5. Variance (in days)
+        // 5. Variance (in days) = Actual/Projected End − Target End
+        //    Suspended days are already factored into actOrProjEnd, so the
+        //    variance naturally reflects only real work-time delay.
         const varianceDays = Math.round((actOrProjEnd.getTime() - targetEnd.getTime()) / 86400000);
 
         list.push({
@@ -405,6 +443,7 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
           actualOrProjectedEndDate: actOrProjEnd,
           isProjected,
           varianceDays,
+          suspendedDays,
           startDate: targetStart,
           endDate: actOrProjEnd,
           hasExplicitDates: hasDueDate || hasStartDate,
@@ -737,25 +776,45 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
       'Group / Column',
       'Sprint',
       'Assignee',
-      'Start Date',
-      'Due Date',
+      'Actual Start Date',
+      'Target Start Date',
+      'Target Due Date',
+      'Actual / Projected Date',
       'Progress %',
+      'Variance (Days)',
+      'Variance Status',
       'Status',
       'Milestone',
-      'Actual / Projected Date'
+      'Work Suspensions'
     ];
-    const rows = allTasks.map(t => [
-      `"${(t.card.title || '').replace(/"/g, '""')}"`,
-      `"${(t.columnName || '').replace(/"/g, '""')}"`,
-      `"${(t.sprint ? t.sprint.name : 'Backlog').replace(/"/g, '""')}"`,
-      `"${(t.card.assignees || []).map(id => board.members?.find(m => m.id === id)?.name || id).join(', ').replace(/"/g, '""')}"`,
-      formatDateForExport(t.card.startDate || t.targetStartDate),
-      formatDateForExport(t.card.dueDate || t.targetEndDate),
-      t.card.progress ?? (t.card.completed ? 100 : deriveCardProgress(t.card, t.columnName)),
-      t.card.completed ? 'Completed' : (t.targetEndDate < today ? 'Overdue' : 'In Progress'),
-      t.card.isMilestone ? 'Yes' : 'No',
-      formatDateForExport(t.actualOrProjectedEndDate)
-    ]);
+    const rows = allTasks.map(t => {
+      // Variance label
+      const vDays = t.varianceDays;
+      const varianceStr = vDays > 0 ? `+${vDays}` : `${vDays}`;
+      const varianceStatus = t.card.completed
+        ? (vDays > 0 ? 'Completed Late' : vDays < 0 ? 'Completed Early' : 'Completed On Time')
+        : (vDays > 0 ? 'Delayed' : vDays < 0 ? 'Ahead of Schedule' : 'On Track');
+      // Format work suspensions as readable text
+      const suspensions = (t.card.workSuspensions || []).map(s =>
+        `${s.from} to ${s.to}${s.reason ? ` (${s.reason})` : ''}`
+      ).join('; ');
+      return [
+        `"${(t.card.title || '').replace(/"/g, '""')}"`,
+        `"${(t.columnName || '').replace(/"/g, '""')}"`,
+        `"${(t.sprint ? t.sprint.name : 'Backlog').replace(/"/g, '""')}"`,
+        `"${(t.card.assignees || []).map(id => board.members?.find(m => m.id === id)?.name || id).join(', ').replace(/"/g, '""')}"`,
+        formatDateForExport(t.card.actualStartDate || t.actualStartDate),
+        formatDateForExport(t.card.startDate || t.targetStartDate),
+        formatDateForExport(t.card.dueDate || t.targetEndDate),
+        formatDateForExport(t.actualOrProjectedEndDate),
+        t.card.progress ?? (t.card.completed ? 100 : deriveCardProgress(t.card, t.columnName)),
+        varianceStr,
+        varianceStatus,
+        t.card.completed ? 'Completed' : (t.targetEndDate < today ? 'Overdue' : 'In Progress'),
+        t.card.isMilestone ? 'Yes' : 'No',
+        `"${suspensions.replace(/"/g, '""')}"`
+      ];
+    });
 
     const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
     // Prepend UTF-8 BOM so Microsoft Excel automatically recognizes character encoding and dates
@@ -1491,9 +1550,18 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
                           const actualTotalWidthPct = Math.max(2.0, actualRightPct - actualLeftPct);
                           const actualWidthPct = actualTotalWidthPct;
 
-                          // Ratio of work actually completed (0.0 to 1.0)
-                          // The actual will only fill for every task or deliverable done for that day
-                          const doneRatio = t.card.completed ? 1 : Math.max(0, Math.min(1, progressPct / 100));
+                          // For the orange fill: cap at TODAY so in-progress bars never appear to
+                          // extend into the future. Completed tasks always show their full bar.
+                          const fillCapMs = t.card.completed
+                            ? actualEndMs
+                            : Math.min(actualEndMs, today.getTime() + 12 * 3600000);
+                          const fillRightPct = Math.max(actualLeftPct, Math.min(actualRightPct, ((fillCapMs - viewStart.getTime()) / totalViewMs) * 100));
+                          // doneRatio within the track width
+                          const doneRatio = t.card.completed
+                            ? 1
+                            : (actualTotalWidthPct > 0
+                                ? Math.max(0, Math.min(1, (fillRightPct - actualLeftPct) / actualTotalWidthPct))
+                                : 0);
 
                           return (
                             <div key={t.card.id} className="roadmap-bar-row">

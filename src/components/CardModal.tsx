@@ -14,7 +14,7 @@ import { useToastStore } from '../store/useToastStore';
 import { useConfirmStore } from '../store/useConfirmStore';
 import { useSettingsStore } from '../store/useSettingsStore';
 import { useAuthStore } from '../store/useAuthStore';
-import { LABELS, type Attachment, type Comment, type Member } from '../types';
+import { LABELS, type Attachment, type Comment, type Member, type WorkSuspension } from '../types';
 import { avatarInitials, formatBytes, formatTime, uid, truncateFileName, sortMembersWithOwnerFirst, getMemberTeamCategory, getTeamBadgeInfo } from '../utils';
 import { supabaseService } from '../services/supabaseService';
 import NeumorphicDatePicker from './ui/NeumorphicDatePicker';
@@ -2357,6 +2357,139 @@ export default function CardModal({ cardId, boardId, onClose }: Props) {
                   align="left"
                 />
               </div>
+            </div>
+
+            {/* Work Suspensions (Paused Periods) */}
+            <div className="form-group" style={{ marginBottom: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                <label className="field-label" style={{ display: 'flex', alignItems: 'center', gap: 6, margin: 0 }}>
+                  <Clock size={12} color="hsl(var(--muted-foreground))" />
+                  Work Suspensions
+                  {(card.workSuspensions || []).length > 0 && (
+                    <span style={{
+                      fontSize: 10,
+                      fontWeight: 700,
+                      padding: '1px 6px',
+                      borderRadius: 6,
+                      backgroundColor: 'rgba(245,158,11,0.15)',
+                      color: '#f59e0b',
+                      marginLeft: 4,
+                    }}>
+                      {(card.workSuspensions || []).length} pause{(card.workSuspensions || []).length !== 1 ? 's' : ''}
+                    </span>
+                  )}
+                </label>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  style={{ height: 26, fontSize: 11, padding: '3px 10px', display: 'flex', alignItems: 'center', gap: 4, borderRadius: 7 }}
+                  onClick={() => {
+                    const existing = card.workSuspensions || [];
+                    const today = new Date().toISOString().slice(0, 10);
+                    updateCard(cardId, { workSuspensions: [...existing, { from: today, to: today, reason: '' }] });
+                  }}
+                >
+                  <Plus size={11} />
+                  Add Pause
+                </button>
+              </div>
+              {(card.workSuspensions || []).length === 0 ? (
+                <p style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))', margin: 0, padding: '6px 0' }}>
+                  No work pauses logged. Add a pause if work was stopped and resumed (e.g. client hold, holiday shutdown). Paused days are excluded from variance calculations.
+                </p>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {(card.workSuspensions as WorkSuspension[]).map((s, idx) => (
+                    <div
+                      key={idx}
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: '1fr 1fr 1fr auto',
+                        gap: 6,
+                        alignItems: 'end',
+                        padding: '8px 10px',
+                        borderRadius: 8,
+                        background: 'hsl(var(--card) / 0.6)',
+                        border: '1px solid hsl(var(--border) / 0.5)',
+                      }}
+                    >
+                      <div>
+                        <label style={{ fontSize: 10, fontWeight: 600, color: 'hsl(var(--muted-foreground))', display: 'block', marginBottom: 3 }}>From</label>
+                        <NeumorphicDatePicker
+                          value={s.from}
+                          onChange={val => {
+                            const updated = [...(card.workSuspensions as WorkSuspension[])];
+                            updated[idx] = { ...updated[idx], from: val || updated[idx].from };
+                            updateCard(cardId, { workSuspensions: updated });
+                          }}
+                          align="left"
+                        />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: 10, fontWeight: 600, color: 'hsl(var(--muted-foreground))', display: 'block', marginBottom: 3 }}>To</label>
+                        <NeumorphicDatePicker
+                          value={s.to}
+                          onChange={val => {
+                            const updated = [...(card.workSuspensions as WorkSuspension[])];
+                            updated[idx] = { ...updated[idx], to: val || updated[idx].to };
+                            updateCard(cardId, { workSuspensions: updated });
+                          }}
+                          align="left"
+                        />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: 10, fontWeight: 600, color: 'hsl(var(--muted-foreground))', display: 'block', marginBottom: 3 }}>Reason (optional)</label>
+                        <input
+                          type="text"
+                          value={s.reason || ''}
+                          placeholder="e.g. Client hold, Holiday"
+                          onChange={e => {
+                            const updated = [...(card.workSuspensions as WorkSuspension[])];
+                            updated[idx] = { ...updated[idx], reason: e.target.value };
+                            updateCard(cardId, { workSuspensions: updated });
+                          }}
+                          style={{
+                            width: '100%',
+                            height: 32,
+                            fontSize: 11.5,
+                            padding: '4px 8px',
+                            borderRadius: 7,
+                            border: '1px solid hsl(var(--border))',
+                            background: 'hsl(var(--background))',
+                            color: 'hsl(var(--foreground))',
+                            outline: 'none',
+                            boxSizing: 'border-box',
+                          }}
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        title="Remove this suspension"
+                        onClick={() => {
+                          const updated = (card.workSuspensions as WorkSuspension[]).filter((_, i) => i !== idx);
+                          updateCard(cardId, { workSuspensions: updated });
+                        }}
+                        style={{
+                          width: 28,
+                          height: 28,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          borderRadius: 7,
+                          border: '1px solid hsl(var(--border) / 0.6)',
+                          background: 'transparent',
+                          color: '#ef4444',
+                          cursor: 'pointer',
+                          flexShrink: 0,
+                          marginBottom: 1,
+                        }}
+                      >
+                        <X size={13} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Project Phase & Milestone */}

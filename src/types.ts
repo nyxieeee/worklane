@@ -45,6 +45,16 @@ export interface Sprint {
   color?: string;
 }
 
+/** A contiguous range of calendar days when work on a task was paused/suspended. */
+export interface WorkSuspension {
+  /** ISO date string (YYYY-MM-DD) – first day work stopped */
+  from: string;
+  /** ISO date string (YYYY-MM-DD) – last day before work resumed */
+  to: string;
+  /** Optional human-readable reason, e.g. "Client hold", "Holiday shutdown" */
+  reason?: string;
+}
+
 export interface Card {
   id: string;
   title: string;
@@ -66,6 +76,8 @@ export interface Card {
   createdAt: string;
   coverAttachmentId?: string | null;
   isInbox?: boolean;
+  /** Periods when work was paused. Variance calc subtracts these days from elapsed time. */
+  workSuspensions?: WorkSuspension[];
   // due-date alert flags
   [key: string]: unknown;
 }
