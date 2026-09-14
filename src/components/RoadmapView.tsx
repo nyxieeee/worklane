@@ -110,10 +110,7 @@ export function deriveCardProgress(card: CardType, columnName: string): number {
 }
 
 export function isMilestoneTask(card: CardType): boolean {
-  if (card.isMilestone) return true;
-  if (card.priority === 'urgent') return true;
-  if ((card.labels || []).some(l => l === 'urgent' || l === 'planning')) return true;
-  return false;
+  return Boolean(card.isMilestone);
 }
 
 export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
@@ -1479,72 +1476,76 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
                                   </div>
 
                                   {/* Bottom Track: Actual / Accomplished (Fills ONLY for deliverables/tasks done for that day) */}
-                                  {isMilestone ? (
-                                    <motion.div
-                                      whileHover={{ scale: 1.2, y: -2 }}
-                                      className="roadmap-milestone-marker"
-                                      style={{
-                                        left: `${actualLeftPct}%`,
-                                        top: 25,
-                                      }}
-                                      onClick={() => onOpenCard(t.card.id)}
-                                      title={`Milestone: ${t.card.title}\nTarget Date: ${formatShortDate(t.targetEndDate)}\nActual / Proj: ${formatShortDate(t.actualOrProjectedEndDate)}`}
-                                    >
-                                      <div className="milestone-diamond" />
-                                      <span className="milestone-label">{t.card.title}</span>
-                                    </motion.div>
-                                  ) : (
+                                  <div
+                                    className="roadmap-actual-track"
+                                    style={{
+                                      left: `${actualLeftPct}%`,
+                                      width: `${actualTotalWidthPct}%`,
+                                    }}
+                                    onClick={() => onOpenCard(t.card.id)}
+                                    title={`Actual Schedule: ${formatShortDate(t.actualStartDate)} → ${formatShortDate(t.actualOrProjectedEndDate)}\nStatus: ${t.card.completed ? 'Completed' : (doneRatio > 0 ? `${progressPct}% accomplished` : 'Not started (0% done)')}`}
+                                  >
+                                    {/* Filled portion: Fills ONLY for task or deliverable done for that day */}
                                     <div
-                                      className="roadmap-actual-track"
+                                      className={`roadmap-actual-filled-bar ${t.card.completed ? 'completed' : ''}`}
                                       style={{
-                                        left: `${actualLeftPct}%`,
-                                        width: `${actualTotalWidthPct}%`,
+                                        width: `${doneRatio * 100}%`,
                                       }}
-                                      onClick={() => onOpenCard(t.card.id)}
-                                      title={`Actual Schedule: ${formatShortDate(t.actualStartDate)} → ${formatShortDate(t.actualOrProjectedEndDate)}\nStatus: ${t.card.completed ? 'Completed' : (doneRatio > 0 ? `${progressPct}% accomplished` : 'Not started (0% done)')}`}
                                     >
-                                      {/* Filled portion: Fills ONLY for task or deliverable done for that day */}
-                                      <div
-                                        className={`roadmap-actual-filled-bar ${t.card.completed ? 'completed' : ''}`}
-                                        style={{
-                                          width: `${doneRatio * 100}%`,
-                                        }}
-                                      >
-                                        {doneRatio > 0 && (
-                                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                                            {t.card.completed ? (
-                                              <>
-                                                <span>Done</span>
-                                                <CheckCircle2 size={10} color="#fff" />
-                                              </>
-                                            ) : (
-                                              <span>{progressPct}%</span>
-                                            )}
-                                          </span>
-                                        )}
-                                      </div>
-
-                                      {/* Slipped extension striped zone if delayed */}
-                                      {t.varianceDays > 0 && !t.card.completed && targetRightPct < actualRightPct && (
-                                        <div
-                                          className="roadmap-slipped-extension"
-                                          style={{
-                                            left: `${Math.max(0, ((targetRightPct - actualLeftPct) / actualTotalWidthPct) * 100)}%`,
-                                            right: 0,
-                                          }}
-                                          title={`Projected Delay: +${t.varianceDays} days`}
-                                        />
-                                      )}
-
-                                      {/* Unfilled track label if progress < 60% */}
-                                      {doneRatio < 0.6 && (
-                                        <span className="roadmap-actual-track-label">
-                                          {doneRatio === 0 ? '0% done' : `${progressPct}%`}
-                                          {t.varianceDays > 0 && !t.card.completed && ` (+${t.varianceDays}d)`}
+                                      {doneRatio > 0 && (
+                                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                                          {t.card.completed ? (
+                                            <>
+                                              <span>Done</span>
+                                              <CheckCircle2 size={10} color="#fff" />
+                                            </>
+                                          ) : (
+                                            <span>{progressPct}%</span>
+                                          )}
                                         </span>
                                       )}
                                     </div>
-                                  )}
+
+                                    {/* Slipped extension striped zone if delayed */}
+                                    {t.varianceDays > 0 && !t.card.completed && targetRightPct < actualRightPct && (
+                                      <div
+                                        className="roadmap-slipped-extension"
+                                        style={{
+                                          left: `${Math.max(0, ((targetRightPct - actualLeftPct) / actualTotalWidthPct) * 100)}%`,
+                                          right: 0,
+                                        }}
+                                        title={`Projected Delay: +${t.varianceDays} days`}
+                                      />
+                                    )}
+
+                                    {/* Unfilled track label if progress < 60% */}
+                                    {doneRatio < 0.6 && (
+                                      <span className="roadmap-actual-track-label">
+                                        {doneRatio === 0 ? '0% done' : `${progressPct}%`}
+                                        {t.varianceDays > 0 && !t.card.completed && ` (+${t.varianceDays}d)`}
+                                      </span>
+                                    )}
+
+                                    {/* Milestone indicator badge if task is a milestone */}
+                                    {isMilestone && (
+                                      <div
+                                        title={`Milestone deliverable: ${t.card.title}`}
+                                        style={{
+                                          position: 'absolute',
+                                          right: 4,
+                                          width: 8,
+                                          height: 8,
+                                          transform: 'rotate(45deg)',
+                                          background: 'linear-gradient(135deg, #a855f7, #ec4899)',
+                                          borderRadius: 1,
+                                          border: '1px solid #fff',
+                                          boxShadow: '0 0 3px rgba(0,0,0,0.4)',
+                                          zIndex: 5,
+                                          pointerEvents: 'none',
+                                        }}
+                                      />
+                                    )}
+                                  </div>
                                 </>
                               ) : (
                                 /* Standard Single Bar Fallback */

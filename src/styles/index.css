@@ -1889,8 +1889,9 @@ select option {
 }
 
 .roadmap-actual-filled-bar.completed {
-  background: linear-gradient(135deg, #10b981, #059669);
+  background: linear-gradient(135deg, #f97316, #ea580c);
   border-radius: 3px;
+  box-shadow: 0 1px 6px rgba(249, 115, 22, 0.45);
 }
 
 .roadmap-actual-track-label {
