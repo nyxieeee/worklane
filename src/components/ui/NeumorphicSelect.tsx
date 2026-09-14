@@ -38,10 +38,49 @@ export function NeumorphicSelect<T extends string = string>({
   align = 'left',
 }: Props<T>) {
   const [isOpen, setIsOpen] = useState(false);
-  const [computedPlacement, setComputedPlacement] = useState<'top' | 'bottom'>('bottom');
+  const [computedPlacement, setComputedPlacement] = useState<'top' | 'bottom'>(
+    placement === 'top' ? 'top' : 'bottom'
+  );
   const containerRef = useRef<HTMLDivElement>(null);
 
   const selectedOption = options.find(o => o.value === value);
+
+  const calculatePlacement = () => {
+    if (placement === 'top') return 'top';
+    if (placement === 'bottom') return 'bottom';
+    if (!containerRef.current) return 'bottom';
+
+    const rect = containerRef.current.getBoundingClientRect();
+    const spaceBelowWindow = window.innerHeight - rect.bottom;
+    const spaceAboveWindow = rect.top;
+
+    // Check closest scrollable or modal container if present
+    const scrollParent = containerRef.current.closest<HTMLElement>(
+      '.roadmap-modal-body, .modal-body, .modal, [class*="modal-body"], [style*="overflow"]'
+    );
+    let spaceBelow = spaceBelowWindow;
+    let spaceAbove = spaceAboveWindow;
+
+    if (scrollParent) {
+      const parentRect = scrollParent.getBoundingClientRect();
+      const spaceBelowInParent = parentRect.bottom - rect.bottom;
+      const spaceAboveInParent = rect.top - parentRect.top;
+      spaceBelow = Math.min(spaceBelowWindow, spaceBelowInParent);
+      spaceAbove = Math.min(spaceAboveWindow, spaceAboveInParent);
+    }
+
+    return (spaceBelow < 210 && spaceAbove > spaceBelow) ? 'top' : 'bottom';
+  };
+
+  const handleToggleOpen = () => {
+    if (disabled) return;
+    if (!isOpen) {
+      setComputedPlacement(calculatePlacement());
+      setIsOpen(true);
+    } else {
+      setIsOpen(false);
+    }
+  };
 
   // Close on click outside & calculate auto placement
   useEffect(() => {
@@ -56,14 +95,7 @@ export function NeumorphicSelect<T extends string = string>({
       }
     }
     if (isOpen) {
-      if (placement === 'auto' && containerRef.current) {
-        const rect = containerRef.current.getBoundingClientRect();
-        const spaceBelow = window.innerHeight - rect.bottom;
-        // If less than 200px below, flip to open upwards
-        setComputedPlacement(spaceBelow < 200 ? 'top' : 'bottom');
-      } else {
-        setComputedPlacement(placement === 'top' ? 'top' : 'bottom');
-      }
+      setComputedPlacement(calculatePlacement());
       document.addEventListener('mousedown', handleClickOutside);
       document.addEventListener('keydown', handleKeyDown);
     }
@@ -93,7 +125,7 @@ export function NeumorphicSelect<T extends string = string>({
       <motion.button
         type="button"
         whileTap={!disabled ? { scale: 0.98 } : undefined}
-        onClick={() => !disabled && setIsOpen(prev => !prev)}
+        onClick={handleToggleOpen}
         disabled={disabled}
         style={{
           width: '100%',
@@ -161,7 +193,7 @@ export function NeumorphicSelect<T extends string = string>({
               right: align === 'right' ? 0 : 'auto',
               zIndex: 9999,
               minWidth: isSmall ? 165 : '100%',
-              maxHeight: 280,
+              maxHeight: isTop ? 200 : 260,
               overflowY: 'auto',
               backgroundColor: 'hsl(var(--card) / 0.98)',
               backdropFilter: 'blur(16px)',

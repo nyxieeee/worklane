@@ -1944,7 +1944,6 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
                           options={(board.columns || []).map(c => ({
                             value: c.id,
                             label: c.name,
-                            icon: <Kanban size={12} color="hsl(var(--primary))" />,
                           }))}
                           onChange={setQuickTaskColumnId}
                           size="sm"
@@ -1988,11 +1987,11 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
                         <NeumorphicSelect
                           value={quickTaskSprintId}
                           options={[
-                            { value: '', label: 'No Phase (General Timeline)', icon: <Layers size={12} /> },
+                            { value: '', label: 'No Phase (General Timeline)' },
                             ...(board.sprints || []).map(s => ({
                               value: s.id,
                               label: `${s.name}${s.status === 'active' ? ' (Current Phase)' : ''}`,
-                              icon: <Layers size={12} color={s.color || '#6366f1'} />,
+                              color: s.color || undefined,
                             }))
                           ]}
                           onChange={setQuickTaskSprintId}
@@ -2020,21 +2019,22 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
                       </div>
                     </div>
 
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 10, alignItems: 'end' }}>
-                      <div className="form-group" style={{ marginBottom: 0 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 10, alignItems: 'end', position: 'relative', zIndex: 30 }}>
+                      <div className="form-group" style={{ marginBottom: 0, position: 'relative', zIndex: 30 }}>
                         <label className="field-label">Assignee</label>
                         <NeumorphicSelect
                           value={quickTaskAssignee}
                           options={[
-                            { value: '', label: 'Unassigned', icon: <User size={12} /> },
+                            { value: '', label: 'Unassigned' },
                             ...(board.members || []).map(m => ({
                               value: m.id,
                               label: m.name,
-                              icon: <User size={12} color={m.color || '#6366f1'} />,
+                              color: m.color || undefined,
                             }))
                           ]}
                           onChange={setQuickTaskAssignee}
                           size="sm"
+                          placement="top"
                         />
                       </div>
 
