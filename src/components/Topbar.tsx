@@ -1,13 +1,15 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { Bell, Mail, Search, LogOut, Shield, ChevronRight, ChevronDown, Settings, Inbox, Crown, Eye, User, Menu } from 'lucide-react';
+import { Bell, Mail, Search, LogOut, Shield, ChevronRight, ChevronDown, Settings, Inbox, Crown, Eye, User, Menu, Calendar, Clock, Sun, Moon } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useWorkStore } from '../store/useWorkStore';
 import { useNotifStore } from '../store/useNotifStore';
 import { useAuthStore } from '../store/useAuthStore';
 import { useToastStore } from '../store/useToastStore';
+import { useThemeStore } from '../store/useThemeStore';
 import { avatarInitials, sortMembersWithOwnerFirst, useIsMobile } from '../utils';
 import AvatarBorder from './ui/AvatarBorder';
 import BoardColorPicker from './ui/BoardColorPicker';
+import logoImg from '../assets/logo.png';
 import type { Member } from '../types';
 
 interface Props {
@@ -76,6 +78,28 @@ export default function Topbar({
   const extra   = members.length > 3 ? members.length - 3 : 0;
 
   const isMobile = useIsMobile(860);
+  const isDark = useThemeStore(s => s.isDark);
+  const toggleTheme = useThemeStore(s => s.toggle);
+
+  const [currentTime, setCurrentTime] = useState(() => new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const todayFormatted = currentTime.toLocaleDateString(undefined, {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric'
+  });
+
+  const timeFormatted = currentTime.toLocaleTimeString(undefined, {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true
+  });
 
   // Close user dropdown on outside click
   useEffect(() => {
@@ -91,7 +115,7 @@ export default function Topbar({
     <header className="topbar">
       {/* Breadcrumb */}
       <div className="topbar-left">
-        {onToggleMobileMenu && (
+        {onToggleMobileMenu && page !== 'dashboard' && (
           <motion.button
             whileTap={{ scale: 0.92 }}
             className="icon-btn show-on-mobile"
@@ -177,8 +201,15 @@ export default function Topbar({
               </AnimatePresence>
             </span>
           ) : (
-            <span className="topbar-crumb-active">
-              Overview
+            <span className="topbar-crumb-active" style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}>
+              {isMobile && (
+                <img
+                  src={logoImg}
+                  alt="Worklane"
+                  style={{ width: 22, height: 22, borderRadius: 6, objectFit: 'contain' }}
+                />
+              )}
+              <span>Overview</span>
             </span>
           )}
         </div>
@@ -350,7 +381,8 @@ export default function Topbar({
                   position: 'absolute',
                   top: 38,
                   right: 0,
-                  width: 220,
+                  width: 236,
+                  maxWidth: 'calc(100vw - 24px)',
                   backgroundColor: 'hsl(var(--popover))',
                   borderRadius: 'var(--radius)',
                   boxShadow: 'var(--neu-shadow-floating)',
@@ -361,7 +393,7 @@ export default function Topbar({
                   gap: 4
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 8px', borderBottom: '1px solid hsl(var(--border) / 0.5)', marginBottom: 4 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 8px', borderBottom: '1px solid hsl(var(--border) / 0.5)', marginBottom: 2 }}>
                   {user?.avatarUrl ? (
                     <img
                       src={user.avatarUrl}
@@ -419,6 +451,50 @@ export default function Topbar({
                   </div>
                 </div>
 
+                {/* Real-time Date & Clock Box (Moved to profile picture dropdown for mobile accessibility) */}
+                <div
+                  className="sidebar-time-box"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 6,
+                    padding: '6px 9px',
+                    borderRadius: 'calc(var(--radius) - 2px)',
+                    backgroundColor: 'hsl(var(--card))',
+                    boxShadow: 'var(--neu-shadow-input)',
+                    fontSize: 10.5,
+                    userSelect: 'none',
+                    margin: '2px 0 4px 0',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 5, color: 'hsl(var(--muted-foreground))', minWidth: 0, overflow: 'hidden' }}>
+                    <Calendar size={12} color="hsl(var(--primary))" style={{ flexShrink: 0 }} />
+                    <span style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {todayFormatted}
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0, fontWeight: 700, color: 'hsl(var(--foreground))' }}>
+                    <Clock size={11} color="hsl(var(--primary))" />
+                    <span>{timeFormatted}</span>
+                  </div>
+                </div>
+
+                {/* Settings Tab Button */}
+                <motion.button
+                  type="button"
+                  whileTap={{ scale: 0.97 }}
+                  className="sidebar-nav-item"
+                  style={{ width: '100%', fontSize: 12.5, cursor: 'pointer' }}
+                  onClick={() => {
+                    onOpenSettings?.();
+                    setUserDropOpen(false);
+                  }}
+                >
+                  <Settings size={13} />
+                  <span>Settings</span>
+                </motion.button>
+
                 <motion.button
                   type="button"
                   whileTap={{ scale: 0.97 }}
@@ -429,6 +505,27 @@ export default function Topbar({
                   <User size={13} />
                   <span>Edit Profile & Avatar</span>
                 </motion.button>
+
+                {/* Theme Toggle in Profile Dropdown */}
+                <div className="theme-segmented-control" style={{ margin: '2px 0 4px 0' }}>
+                  <button
+                    type="button"
+                    className={`theme-seg-btn ${!isDark ? 'active' : ''}`}
+                    onClick={() => { if (isDark) toggleTheme(); }}
+                  >
+                    <Sun size={12} />
+                    <span>Light</span>
+                  </button>
+                  <button
+                    type="button"
+                    className={`theme-seg-btn ${isDark ? 'active' : ''}`}
+                    onClick={() => { if (!isDark) toggleTheme(); }}
+                  >
+                    <Moon size={12} />
+                    <span>Dark</span>
+                  </button>
+                </div>
+
                 <motion.button
                   type="button"
                   whileTap={{ scale: 0.97 }}
