@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import {
-  Plus, Edit3, Trash2, Layout, Check, X, Inbox,
+  Plus, Edit3, Trash2, Layout, X, Inbox,
   Calendar, CheckSquare, Square, Filter, ChevronRight, ChevronLeft, User, Eye,
   KanbanSquare, Milestone
 } from 'lucide-react';
@@ -604,7 +604,7 @@ export default function BoardArea({
               <div className="modal-footer">
                 <motion.button whileTap={{ scale: 0.95 }} className="btn btn-secondary" onClick={() => setShowRenameModal(false)}>Cancel</motion.button>
                 <motion.button whileTap={{ scale: 0.95 }} className="btn btn-primary" onClick={handleRenameConfirm}>
-                  <Check size={14} /> Rename
+                  Rename
                 </motion.button>
               </div>
             </motion.div>

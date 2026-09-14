@@ -1,10 +1,10 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
-  Milestone, ChevronLeft, ChevronRight, Calendar as CalendarIcon,
+  Milestone, ChevronLeft, ChevronRight,
   CheckSquare, Square, Clock, AlertCircle, CheckCircle2,
   ChevronDown, ChevronUp, User, Layers, Plus, Search, Filter,
-  Download, Play, Check, Trash2, Edit3, Flag, ArrowRight, Tag,
-  Sparkles, X, Target, BarChart2, Kanban, Link2, GitCompare, TrendingUp
+  Play, Check, Trash2, Edit3, Tag,
+  X, Target, BarChart2, Kanban, Link2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { Board, Card as CardType, Member, Sprint } from '../types';
@@ -870,7 +870,6 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
                 }}
                 title="Create a new project delivery phase"
               >
-                <Layers size={13} />
                 <span>+ Phase</span>
               </motion.button>
 
@@ -881,9 +880,8 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
                 onClick={() => setShowQuickAddModal(true)}
                 title="Quick add a new task to roadmap"
               >
-                <Plus size={13} />
-                <span className="hide-on-mobile-inline">Add Task</span>
-                <span className="show-on-mobile-inline">Task</span>
+                <span className="hide-on-mobile-inline">+ Add Task</span>
+                <span className="show-on-mobile-inline">+ Task</span>
               </motion.button>
             </>
           )}
@@ -895,7 +893,6 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
             onClick={() => setShowProjectionComparison(s => !s)}
             title="Toggle Target Baseline vs Actual / Projected Schedule Comparison"
           >
-            <GitCompare size={13} />
             <span className="hide-on-mobile-inline">{showProjectionComparison ? 'Target vs Actual: ON' : 'Single Bar'}</span>
             <span className="show-on-mobile-inline">{showProjectionComparison ? 'Target/Actual' : 'Single'}</span>
           </motion.button>
@@ -907,7 +904,6 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
             onClick={handleExportCSV}
             title="Export Roadmap report as CSV"
           >
-            <Download size={13} />
             <span>Export</span>
           </motion.button>
         </div>
@@ -922,7 +918,6 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
           className={`mobile-view-tab ${mobileTab === 'deliverables' ? 'active' : ''}`}
           onClick={() => setMobileTab('deliverables')}
         >
-          <CheckSquare size={13} />
           <span>Deliverables ({totalCount})</span>
         </button>
         <button
@@ -932,7 +927,6 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
           className={`mobile-view-tab ${mobileTab === 'timeline' ? 'active' : ''}`}
           onClick={() => setMobileTab('timeline')}
         >
-          <CalendarIcon size={13} />
           <span>Gantt Timeline</span>
         </button>
       </div>
@@ -1768,7 +1762,6 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
                           onClick={() => setShowQuickAddModal(true)}
                           title="Open Add Task side-by-side"
                         >
-                          <Plus size={12} />
                           <span>+ Add Task</span>
                         </button>
                       )}
@@ -1917,7 +1910,6 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
                           }}
                           title="Open Create Phase side-by-side"
                         >
-                          <Layers size={12} />
                           <span>+ Phase</span>
                         </button>
                       )}
@@ -1989,8 +1981,7 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
                               }}
                               title="Create a new phase side-by-side"
                             >
-                              <Plus size={11} />
-                              <span>New</span>
+                              <span>+ New</span>
                             </button>
                           )}
                         </div>
@@ -2062,7 +2053,6 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
                         }}
                         onClick={() => setQuickTaskIsMilestone(s => !s)}
                       >
-                        <Milestone size={13} color={quickTaskIsMilestone ? '#fff' : 'hsl(var(--primary))'} />
                         <span>{quickTaskIsMilestone ? 'Milestone' : 'Set Milestone'}</span>
                       </motion.button>
                     </div>
