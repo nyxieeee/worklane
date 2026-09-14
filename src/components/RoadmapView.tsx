@@ -34,6 +34,35 @@ export function formatShortDate(d: Date | string | null | undefined): string {
   return dateObj.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
+export function formatDateForExport(val: string | Date | null | undefined): string {
+  if (!val) return '';
+  if (typeof val === 'string') {
+    const trimmed = val.trim();
+    if (trimmed.includes('T')) {
+      const datePart = trimmed.split('T')[0];
+      if (/^\d{4}-\d{2}-\d{2}$/.test(datePart)) return datePart;
+    }
+    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+      return trimmed;
+    }
+    const d = new Date(trimmed);
+    if (!isNaN(d.getTime())) {
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      return `${yyyy}-${mm}-${dd}`;
+    }
+    return trimmed;
+  }
+  if (val instanceof Date && !isNaN(val.getTime())) {
+    const yyyy = val.getFullYear();
+    const mm = String(val.getMonth() + 1).padStart(2, '0');
+    const dd = String(val.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  }
+  return '';
+}
+
 interface TaskWithSchedule {
   card: CardType;
   columnId: string;
@@ -678,23 +707,36 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
     setQuickTaskIsMilestone(false);
   };
 
-  // Export Roadmap as CSV
+  // Export Roadmap as CSV (formatted for clean Microsoft Excel display)
   const handleExportCSV = () => {
-    const headers = ['Title', 'Group / Column', 'Sprint', 'Assignee', 'Start Date', 'Due Date', 'Progress %', 'Status', 'Milestone'];
+    const headers = [
+      'Title',
+      'Group / Column',
+      'Sprint',
+      'Assignee',
+      'Start Date',
+      'Due Date',
+      'Progress %',
+      'Status',
+      'Milestone',
+      'Actual / Projected Date'
+    ];
     const rows = allTasks.map(t => [
-      `"${t.card.title.replace(/"/g, '""')}"`,
-      `"${t.columnName}"`,
-      `"${t.sprint ? t.sprint.name : 'Backlog'}"`,
-      `"${(t.card.assignees || []).map(id => board.members?.find(m => m.id === id)?.name || id).join(', ')}"`,
-      t.card.startDate || t.startDate.toISOString().split('T')[0],
-      t.card.dueDate || t.endDate.toISOString().split('T')[0],
-      t.card.progress ?? (t.card.completed ? 100 : 0),
-      t.card.completed ? 'Completed' : (t.endDate < today ? 'Overdue' : 'In Progress'),
-      t.card.isMilestone ? 'Yes' : 'No'
+      `"${(t.card.title || '').replace(/"/g, '""')}"`,
+      `"${(t.columnName || '').replace(/"/g, '""')}"`,
+      `"${(t.sprint ? t.sprint.name : 'Backlog').replace(/"/g, '""')}"`,
+      `"${(t.card.assignees || []).map(id => board.members?.find(m => m.id === id)?.name || id).join(', ').replace(/"/g, '""')}"`,
+      formatDateForExport(t.card.startDate || t.targetStartDate),
+      formatDateForExport(t.card.dueDate || t.targetEndDate),
+      t.card.progress ?? (t.card.completed ? 100 : deriveCardProgress(t.card, t.columnName)),
+      t.card.completed ? 'Completed' : (t.targetEndDate < today ? 'Overdue' : 'In Progress'),
+      t.card.isMilestone ? 'Yes' : 'No',
+      formatDateForExport(t.actualOrProjectedEndDate)
     ]);
 
     const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    // Prepend UTF-8 BOM so Microsoft Excel automatically recognizes character encoding and dates
+    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
