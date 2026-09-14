@@ -1547,6 +1547,15 @@ select option {
   display: contents;
 }
 
+.roadmap-toolbar-row-3 .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 11px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
 /* Mobile-only View Switcher Tabs and Sticky Row Labels (hidden on desktop) */
 .roadmap-mobile-view-tabs {
   display: none;

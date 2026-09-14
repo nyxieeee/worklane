@@ -967,7 +967,6 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
                     setShowSprintModal(true);
                   }}
                   title="Create a new project delivery phase"
-                  style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', fontSize: 12 }}
                 >
                   <Layers size={13} />
                   <span>+ Phase</span>
@@ -976,13 +975,13 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
                 <motion.button
                   whileTap={{ scale: 0.95 }}
                   type="button"
-                  className="btn btn-primary"
+                  className="btn btn-primary roadmap-btn-add-task"
                   onClick={() => setShowQuickAddModal(true)}
                   title="Quick add a new task to roadmap"
-                  style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 12px', fontSize: 12 }}
                 >
-                  <Plus size={14} />
-                  <span>Add Task</span>
+                  <Plus size={13} />
+                  <span className="hide-on-mobile-inline">Add Task</span>
+                  <span className="show-on-mobile-inline">Task</span>
                 </motion.button>
               </>
             )}
@@ -990,22 +989,21 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
             <motion.button
               whileTap={{ scale: 0.95 }}
               type="button"
-              className={`btn ${showProjectionComparison ? 'btn-primary' : 'btn-secondary'}`}
+              className={`btn ${showProjectionComparison ? 'btn-primary' : 'btn-secondary'} roadmap-btn-compare`}
               onClick={() => setShowProjectionComparison(s => !s)}
               title="Toggle Target Baseline vs Actual / Projected Schedule Comparison"
-              style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', fontSize: 11.5 }}
             >
               <GitCompare size={13} />
-              <span>{showProjectionComparison ? 'Target vs Actual: ON' : 'Single Bar'}</span>
+              <span className="hide-on-mobile-inline">{showProjectionComparison ? 'Target vs Actual: ON' : 'Single Bar'}</span>
+              <span className="show-on-mobile-inline">{showProjectionComparison ? 'Target/Actual' : 'Single'}</span>
             </motion.button>
 
             <motion.button
               whileTap={{ scale: 0.95 }}
               type="button"
-              className="btn btn-secondary"
+              className="btn btn-secondary roadmap-btn-export"
               onClick={handleExportCSV}
               title="Export Roadmap report as CSV"
-              style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 9px', fontSize: 12 }}
             >
               <Download size={13} />
               <span>Export</span>

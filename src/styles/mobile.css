@@ -13,6 +13,14 @@
   display: flex;
 }
 
+.show-on-mobile-inline {
+  display: none !important;
+}
+
+.hide-on-mobile-inline {
+  display: inline;
+}
+
 /* Sidebar Backdrop (for Mobile Off-Canvas Drawer) */
 .sidebar-backdrop {
   position: fixed;
@@ -58,6 +66,12 @@
   }
   .show-on-mobile {
     display: flex !important;
+  }
+  .hide-on-mobile-inline {
+    display: none !important;
+  }
+  .show-on-mobile-inline {
+    display: inline !important;
   }
 
   /* Off-canvas Mobile Sidebar Drawer */
@@ -744,15 +758,35 @@
 
   .roadmap-toolbar-row-3 {
     display: flex !important;
-    gap: 6px !important;
+    gap: 5px !important;
     width: 100% !important;
     align-items: center !important;
-    overflow-x: auto !important;
-    padding-bottom: 2px !important;
-    -webkit-overflow-scrolling: touch !important;
+    overflow: hidden !important;
+    overflow-x: hidden !important;
+    padding-bottom: 0 !important;
+    box-sizing: border-box !important;
   }
 
   .roadmap-toolbar-row-3 .btn {
+    flex: 1 1 0px !important;
+    min-width: 0 !important;
+    padding: 6px 4px !important;
+    font-size: 11px !important;
+    gap: 3px !important;
+    justify-content: center !important;
+    white-space: nowrap !important;
+    height: 32px !important;
+    box-sizing: border-box !important;
+  }
+
+  .roadmap-toolbar-row-3 .roadmap-btn-compare {
+    flex: 1.3 1 0px !important;
+    font-size: 10.5px !important;
+  }
+
+  .roadmap-toolbar-row-3 .btn svg {
+    width: 12px !important;
+    height: 12px !important;
     flex-shrink: 0 !important;
   }
 
