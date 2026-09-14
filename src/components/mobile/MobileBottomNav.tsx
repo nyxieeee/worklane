@@ -1,5 +1,5 @@
 import React from 'react';
-import { LayoutDashboard, KanbanSquare, Milestone, Calendar, Inbox, Plus } from 'lucide-react';
+import { LayoutDashboard, KanbanSquare, Calendar, Inbox, Plus } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 interface MobileBottomNavProps {
@@ -49,16 +49,6 @@ export default function MobileBottomNav({
       >
         <KanbanSquare size={17} />
         <span>Board</span>
-      </button>
-
-      <button
-        type="button"
-        className={`mobile-nav-tab ${page === 'board' && viewMode === 'roadmap' ? 'active' : ''}`}
-        onClick={() => onSelectBoardView('roadmap')}
-        title="Roadmap View"
-      >
-        <Milestone size={17} />
-        <span>Roadmap</span>
       </button>
 
       {/* Prominent Neumorphic Center Circle Plus Button */}
