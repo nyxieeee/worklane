@@ -110,7 +110,10 @@ export function deriveCardProgress(card: CardType, columnName: string): number {
 }
 
 export function isMilestoneTask(card: CardType): boolean {
-  return Boolean(card.isMilestone);
+  if (card.isMilestone) return true;
+  if (card.priority === 'urgent') return true;
+  if ((card.labels || []).some(l => l.toLowerCase() === 'urgent' || l.toLowerCase() === 'planning')) return true;
+  return false;
 }
 
 export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
@@ -1470,7 +1473,20 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
                                     onClick={() => onOpenCard(t.card.id)}
                                     title={`Target (Planned): ${formatShortDate(t.targetStartDate)} → ${formatShortDate(t.targetEndDate)}`}
                                   >
-                                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                                      {isMilestone && (
+                                        <span
+                                          style={{
+                                            width: 7,
+                                            height: 7,
+                                            transform: 'rotate(45deg)',
+                                            backgroundColor: '#fff',
+                                            borderRadius: 1,
+                                            flexShrink: 0,
+                                          }}
+                                          title="Milestone Deliverable"
+                                        />
+                                      )}
                                       Target: {formatShortDate(t.targetEndDate)}
                                     </span>
                                   </div>
@@ -1501,6 +1517,20 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
                                             </>
                                           ) : (
                                             <span>{progressPct}%</span>
+                                          )}
+                                          {isMilestone && (
+                                            <span
+                                              style={{
+                                                width: 7,
+                                                height: 7,
+                                                transform: 'rotate(45deg)',
+                                                backgroundColor: '#fff',
+                                                borderRadius: 1,
+                                                flexShrink: 0,
+                                                marginLeft: 2,
+                                              }}
+                                              title="Milestone Accomplishment"
+                                            />
                                           )}
                                         </span>
                                       )}
