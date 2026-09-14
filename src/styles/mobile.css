@@ -21,6 +21,14 @@
   display: inline;
 }
 
+.show-on-mobile-flex {
+  display: none !important;
+}
+
+.hide-on-mobile-flex {
+  display: flex;
+}
+
 /* Sidebar Backdrop (for Mobile Off-Canvas Drawer) */
 .sidebar-backdrop {
   position: fixed;
@@ -72,6 +80,12 @@
   }
   .show-on-mobile-inline {
     display: inline !important;
+  }
+  .hide-on-mobile-flex {
+    display: none !important;
+  }
+  .show-on-mobile-flex {
+    display: flex !important;
   }
 
   /* Off-canvas Mobile Sidebar Drawer */
@@ -674,18 +688,23 @@
    ROADMAP / GANTT MOBILE RESPONSIVE OPTIMIZATION
    ══════════════════════════════════════════════════════════ */
 @media (max-width: 860px) {
+  /* Clean Compact Header */
+  .roadmap-header-subtitle {
+    display: none !important;
+  }
+
   .roadmap-view-container {
     padding: 8px 10px !important;
-    gap: 10px !important;
+    gap: 8px !important;
     height: 100% !important;
-    padding-bottom: calc(68px + var(--sab)) !important; /* Safe clearance for mobile bottom bar */
+    padding-bottom: calc(72px + var(--sab)) !important; /* Safe clearance for mobile bottom bar */
     overflow-y: auto !important;
     overflow-x: hidden !important;
     box-sizing: border-box !important;
   }
 
   .roadmap-header-bar {
-    gap: 8px !important;
+    gap: 6px !important;
     flex-direction: column !important;
     align-items: stretch !important;
   }
@@ -701,13 +720,55 @@
     width: 100% !important;
     overflow-x: auto !important;
     flex-wrap: nowrap !important;
-    padding-bottom: 3px !important;
+    padding-bottom: 2px !important;
     -webkit-overflow-scrolling: touch !important;
+    scrollbar-width: none !important;
+  }
+
+  .roadmap-stats-chips::-webkit-scrollbar {
+    display: none !important;
   }
 
   .roadmap-stat-pill {
     flex-shrink: 0 !important;
     font-size: 11px !important;
+    padding: 2.5px 8px !important;
+  }
+
+  /* Mobile Segmented View Switcher Tabs (Anchored high up for immediate clarity) */
+  .roadmap-mobile-view-tabs {
+    display: flex !important;
+    width: 100% !important;
+    background-color: hsl(var(--card)) !important;
+    padding: 3px !important;
+    border-radius: 12px !important;
+    box-shadow: var(--neu-shadow-input) !important;
+    gap: 3px !important;
+    box-sizing: border-box !important;
+    flex-shrink: 0 !important;
+  }
+
+  .mobile-view-tab {
+    flex: 1 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 6px !important;
+    padding: 7px 10px !important;
+    border-radius: 9px !important;
+    border: none !important;
+    background: transparent !important;
+    color: hsl(var(--muted-foreground)) !important;
+    font-size: 12px !important;
+    font-weight: 700 !important;
+    cursor: pointer !important;
+    transition: all 0.15s ease !important;
+  }
+
+  .mobile-view-tab.active {
+    background-color: hsl(var(--primary)) !important;
+    color: hsl(var(--primary-foreground)) !important;
+    box-shadow: var(--neu-shadow-raised-sm) !important;
   }
 
   /* Responsive Controls Toolbar */
@@ -762,7 +823,7 @@
     width: 100% !important;
     align-items: center !important;
     overflow: visible !important;
-    padding: 3px 2px !important;
+    padding: 2px !important;
     box-sizing: border-box !important;
     scrollbar-width: none !important;
   }
@@ -798,60 +859,91 @@
     flex-shrink: 0 !important;
   }
 
+  /* ── Contextual Controls in Deliverables View ── */
+  .roadmap-mobile-mode-deliverables .roadmap-toolbar-row-2 {
+    display: none !important; /* Hides timeline scale, navigation, and legend in Deliverables mode */
+  }
+
+  .roadmap-mobile-mode-deliverables .roadmap-toolbar-row-3 .roadmap-btn-compare {
+    display: none !important; /* Gantt dual-track comparison only applies to Gantt timeline */
+  }
+
+  .roadmap-mobile-mode-deliverables .roadmap-toolbar-row-3 .roadmap-btn-add-task {
+    flex: 1.8 1 0px !important;
+    font-weight: 700 !important;
+  }
+
+  .roadmap-mobile-mode-deliverables .roadmap-toolbar-row-3 .roadmap-btn-phase {
+    flex: 1.1 1 0px !important;
+  }
+
+  .roadmap-mobile-mode-deliverables .roadmap-toolbar-row-3 .roadmap-btn-export {
+    flex: 0.9 1 0px !important;
+  }
+
+  /* ── Contextual Controls in Timeline View ── */
+  .roadmap-mobile-mode-timeline .roadmap-toolbar-row-1 {
+    display: none !important; /* Hides search and grouping dropdowns to give full height to Gantt canvas */
+  }
+
+  .roadmap-mobile-mode-timeline .roadmap-toolbar-row-3 .roadmap-btn-phase,
+  .roadmap-mobile-mode-timeline .roadmap-toolbar-row-3 .roadmap-btn-export {
+    display: none !important;
+  }
+
+  .roadmap-mobile-mode-timeline .roadmap-toolbar-row-3 .roadmap-btn-add-task,
+  .roadmap-mobile-mode-timeline .roadmap-toolbar-row-3 .roadmap-btn-compare {
+    flex: 1 1 0px !important;
+  }
+
+  .roadmap-mobile-mode-timeline .roadmap-toolbar-row-2 {
+    display: flex !important;
+    gap: 6px !important;
+    width: 100% !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+  }
+
+  .roadmap-mobile-mode-timeline .roadmap-scale-group {
+    flex: 0 0 auto !important;
+  }
+
+  .roadmap-mobile-mode-timeline .roadmap-nav-group {
+    flex: 1 1 auto !important;
+    justify-content: flex-end !important;
+    gap: 4px !important;
+  }
+
+  .roadmap-mobile-mode-timeline .roadmap-legend-container {
+    width: 100% !important;
+    justify-content: center !important;
+    padding-top: 2px !important;
+  }
+
   /* Active Phase / Sprint Banner */
   .roadmap-active-sprint-banner {
     flex-direction: column !important;
     align-items: stretch !important;
-    padding: 10px 12px !important;
-    gap: 8px !important;
-  }
-
-  /* Mobile Segmented View Switcher Tabs */
-  .roadmap-mobile-view-tabs {
-    display: flex !important;
-    width: 100% !important;
-    background-color: hsl(var(--card)) !important;
-    padding: 3px !important;
-    border-radius: 12px !important;
-    box-shadow: var(--neu-shadow-input) !important;
-    gap: 3px !important;
-    box-sizing: border-box !important;
-    flex-shrink: 0 !important;
-  }
-
-  .mobile-view-tab {
-    flex: 1 !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
+    padding: 8px 10px !important;
     gap: 6px !important;
-    padding: 8px 12px !important;
-    border-radius: 9px !important;
-    border: none !important;
-    background: transparent !important;
-    color: hsl(var(--muted-foreground)) !important;
-    font-size: 12px !important;
-    font-weight: 700 !important;
-    cursor: pointer !important;
-    transition: all 0.15s ease !important;
-  }
-
-  .mobile-view-tab.active {
-    background-color: hsl(var(--primary)) !important;
-    color: hsl(var(--primary-foreground)) !important;
-    box-shadow: var(--neu-shadow-raised-sm) !important;
   }
 
   /* Split Pane Mobile Layout */
   .roadmap-split-pane {
     flex: 1 1 auto !important;
-    min-height: 420px !important;
     flex-direction: column !important;
     width: 100% !important;
     border-radius: 12px !important;
+    margin-bottom: 8px !important;
   }
 
-  /* When Deliverables tab is active */
+  /* When Deliverables tab is active: allow natural vertical scrolling without nested traps */
+  .roadmap-split-pane.mobile-tab-deliverables {
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+  }
+
   .roadmap-split-pane.mobile-tab-deliverables .roadmap-tasks-pane {
     display: flex !important;
     width: 100% !important;
@@ -859,6 +951,13 @@
     max-width: 100% !important;
     border-right: none !important;
     flex: 1 !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  .roadmap-split-pane.mobile-tab-deliverables .roadmap-tasks-list {
+    overflow-y: visible !important;
+    height: auto !important;
   }
 
   .roadmap-split-pane.mobile-tab-deliverables .roadmap-canvas-pane {
@@ -876,6 +975,8 @@
     min-width: 0 !important;
     max-width: 100% !important;
     flex: 1 !important;
+    min-height: 480px !important;
+    overflow-x: auto !important;
     -webkit-overflow-scrolling: touch !important;
   }
 
@@ -884,15 +985,42 @@
     height: 44px !important;
   }
 
-  .roadmap-task-row {
-    padding: 0 8px !important;
-    height: 38px !important;
+  .roadmap-pane-header {
+    height: 36px !important;
+    padding: 0 10px !important;
+    font-size: 10.5px !important;
   }
 
-  .roadmap-pane-header {
-    height: 40px !important;
-    padding: 0 8px !important;
-    font-size: 10.5px !important;
+  .roadmap-task-row {
+    padding: 0 10px !important;
+    height: 44px !important;
+    gap: 8px !important;
+  }
+
+  .roadmap-task-title {
+    flex: 1 1 0px !important;
+    min-width: 0 !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+    font-size: 12.5px !important;
+    font-weight: 500 !important;
+  }
+
+  .roadmap-task-mobile-meta {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: flex-end !important;
+    justify-content: center !important;
+    min-width: 90px !important;
+    flex-shrink: 0 !important;
+    gap: 2px !important;
+  }
+
+  .roadmap-empty-col-row {
+    padding: 6px 12px !important;
+    font-size: 11px !important;
+    color: hsl(var(--muted-foreground) / 0.7) !important;
   }
 
   /* Sticky task title label in Gantt mode on mobile */

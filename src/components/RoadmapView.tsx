@@ -137,6 +137,13 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
   const [showUnscheduled, setShowUnscheduled] = useState(false);
   const [showProjectionComparison, setShowProjectionComparison] = useState(true);
   const [mobileTab, setMobileTab] = useState<'deliverables' | 'timeline'>('deliverables');
+  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth <= 768);
+
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth <= 768);
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   // Group By options with Lucide icons (Universal across Construction, Systems Integration & Business PM)
   const groupByOptions: SelectOption<GroupByMode>[] = useMemo(() => [
@@ -773,7 +780,7 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
   const todayXPos = todayProgress * totalTimelineWidth;
 
   return (
-    <div className="roadmap-view-container">
+    <div className={`roadmap-view-container roadmap-mobile-mode-${mobileTab}`}>
       {/* Top Header & Toolbar */}
       <div className="roadmap-header-bar">
         <div className="roadmap-header-left">
@@ -812,7 +819,7 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
                   PROJECT SCHEDULE
                 </span>
               </div>
-              <span style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))' }}>
+              <span className="roadmap-header-subtitle" style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))' }}>
                 Milestone tracking, work packages & timeline scheduling
               </span>
             </div>
@@ -904,6 +911,30 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
             <span>Export</span>
           </motion.button>
         </div>
+      </div>
+
+      {/* Mobile Segmented View Switcher Tabs (Only displayed on mobile screens) */}
+      <div className="roadmap-mobile-view-tabs" role="tablist" aria-label="Roadmap View Options">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={mobileTab === 'deliverables'}
+          className={`mobile-view-tab ${mobileTab === 'deliverables' ? 'active' : ''}`}
+          onClick={() => setMobileTab('deliverables')}
+        >
+          <CheckSquare size={13} />
+          <span>Deliverables ({totalCount})</span>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={mobileTab === 'timeline'}
+          className={`mobile-view-tab ${mobileTab === 'timeline' ? 'active' : ''}`}
+          onClick={() => setMobileTab('timeline')}
+        >
+          <CalendarIcon size={13} />
+          <span>Gantt Timeline</span>
+        </button>
       </div>
 
       {/* Controls Bar: Search, GroupBy, Status, Scale, Navigation, Legend */}
@@ -1083,39 +1114,16 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
         </div>
       )}
 
-      {/* Mobile Segmented View Switcher Tabs (Only displayed on mobile screens) */}
-      <div className="roadmap-mobile-view-tabs" role="tablist" aria-label="Roadmap View Options">
-        <button
-          type="button"
-          role="tab"
-          aria-selected={mobileTab === 'deliverables'}
-          className={`mobile-view-tab ${mobileTab === 'deliverables' ? 'active' : ''}`}
-          onClick={() => setMobileTab('deliverables')}
-        >
-          <CheckSquare size={13} />
-          <span>Deliverables ({totalCount})</span>
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={mobileTab === 'timeline'}
-          className={`mobile-view-tab ${mobileTab === 'timeline' ? 'active' : ''}`}
-          onClick={() => setMobileTab('timeline')}
-        >
-          <CalendarIcon size={13} />
-          <span>Gantt Timeline</span>
-        </button>
-      </div>
-
       {/* Split-Pane: Left Task Hierarchy & Right Timeline Canvas */}
       <div className={`roadmap-split-pane mobile-tab-${mobileTab}`}>
         {/* Left Side: Tasks Table */}
         <div className="roadmap-tasks-pane">
           <div className="roadmap-pane-header">
             <span style={{ flex: 1, paddingLeft: 8 }}>Task & Deliverable</span>
-            <span style={{ width: 38, textAlign: 'center' }}>Prog</span>
-            <span style={{ width: 68, textAlign: 'center' }}>Target</span>
-            <span style={{ width: 95, textAlign: 'right', paddingRight: 8 }}>Actual / Proj</span>
+            <span className="hide-on-mobile-inline" style={{ width: 38, textAlign: 'center' }}>Prog</span>
+            <span className="hide-on-mobile-inline" style={{ width: 68, textAlign: 'center' }}>Target</span>
+            <span className="hide-on-mobile-inline" style={{ width: 95, textAlign: 'right', paddingRight: 8 }}>Actual / Proj</span>
+            <span className="show-on-mobile-inline" style={{ width: 95, textAlign: 'right', paddingRight: 8 }}>Status & Date</span>
           </div>
 
           <div
@@ -1125,7 +1133,9 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
           >
             {groupedSections.map(section => {
               const tasks = section.tasks;
-              const isCollapsed = collapsedGroups[section.id];
+              const isCollapsed = collapsedGroups[section.id] !== undefined
+                ? collapsedGroups[section.id]
+                : (isMobile && tasks.length === 0);
               const sectionCompleted = tasks.filter(t => t.card.completed).length;
 
               return (
@@ -1286,13 +1296,14 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
                                 </div>
                               )}
 
-                              {/* Progress % */}
-                              <span style={{ width: 38, fontSize: 10.5, fontWeight: 600, textAlign: 'center', color: 'hsl(var(--muted-foreground))' }}>
+                              {/* Progress % (Desktop) */}
+                              <span className="hide-on-mobile-inline" style={{ width: 38, fontSize: 10.5, fontWeight: 600, textAlign: 'center', color: 'hsl(var(--muted-foreground))' }}>
                                 {progressPct}%
                               </span>
 
-                              {/* Target Date */}
+                              {/* Target Date (Desktop) */}
                               <span
+                                className="hide-on-mobile-inline"
                                 style={{
                                   width: 68,
                                   fontSize: 10.5,
@@ -1308,8 +1319,8 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
                                 {formatShortDate(t.targetEndDate)}
                               </span>
 
-                              {/* Actual / Projected Date with variance */}
-                              <div style={{ width: 95, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', paddingRight: 8, whiteSpace: 'nowrap' }}>
+                              {/* Actual / Projected Date with variance (Desktop) */}
+                              <div className="hide-on-mobile-flex" style={{ width: 95, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', paddingRight: 8, whiteSpace: 'nowrap' }}>
                                 <span style={{ fontSize: 10.5, fontWeight: 600, color: t.card.completed ? '#10b981' : (t.varianceDays > 0 ? '#ef4444' : 'hsl(var(--foreground))') }}>
                                   {formatShortDate(t.actualOrProjectedEndDate)}
                                 </span>
@@ -1323,6 +1334,29 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
                                     {t.card.completed ? 'On Time' : 'On Track'}
                                   </span>
                                 )}
+                              </div>
+
+                              {/* Mobile Status & Date Stack */}
+                              <div className="roadmap-task-mobile-meta show-on-mobile-flex">
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 4, justifyContent: 'flex-end' }}>
+                                  <span style={{ fontSize: 10, fontWeight: 700, color: progressPct === 100 ? '#10b981' : 'hsl(var(--primary))' }}>
+                                    {progressPct}%
+                                  </span>
+                                  <span style={{ fontSize: 11, fontWeight: 600, color: 'hsl(var(--foreground))' }}>
+                                    {formatShortDate(t.targetEndDate)}
+                                  </span>
+                                </div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 3, justifyContent: 'flex-end' }}>
+                                  {t.card.completed ? (
+                                    <span style={{ fontSize: 9.5, fontWeight: 600, color: '#10b981' }}>Done</span>
+                                  ) : t.varianceDays !== 0 ? (
+                                    <span className={`variance-tag ${t.varianceDays > 0 ? 'delay' : 'early'}`} style={{ fontSize: 9, padding: '1px 4px' }}>
+                                      {t.varianceDays > 0 ? `+${t.varianceDays}d` : `${t.varianceDays}d`}
+                                    </span>
+                                  ) : (
+                                    <span style={{ fontSize: 9.5, color: 'hsl(var(--muted-foreground))' }}>On track</span>
+                                  )}
+                                </div>
                               </div>
                             </div>
                           );
