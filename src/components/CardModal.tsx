@@ -5,7 +5,7 @@ import {
   Eye, Image as ImageIcon, Maximize2, AtSign, Reply, Sparkles,
   FileSpreadsheet, FileText, FileCode, FileArchive, File, Lock,
   Edit3, Crown, Shield, Save, Loader2, Globe, Server, Cpu, Briefcase,
-  Link2, ExternalLink, ArrowRightLeft,
+  Link2, ExternalLink, ArrowRightLeft, Inbox,
   Milestone, Layers, Activity
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -18,6 +18,7 @@ import { LABELS, type Attachment, type Comment, type Member } from '../types';
 import { avatarInitials, formatBytes, formatTime, uid, truncateFileName, sortMembersWithOwnerFirst, getMemberTeamCategory, getTeamBadgeInfo } from '../utils';
 import { supabaseService } from '../services/supabaseService';
 import NeumorphicDatePicker from './ui/NeumorphicDatePicker';
+import { NeumorphicSelect } from './ui/NeumorphicSelect';
 import AvatarBorder from './ui/AvatarBorder';
 import { deriveCardProgress } from './RoadmapView';
 
@@ -1002,49 +1003,29 @@ export default function CardModal({ cardId, boardId, onClose }: Props) {
             <span style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>
               in column:
             </span>
-            <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
-              <select
-                aria-label="Move card to column"
-                value={isInbox ? 'inbox' : (column?.id || '')}
-                onChange={(e) => {
-                  const targetColId = e.target.value;
-                  if (!targetColId) return;
-                  if (isInbox && targetColId !== 'inbox') {
-                    moveInboxCardToColumn(card.id, targetColId);
-                    const targetName = board.columns.find(c => c.id === targetColId)?.name || 'column';
-                    showToast(`Moved to "${targetName}"`, 'success');
-                  } else if (column && targetColId !== column.id && targetColId !== 'inbox') {
-                    moveCard(card.id, column.id, targetColId);
-                    const targetName = board.columns.find(c => c.id === targetColId)?.name || 'column';
-                    showToast(`Moved to "${targetName}"`, 'success');
-                  }
-                }}
-                style={{
-                  fontSize: 12,
-                  fontWeight: 600,
-                  color: 'hsl(var(--foreground))',
-                  backgroundColor: 'hsl(var(--secondary))',
-                  border: '1px solid hsl(var(--border))',
-                  borderRadius: 6,
-                  padding: '3px 22px 3px 8px',
-                  outline: 'none',
-                  cursor: 'pointer',
-                  appearance: 'none',
-                  WebkitAppearance: 'none',
-                  boxShadow: 'var(--neu-shadow-raised-sm)',
-                }}
-              >
-                {isInbox && <option value="inbox">📥 Inbox</option>}
-                {board.columns.map(c => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-              <div style={{ position: 'absolute', right: 6, pointerEvents: 'none', color: 'hsl(var(--muted-foreground))', display: 'flex', alignItems: 'center' }}>
-                <ArrowRightLeft size={11} />
-              </div>
-            </div>
+            <NeumorphicSelect
+              size="sm"
+              value={isInbox ? 'inbox' : (column?.id || '')}
+              options={[
+                ...(isInbox ? [{ value: 'inbox', label: 'Inbox', icon: <Inbox size={12} /> }] : []),
+                ...board.columns.map(c => ({
+                  value: c.id,
+                  label: c.name,
+                })),
+              ]}
+              onChange={(targetColId) => {
+                if (!targetColId) return;
+                if (isInbox && targetColId !== 'inbox') {
+                  moveInboxCardToColumn(card.id, targetColId);
+                  const targetName = board.columns.find(c => c.id === targetColId)?.name || 'column';
+                  showToast(`Moved to "${targetName}"`, 'success');
+                } else if (column && targetColId !== column.id && targetColId !== 'inbox') {
+                  moveCard(card.id, column.id, targetColId);
+                  const targetName = board.columns.find(c => c.id === targetColId)?.name || 'column';
+                  showToast(`Moved to "${targetName}"`, 'success');
+                }
+              }}
+            />
           </div>
           {!coverAttachment && (
             <motion.button whileTap={{ scale: 0.92 }} className="icon-btn" onClick={handleSafeClose}>
@@ -2316,21 +2297,21 @@ export default function CardModal({ cardId, boardId, onClose }: Props) {
                 <label className="field-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   <Layers size={12} /> Project Phase
                 </label>
-                <select
+                <NeumorphicSelect
                   value={card.sprintId || ''}
-                  onChange={e => {
-                    updateCard(cardId, { sprintId: e.target.value || null });
+                  options={[
+                    { value: '', label: 'No Phase (General Timeline)' },
+                    ...(board?.sprints || []).map(sp => ({
+                      value: sp.id,
+                      label: `${sp.name} ${sp.status === 'active' ? '(Current Phase)' : `(${sp.status})`}`,
+                    })),
+                  ]}
+                  onChange={val => {
+                    updateCard(cardId, { sprintId: val || null });
                   }}
-                  className="select-input"
-                  style={{ width: '100%', fontSize: 12, height: 32, padding: '4px 8px', borderRadius: 8 }}
-                >
-                  <option value="">No Phase (General Timeline)</option>
-                  {(board?.sprints || []).map(sp => (
-                    <option key={sp.id} value={sp.id}>
-                      {sp.name} {sp.status === 'active' ? '(Current Phase)' : `(${sp.status})`}
-                    </option>
-                  ))}
-                </select>
+                  size="sm"
+                  style={{ width: '100%' }}
+                />
               </div>
               <motion.button
                 type="button"

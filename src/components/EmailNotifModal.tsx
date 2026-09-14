@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Mail, X, Send, Trash2, ExternalLink, CheckCircle2, ShieldCheck, Loader2 } from 'lucide-react';
+import { Mail, X, Send, Trash2, ExternalLink, CheckCircle2, ShieldCheck, Loader2, Users } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { NeumorphicSelect } from './ui/NeumorphicSelect';
 import { useEmailStore } from '../store/useEmailStore';
 import { useWorkStore } from '../store/useWorkStore';
 import { useToastStore } from '../store/useToastStore';
@@ -221,18 +222,22 @@ export default function EmailNotifModal({ onClose }: Props) {
           {/* Test Email */}
           <div className="form-group" style={{ marginTop: 2 }}>
             <label className="field-label">Send Direct Update or Test</label>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <select
-                className="select-input"
-                style={{ flex: 1 }}
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <NeumorphicSelect
                 value={testEmail}
-                onChange={e => setTestEmail(e.target.value)}
-              >
-                <option value="">Select a team member...</option>
-                {members.map(m => (
-                  <option key={m.id} value={m.email}>{m.name} ({m.email || 'No email'})</option>
-                ))}
-              </select>
+                placeholder="Select a team member..."
+                options={[
+                  { value: '', label: 'Select a team member...' },
+                  ...members.map(m => ({
+                    value: m.email || '',
+                    label: m.name,
+                    subLabel: m.email || 'No email',
+                    icon: <Users size={12} />,
+                  })),
+                ]}
+                onChange={val => setTestEmail(val)}
+                style={{ flex: 1 }}
+              />
               <input
                 type="email"
                 className="text-input"

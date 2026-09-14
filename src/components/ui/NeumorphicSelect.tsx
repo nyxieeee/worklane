@@ -161,6 +161,8 @@ export function NeumorphicSelect<T extends string = string>({
               right: align === 'right' ? 0 : 'auto',
               zIndex: 9999,
               minWidth: isSmall ? 165 : '100%',
+              maxHeight: 280,
+              overflowY: 'auto',
               backgroundColor: 'hsl(var(--card) / 0.98)',
               backdropFilter: 'blur(16px)',
               WebkitBackdropFilter: 'blur(16px)',
