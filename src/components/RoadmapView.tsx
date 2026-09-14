@@ -49,14 +49,19 @@ interface GroupSection {
 }
 
 export function deriveCardProgress(card: CardType, columnName: string): number {
-  if (card.progress !== undefined && card.progress !== null) return card.progress;
   if (card.completed) return 100;
   const col = (columnName || '').toLowerCase();
-  if (col.includes('done') || col.includes('complete')) return 100;
-  if (col.includes('review') || col.includes('qa') || col.includes('test')) return 80;
-  if (col.includes('in progress') || col.includes('doing') || col.includes('active')) return 50;
-  if (col.includes('urgent') || col.includes('critical')) return 25;
-  if (col.includes('to do') || col.includes('todo') || col.includes('backlog')) return 10;
+  // 100% - Handover / Closeout / Approved / Delivered / Done / Signed-off
+  if (col.includes('done') || col.includes('complete') || col.includes('handover') || col.includes('closeout') || col.includes('delivered') || col.includes('approved') || col.includes('finished') || col.includes('sign-off') || col.includes('signed off')) return 100;
+  // 80% - Testing / Commissioning / Inspection / Review / QA / Punch List / Validation / SAT / FAT
+  if (col.includes('review') || col.includes('qa') || col.includes('test') || col.includes('inspection') || col.includes('commissioning') || col.includes('punch list') || col.includes('validation') || col.includes('sat') || col.includes('fat') || col.includes('audit')) return 80;
+  // 50% - In Progress / Installation / Assembly / Construction / Rough-In / Field Work / Integration
+  if (col.includes('in progress') || col.includes('doing') || col.includes('active') || col.includes('install') || col.includes('assembly') || col.includes('construction') || col.includes('execution') || col.includes('fabrication') || col.includes('wiring') || col.includes('rough-in') || col.includes('integration') || col.includes('field work') || col.includes('site work')) return 50;
+  // 25% - Procurement / Ordering / Permits / Mobilization / Staging / Engineering / Submittal
+  if (col.includes('urgent') || col.includes('critical') || col.includes('procurement') || col.includes('ordering') || col.includes('permit') || col.includes('mobilization') || col.includes('engineering') || col.includes('staging') || col.includes('submittal') || col.includes('triage')) return 25;
+  // 10% - To Do / Planning / Design / Schematic / Backlog / Queued
+  if (col.includes('to do') || col.includes('todo') || col.includes('backlog') || col.includes('planning') || col.includes('design') || col.includes('schematic') || col.includes('draft') || col.includes('queued') || col.includes('scope')) return 10;
+  if (card.progress !== undefined && card.progress !== null) return card.progress;
   return 0;
 }
 
@@ -78,32 +83,30 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
   const showToast = useToastStore(s => s.showToast);
   const currentUser = useAuthStore(s => s.user);
 
-  // View state
+  // View state: default to 'column' (By Stage / Phase) which maps directly to physical project stages
   const [scale, setScale] = useState<TimeScale>('weeks');
   const [currentDate, setCurrentDate] = useState<Date>(() => new Date());
-  const [groupBy, setGroupBy] = useState<GroupByMode>(() =>
-    board.sprints && board.sprints.length > 0 ? 'sprint' : 'column'
-  );
+  const [groupBy, setGroupBy] = useState<GroupByMode>('column');
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
   const [showUnscheduled, setShowUnscheduled] = useState(false);
 
-  // Group By options with Lucide icons (No emojis, sleek neumorphic style)
+  // Group By options with Lucide icons (Universal across Construction, Systems Integration & Business PM)
   const groupByOptions: SelectOption<GroupByMode>[] = useMemo(() => [
     {
-      value: 'sprint',
-      label: 'By Sprint',
-      icon: <Layers size={13} color="#6366f1" />,
-    },
-    {
       value: 'column',
-      label: 'By Stage',
+      label: 'By Stage / Phase',
       icon: <Kanban size={13} color="#3b82f6" />,
     },
     {
+      value: 'sprint',
+      label: 'By Project Phase',
+      icon: <Layers size={13} color="#6366f1" />,
+    },
+    {
       value: 'assignee',
-      label: 'By Assignee',
+      label: 'By Assignee / Lead',
       icon: <User size={13} color="#10b981" />,
     },
     {
@@ -346,43 +349,43 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
             title: sp.name,
             subtitle: sp.goal || `${formatDueDate(sp.startDate)} – ${formatDueDate(sp.endDate)}`,
             color: sp.color || '#6366f1',
-            badge: sp.status === 'active' ? 'ACTIVE SPRINT' : sp.status.toUpperCase(),
+            badge: sp.status === 'active' ? 'CURRENT PHASE' : sp.status.toUpperCase(),
             sprint: sp,
             tasks,
           });
         });
 
-        // Backlog / Unassigned Sprint
+        // Unassigned Phase / Ongoing Work Packages
         const backlogTasks = scheduledTasks.filter(t => !t.card.sprintId);
         if (backlogTasks.length > 0) {
           sections.push({
             id: 'backlog',
-            title: 'Product Backlog / Ongoing Work',
-            subtitle: 'Tasks scheduled on timeline without specific sprint assignment',
+            title: 'Unassigned Phase / Ongoing Deliverables',
+            subtitle: 'Tasks scheduled on timeline across general work packages',
             color: '#64748b',
-            badge: 'BACKLOG',
+            badge: 'GENERAL',
             tasks: backlogTasks,
           });
         }
       } else {
-        // When no sprints have been explicitly created yet, partition using existing column stages
+        // When no explicit phases have been created yet, partition using existing column stages
         const activeTasks = scheduledTasks.filter(t => {
           const c = t.columnName.toLowerCase();
-          return !t.card.completed && (c.includes('in progress') || c.includes('active') || c.includes('doing') || t.card.priority === 'urgent');
+          return !t.card.completed && (c.includes('in progress') || c.includes('active') || c.includes('doing') || c.includes('install') || c.includes('construction') || t.card.priority === 'urgent');
         });
         const upcomingTasks = scheduledTasks.filter(t => {
           const c = t.columnName.toLowerCase();
-          return !t.card.completed && !activeTasks.includes(t) && !c.includes('done');
+          return !t.card.completed && !activeTasks.includes(t) && !c.includes('done') && !c.includes('handover');
         });
-        const completedTasks = scheduledTasks.filter(t => t.card.completed || t.columnName.toLowerCase().includes('done'));
+        const completedTasks = scheduledTasks.filter(t => t.card.completed || t.columnName.toLowerCase().includes('done') || t.columnName.toLowerCase().includes('handover'));
 
         if (activeTasks.length > 0 || (upcomingTasks.length === 0 && completedTasks.length === 0)) {
           sections.push({
             id: 'current-sprint',
-            title: 'Sprint 1 (Active & In Progress)',
-            subtitle: 'Active deliverables running in current work cycle',
+            title: 'Phase 1: Active Execution',
+            subtitle: 'Active deliverables and installations in current work cycle',
             color: '#3b82f6',
-            badge: 'ACTIVE SPRINT',
+            badge: 'ACTIVE PHASE',
             tasks: activeTasks,
           });
         }
@@ -390,10 +393,10 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
         if (upcomingTasks.length > 0) {
           sections.push({
             id: 'upcoming-sprint',
-            title: 'Sprint 2 (Upcoming Backlog)',
-            subtitle: 'Queued deliverables prepared for next sprint release',
+            title: 'Phase 2: Upcoming Work Packages',
+            subtitle: 'Queued deliverables and scheduled milestones for upcoming phase',
             color: '#8b5cf6',
-            badge: 'NEXT SPRINT',
+            badge: 'UPCOMING PHASE',
             tasks: upcomingTasks,
           });
         }
@@ -401,8 +404,8 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
         if (completedTasks.length > 0) {
           sections.push({
             id: 'completed-sprint',
-            title: 'Completed Deliverables',
-            subtitle: 'Shipped tasks and completed roadmap milestones',
+            title: 'Completed Phases & Deliverables',
+            subtitle: 'Completed project milestones, closeouts, and accepted handovers',
             color: '#10b981',
             badge: 'COMPLETED',
             tasks: completedTasks,
@@ -667,11 +670,11 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
                     textTransform: 'uppercase',
                   }}
                 >
-                  Sprint PM
+                  PROJECT SCHEDULE
                 </span>
               </div>
               <span style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))' }}>
-                Agile sprint development & business timeline management
+                Milestone tracking, work packages & timeline scheduling
               </span>
             </div>
           </div>
@@ -821,11 +824,11 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
                     setSprintEndDate(twoWeeks.toISOString().split('T')[0]);
                     setShowSprintModal(true);
                   }}
-                  title="Create a new sprint"
+                  title="Create a new project delivery phase"
                   style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', fontSize: 12 }}
                 >
                   <Layers size={13} />
-                  <span>+ Sprint</span>
+                  <span>+ Phase</span>
                 </motion.button>
 
                 <motion.button
@@ -857,7 +860,7 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
         </div>
       </div>
 
-      {/* Active Sprint Highlights Bar (When an active sprint exists) */}
+      {/* Active Phase Highlights Bar (When an active phase exists) */}
       {activeSprint && (
         <div className="roadmap-active-sprint-banner">
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 }}>
@@ -867,14 +870,14 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
                 <span style={{ fontWeight: 700, fontSize: 13, color: 'hsl(var(--foreground))' }}>
                   {activeSprint.name}
                 </span>
-                <span className="sprint-active-badge">CURRENT SPRINT</span>
+                <span className="sprint-active-badge">CURRENT PHASE</span>
                 <span style={{ fontSize: 11.5, color: 'hsl(var(--muted-foreground))' }}>
                   {formatDueDate(activeSprint.startDate)} – {formatDueDate(activeSprint.endDate)}
                 </span>
               </div>
               {activeSprint.goal && (
                 <div style={{ fontSize: 12, color: 'hsl(var(--foreground) / 0.8)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  <strong>Goal:</strong> {activeSprint.goal}
+                  <strong>Scope:</strong> {activeSprint.goal}
                 </div>
               )}
             </div>
@@ -884,7 +887,7 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
               <BarChart2 size={14} color="hsl(var(--primary))" />
               <span>
-                <strong>{activeSprintCompleted}</strong> / {activeSprintTasks.length} tasks done
+                <strong>{activeSprintCompleted}</strong> / {activeSprintTasks.length} deliverables done
               </span>
               <div className="sprint-mini-progress-bar">
                 <div
@@ -903,10 +906,10 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
                 style={{ fontSize: 11, padding: '3px 9px', height: 26 }}
                 onClick={() => {
                   completeSprint(board.id, activeSprint.id);
-                  showToast(`Completed sprint "${activeSprint.name}"!`, 'success');
+                  showToast(`Completed phase "${activeSprint.name}"!`, 'success');
                 }}
               >
-                Complete Sprint
+                Complete Phase
               </button>
             )}
           </div>
@@ -1355,7 +1358,7 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <Layers size={18} color="hsl(var(--primary))" />
                   <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>
-                    {editingSprint ? 'Edit Sprint' : 'Create Sprint'}
+                    {editingSprint ? 'Edit Phase' : 'Create Project Phase'}
                   </h3>
                 </div>
                 <button
@@ -1369,23 +1372,23 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                 <div className="form-group">
-                  <label className="field-label">Sprint Name</label>
+                  <label className="field-label">Phase / Package Name</label>
                   <input
                     type="text"
                     value={sprintName}
                     onChange={e => setSprintName(e.target.value)}
-                    placeholder="e.g. Sprint 1 - Core MVP"
+                    placeholder="e.g. Phase 1 - Foundation & Rough-In"
                     className="text-input"
                     autoFocus
                   />
                 </div>
 
                 <div className="form-group">
-                  <label className="field-label">Sprint Goal</label>
+                  <label className="field-label">Scope & Key Objectives</label>
                   <textarea
                     value={sprintGoal}
                     onChange={e => setSprintGoal(e.target.value)}
-                    placeholder="What is the objective of this sprint?"
+                    placeholder="What are the main deliverables and scope for this phase?"
                     className="text-input"
                     rows={2}
                     style={{ resize: 'none' }}
@@ -1441,7 +1444,7 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
                       style={{ color: 'hsl(var(--destructive))' }}
                       onClick={() => {
                         deleteSprint(board.id, editingSprint.id);
-                        showToast(`Deleted sprint "${editingSprint.name}"`, 'info');
+                        showToast(`Deleted phase "${editingSprint.name}"`, 'info');
                         setShowSprintModal(false);
                       }}
                     >
@@ -1460,7 +1463,7 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
                     className="btn btn-primary"
                     onClick={handleSaveSprint}
                   >
-                    {editingSprint ? 'Save Changes' : 'Create Sprint'}
+                    {editingSprint ? 'Save Changes' : 'Create Phase'}
                   </button>
                 </div>
               </div>
@@ -1525,14 +1528,14 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
                     />
                   </div>
                   <div className="form-group">
-                    <label className="field-label">Assign Sprint</label>
+                    <label className="field-label">Assign Project Phase</label>
                     <NeumorphicSelect
                       value={quickTaskSprintId}
                       options={[
-                        { value: '', label: 'No Sprint (Backlog)', icon: <Layers size={12} /> },
+                        { value: '', label: 'No Phase (General Timeline)', icon: <Layers size={12} /> },
                         ...(board.sprints || []).map(s => ({
                           value: s.id,
-                          label: `${s.name}${s.status === 'active' ? ' (Active)' : ''}`,
+                          label: `${s.name}${s.status === 'active' ? ' (Current Phase)' : ''}`,
                           icon: <Layers size={12} color={s.color || '#6366f1'} />,
                         }))
                       ]}

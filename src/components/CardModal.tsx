@@ -19,6 +19,7 @@ import { avatarInitials, formatBytes, formatTime, uid, truncateFileName, sortMem
 import { supabaseService } from '../services/supabaseService';
 import NeumorphicDatePicker from './ui/NeumorphicDatePicker';
 import AvatarBorder from './ui/AvatarBorder';
+import { deriveCardProgress } from './RoadmapView';
 
 interface Props {
   cardId: string | null;
@@ -2309,11 +2310,11 @@ export default function CardModal({ cardId, boardId, onClose }: Props) {
               </div>
             </div>
 
-            {/* Sprint & Milestone */}
+            {/* Project Phase & Milestone */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 10, alignItems: 'end', marginBottom: 16 }}>
               <div className="form-group" style={{ marginBottom: 0 }}>
                 <label className="field-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <Layers size={12} /> Sprint
+                  <Layers size={12} /> Project Phase
                 </label>
                 <select
                   value={card.sprintId || ''}
@@ -2323,10 +2324,10 @@ export default function CardModal({ cardId, boardId, onClose }: Props) {
                   className="select-input"
                   style={{ width: '100%', fontSize: 12, height: 32, padding: '4px 8px', borderRadius: 8 }}
                 >
-                  <option value="">No Sprint (Backlog)</option>
+                  <option value="">No Phase (General Timeline)</option>
                   {(board?.sprints || []).map(sp => (
                     <option key={sp.id} value={sp.id}>
-                      {sp.name} {sp.status === 'active' ? '(Active)' : `(${sp.status})`}
+                      {sp.name} {sp.status === 'active' ? '(Current Phase)' : `(${sp.status})`}
                     </option>
                   ))}
                 </select>
@@ -2345,40 +2346,66 @@ export default function CardModal({ cardId, boardId, onClose }: Props) {
                   borderRadius: 8,
                 }}
                 onClick={() => updateCard(cardId, { isMilestone: !card.isMilestone })}
-                title="Toggle as a major Milestone / Release deliverable"
+                title="Toggle as a key Project Milestone / Handover deliverable"
               >
                 <Milestone size={13} color={card.isMilestone ? '#fff' : 'hsl(var(--primary))'} />
                 <span>{card.isMilestone ? 'Milestone' : 'Set Milestone'}</span>
               </motion.button>
             </div>
 
-            {/* Progress Slider (0% to 100%) */}
-            <div className="form-group">
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                <label className="field-label" style={{ display: 'flex', alignItems: 'center', gap: 6, margin: 0 }}>
-                  <Activity size={12} /> Progress
-                </label>
-                <span style={{ fontSize: 11.5, fontWeight: 700, color: 'hsl(var(--primary))' }}>
-                  {card.progress ?? (card.completed ? 100 : 0)}%
-                </span>
-              </div>
-              <input
-                type="range"
-                min="0"
-                max="100"
-                step="5"
-                value={card.progress ?? (card.completed ? 100 : 0)}
-                onChange={e => {
-                  const val = Number(e.target.value);
-                  updateCard(cardId, {
-                    progress: val,
-                    completed: val === 100 ? true : card.completed,
-                    completedAt: val === 100 ? (card.completedAt || new Date().toISOString()) : card.completedAt
-                  });
-                }}
-                style={{ width: '100%', accentColor: 'hsl(var(--primary))', cursor: 'pointer' }}
-              />
-            </div>
+            {/* Automated Progress Indicator */}
+            {(() => {
+              const autoProgress = deriveCardProgress(card, column?.name || '');
+              return (
+                <div className="form-group">
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                    <label className="field-label" style={{ display: 'flex', alignItems: 'center', gap: 6, margin: 0 }}>
+                      <Activity size={12} /> Progress
+                    </label>
+                    <span
+                      style={{
+                        fontSize: 11.5,
+                        fontWeight: 700,
+                        color: autoProgress === 100 ? '#10b981' : 'hsl(var(--primary))',
+                        backgroundColor: autoProgress === 100 ? 'hsl(142 76% 36% / 0.12)' : 'hsl(var(--primary) / 0.12)',
+                        padding: '2px 7px',
+                        borderRadius: 6,
+                      }}
+                    >
+                      {autoProgress}%
+                    </span>
+                  </div>
+                  <div
+                    style={{
+                      width: '100%',
+                      height: 8,
+                      borderRadius: 9999,
+                      backgroundColor: 'hsl(var(--card))',
+                      boxShadow: 'var(--neu-shadow-input)',
+                      overflow: 'hidden',
+                      position: 'relative',
+                    }}
+                    title={`Progress automatically calculated from stage: ${column?.name || 'Backlog'}`}
+                  >
+                    <motion.div
+                      initial={false}
+                      animate={{ width: `${autoProgress}%` }}
+                      transition={{ duration: 0.35, ease: 'easeOut' }}
+                      style={{
+                        height: '100%',
+                        borderRadius: 9999,
+                        background: autoProgress === 100
+                          ? 'linear-gradient(90deg, #10b981, #059669)'
+                          : 'linear-gradient(90deg, hsl(var(--primary)), hsl(var(--primary) / 0.8))',
+                      }}
+                    />
+                  </div>
+                  <span style={{ fontSize: 10.5, color: 'hsl(var(--muted-foreground))', marginTop: 2 }}>
+                    Auto-calculated from stage: <strong>{card.completed ? 'Completed' : (column?.name || 'Task Lifecycle')}</strong>
+                  </span>
+                </div>
+              );
+            })()}
 
             {/* Labels */}
             <div className="form-group">
