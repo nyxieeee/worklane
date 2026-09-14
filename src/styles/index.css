@@ -127,6 +127,9 @@ html, body, #root {
 ::-webkit-scrollbar-thumb:hover {
   background: hsl(var(--muted-foreground) / 0.5);
 }
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
 
 /* ══ Layout Structure ═════════════════════════════════════ */
 .app-layout {
@@ -1551,8 +1554,9 @@ select option {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  padding: 5px 11px;
+  padding: 5px 12px;
   font-size: 12px;
+  border-radius: 9999px;
   white-space: nowrap;
 }
 

@@ -761,10 +761,16 @@
     gap: 5px !important;
     width: 100% !important;
     align-items: center !important;
-    overflow: hidden !important;
-    overflow-x: hidden !important;
-    padding-bottom: 0 !important;
+    overflow: visible !important;
+    padding: 3px 2px !important;
     box-sizing: border-box !important;
+    scrollbar-width: none !important;
+  }
+
+  .roadmap-toolbar-row-3::-webkit-scrollbar {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
   }
 
   .roadmap-toolbar-row-3 .btn {
@@ -772,10 +778,12 @@
     min-width: 0 !important;
     padding: 6px 4px !important;
     font-size: 11px !important;
+    font-weight: 600 !important;
     gap: 3px !important;
     justify-content: center !important;
     white-space: nowrap !important;
-    height: 32px !important;
+    height: 30px !important;
+    border-radius: 9999px !important;
     box-sizing: border-box !important;
   }
 
