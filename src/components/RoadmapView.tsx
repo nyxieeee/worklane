@@ -136,6 +136,7 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
   const [showUnscheduled, setShowUnscheduled] = useState(false);
   const [showProjectionComparison, setShowProjectionComparison] = useState(true);
+  const [mobileTab, setMobileTab] = useState<'deliverables' | 'timeline'>('deliverables');
 
   // Group By options with Lucide icons (Universal across Construction, Systems Integration & Business PM)
   const groupByOptions: SelectOption<GroupByMode>[] = useMemo(() => [
@@ -828,108 +829,114 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
 
         {/* Header Right: GroupBy, Search, Scales, Actions */}
         <div className="roadmap-header-right">
-          {/* Search bar */}
-          <div className="roadmap-search-box">
-            <Search size={13} color="hsl(var(--muted-foreground))" />
-            <input
-              type="text"
-              placeholder="Search roadmap..."
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              className="roadmap-search-input"
-            />
-            {searchQuery && (
-              <button onClick={() => setSearchQuery('')} className="roadmap-search-clear">
-                <X size={12} />
-              </button>
-            )}
-          </div>
-
-          {/* Group By Selector */}
-          <NeumorphicSelect<GroupByMode>
-            value={groupBy}
-            options={groupByOptions}
-            onChange={setGroupBy}
-            prefix="Group:"
-            size="sm"
-            style={{ minWidth: 155 }}
-          />
-
-          {/* Status Filter */}
-          <NeumorphicSelect<StatusFilter>
-            value={statusFilter}
-            options={statusFilterOptions}
-            onChange={setStatusFilter}
-            size="sm"
-            style={{ minWidth: 135 }}
-          />
-
-          {/* Scale Switcher */}
-          <div className="roadmap-scale-group">
-            <button
-              type="button"
-              className={`scale-btn ${scale === 'days' ? 'active' : ''}`}
-              onClick={() => setScale('days')}
-            >
-              Days
-            </button>
-            <button
-              type="button"
-              className={`scale-btn ${scale === 'weeks' ? 'active' : ''}`}
-              onClick={() => setScale('weeks')}
-            >
-              Weeks
-            </button>
-            <button
-              type="button"
-              className={`scale-btn ${scale === 'months' ? 'active' : ''}`}
-              onClick={() => setScale('months')}
-            >
-              Months
-            </button>
-          </div>
-
-          {/* Time Navigation */}
-          <div className="roadmap-nav-group">
-            <motion.button
-              whileTap={{ scale: 0.94 }}
-              type="button"
-              className="btn btn-secondary today-btn"
-              onClick={handleJumpToday}
-              title="Jump to Today"
-            >
-              Today
-            </motion.button>
-            <motion.button
-              whileTap={{ scale: 0.92 }}
-              type="button"
-              className="icon-btn"
-              onClick={() => handleNav('prev')}
-              title="Previous window"
-              style={{ width: 28, height: 28, minWidth: 28 }}
-            >
-              <ChevronLeft size={15} />
-            </motion.button>
-            <span className="roadmap-date-label">
-              {viewStart.toLocaleDateString([], { month: 'short', year: 'numeric' })}
-              {viewStart.getMonth() !== viewEnd.getMonth() && (
-                <span> – {viewEnd.toLocaleDateString([], { month: 'short', year: 'numeric' })}</span>
+          {/* Row 1: Search & Filter Selectors */}
+          <div className="roadmap-toolbar-row-1">
+            {/* Search bar */}
+            <div className="roadmap-search-box">
+              <Search size={13} color="hsl(var(--muted-foreground))" />
+              <input
+                type="text"
+                placeholder="Search roadmap..."
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                className="roadmap-search-input"
+              />
+              {searchQuery && (
+                <button onClick={() => setSearchQuery('')} className="roadmap-search-clear">
+                  <X size={12} />
+                </button>
               )}
-            </span>
-            <motion.button
-              whileTap={{ scale: 0.92 }}
-              type="button"
-              className="icon-btn"
-              onClick={() => handleNav('next')}
-              title="Next window"
-              style={{ width: 28, height: 28, minWidth: 28 }}
-            >
-              <ChevronRight size={15} />
-            </motion.button>
+            </div>
+
+            {/* Group By Selector */}
+            <NeumorphicSelect<GroupByMode>
+              value={groupBy}
+              options={groupByOptions}
+              onChange={setGroupBy}
+              prefix="Group:"
+              size="sm"
+              style={{ minWidth: 140, flex: '1 1 auto' }}
+            />
+
+            {/* Status Filter */}
+            <NeumorphicSelect<StatusFilter>
+              value={statusFilter}
+              options={statusFilterOptions}
+              onChange={setStatusFilter}
+              size="sm"
+              style={{ minWidth: 125, flex: '1 1 auto' }}
+            />
           </div>
 
-          {/* Action Buttons */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          {/* Row 2: Scale Switcher & Time Navigation */}
+          <div className="roadmap-toolbar-row-2">
+            {/* Scale Switcher */}
+            <div className="roadmap-scale-group">
+              <button
+                type="button"
+                className={`scale-btn ${scale === 'days' ? 'active' : ''}`}
+                onClick={() => setScale('days')}
+              >
+                Days
+              </button>
+              <button
+                type="button"
+                className={`scale-btn ${scale === 'weeks' ? 'active' : ''}`}
+                onClick={() => setScale('weeks')}
+              >
+                Weeks
+              </button>
+              <button
+                type="button"
+                className={`scale-btn ${scale === 'months' ? 'active' : ''}`}
+                onClick={() => setScale('months')}
+              >
+                Months
+              </button>
+            </div>
+
+            {/* Time Navigation */}
+            <div className="roadmap-nav-group">
+              <motion.button
+                whileTap={{ scale: 0.94 }}
+                type="button"
+                className="btn btn-secondary today-btn"
+                onClick={handleJumpToday}
+                title="Jump to Today"
+              >
+                Today
+              </motion.button>
+              <motion.button
+                whileTap={{ scale: 0.92 }}
+                type="button"
+                className="icon-btn"
+                onClick={() => handleNav('prev')}
+                title="Previous window"
+                style={{ width: 28, height: 28, minWidth: 28 }}
+              >
+                <ChevronLeft size={15} />
+              </motion.button>
+              <span className="roadmap-date-label">
+                {viewStart.toLocaleDateString([], { month: 'short', year: 'numeric' })}
+                {viewStart.getMonth() !== viewEnd.getMonth() && (
+                  <span> – {viewEnd.toLocaleDateString([], { month: 'short', year: 'numeric' })}</span>
+                )}
+              </span>
+              <motion.button
+                whileTap={{ scale: 0.92 }}
+                type="button"
+                className="icon-btn"
+                onClick={() => handleNav('next')}
+                title="Next window"
+                style={{ width: 28, height: 28, minWidth: 28 }}
+              >
+                <ChevronRight size={15} />
+              </motion.button>
+            </div>
+          </div>
+
+          {/* Row 3: Action Buttons */}
+          <div className="roadmap-toolbar-row-3">
             {!isObserver && (
               <>
                 <motion.button
@@ -1051,8 +1058,32 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
         </div>
       )}
 
+      {/* Mobile Segmented View Switcher Tabs (Only displayed on mobile screens) */}
+      <div className="roadmap-mobile-view-tabs" role="tablist" aria-label="Roadmap View Options">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={mobileTab === 'deliverables'}
+          className={`mobile-view-tab ${mobileTab === 'deliverables' ? 'active' : ''}`}
+          onClick={() => setMobileTab('deliverables')}
+        >
+          <CheckSquare size={13} />
+          <span>Deliverables ({totalCount})</span>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={mobileTab === 'timeline'}
+          className={`mobile-view-tab ${mobileTab === 'timeline' ? 'active' : ''}`}
+          onClick={() => setMobileTab('timeline')}
+        >
+          <CalendarIcon size={13} />
+          <span>Gantt Timeline</span>
+        </button>
+      </div>
+
       {/* Split-Pane: Left Task Hierarchy & Right Timeline Canvas */}
-      <div className="roadmap-split-pane">
+      <div className={`roadmap-split-pane mobile-tab-${mobileTab}`}>
         {/* Left Side: Tasks Table */}
         <div className="roadmap-tasks-pane">
           <div className="roadmap-pane-header">
@@ -1408,6 +1439,11 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
 
                           return (
                             <div key={t.card.id} className="roadmap-bar-row">
+                              {/* Mobile-only sticky task title pill so user knows which row is which during horizontal scroll */}
+                              <div className="roadmap-mobile-row-label" title={t.card.title}>
+                                <span className="mobile-row-title">{t.card.title}</span>
+                              </div>
+
                               {showProjectionComparison ? (
                                 <>
                                   {/* Top Track: Target Baseline */}

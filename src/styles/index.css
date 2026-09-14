@@ -1540,6 +1540,22 @@ select option {
   text-align: center;
 }
 
+/* Toolbar Rows (defaults to display: contents on desktop) */
+.roadmap-toolbar-row-1,
+.roadmap-toolbar-row-2,
+.roadmap-toolbar-row-3 {
+  display: contents;
+}
+
+/* Mobile-only View Switcher Tabs and Sticky Row Labels (hidden on desktop) */
+.roadmap-mobile-view-tabs {
+  display: none;
+}
+
+.roadmap-mobile-row-label {
+  display: none;
+}
+
 /* Split-Pane */
 .roadmap-split-pane {
   display: flex;
