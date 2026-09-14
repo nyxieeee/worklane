@@ -1366,6 +1366,15 @@ html, body, #root {
   box-shadow: var(--neu-shadow-pressed), 0 0 0 1.5px hsl(var(--primary) / 0.5);
 }
 
+select {
+  color-scheme: light dark;
+}
+
+select option {
+  background-color: hsl(var(--card));
+  color: hsl(var(--foreground));
+}
+
 /* ══ Toast Alerts ══════════════════════════════════════════ */
 .toast-container {
   position: fixed;

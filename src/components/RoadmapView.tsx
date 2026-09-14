@@ -4,7 +4,7 @@ import {
   CheckSquare, Square, Clock, AlertCircle, CheckCircle2,
   ChevronDown, ChevronUp, User, Layers, Plus, Search, Filter,
   Download, Play, Check, Trash2, Edit3, Flag, ArrowRight, Tag,
-  Sparkles, X, Target, BarChart2
+  Sparkles, X, Target, BarChart2, Kanban, Link2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { Board, Card as CardType, Member, Sprint } from '../types';
@@ -15,6 +15,7 @@ import { useToastStore } from '../store/useToastStore';
 import { useAuthStore } from '../store/useAuthStore';
 import AvatarBorder from './ui/AvatarBorder';
 import NeumorphicDatePicker from './ui/NeumorphicDatePicker';
+import { NeumorphicSelect, SelectOption } from './ui/NeumorphicSelect';
 
 interface Props {
   board: Board;
@@ -87,6 +88,54 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
   const [showUnscheduled, setShowUnscheduled] = useState(false);
+
+  // Group By options with Lucide icons (No emojis, sleek neumorphic style)
+  const groupByOptions: SelectOption<GroupByMode>[] = useMemo(() => [
+    {
+      value: 'sprint',
+      label: 'By Sprint',
+      icon: <Layers size={13} color="#6366f1" />,
+    },
+    {
+      value: 'column',
+      label: 'By Stage',
+      icon: <Kanban size={13} color="#3b82f6" />,
+    },
+    {
+      value: 'assignee',
+      label: 'By Assignee',
+      icon: <User size={13} color="#10b981" />,
+    },
+    {
+      value: 'label',
+      label: 'By Workstream',
+      icon: <Tag size={13} color="#f59e0b" />,
+    },
+  ], []);
+
+  // Status Filter options with Lucide icons (No emojis, high contrast in dark mode)
+  const statusFilterOptions: SelectOption<StatusFilter>[] = useMemo(() => [
+    {
+      value: 'all',
+      label: 'All Status',
+      icon: <Filter size={12} color="hsl(var(--muted-foreground))" />,
+    },
+    {
+      value: 'active',
+      label: 'Active Only',
+      icon: <Clock size={12} color="#3b82f6" />,
+    },
+    {
+      value: 'completed',
+      label: 'Completed',
+      icon: <CheckCircle2 size={12} color="#10b981" />,
+    },
+    {
+      value: 'overdue',
+      label: 'Overdue',
+      icon: <AlertCircle size={12} color="#ef4444" />,
+    },
+  ], []);
 
   // Modals / Dialogs
   const [showSprintModal, setShowSprintModal] = useState(false);
@@ -671,34 +720,23 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
           </div>
 
           {/* Group By Selector */}
-          <div className="roadmap-select-group">
-            <span style={{ fontSize: 11, fontWeight: 600, color: 'hsl(var(--muted-foreground))' }}>Group:</span>
-            <select
-              value={groupBy}
-              onChange={e => setGroupBy(e.target.value as GroupByMode)}
-              className="roadmap-select"
-            >
-              <option value="sprint">🏃 By Sprint</option>
-              <option value="column">📋 By Stage</option>
-              <option value="assignee">👤 By Assignee</option>
-              <option value="label">🏷️ By Workstream</option>
-            </select>
-          </div>
+          <NeumorphicSelect<GroupByMode>
+            value={groupBy}
+            options={groupByOptions}
+            onChange={setGroupBy}
+            prefix="Group:"
+            size="sm"
+            style={{ minWidth: 155 }}
+          />
 
           {/* Status Filter */}
-          <div className="roadmap-select-group">
-            <Filter size={12} color="hsl(var(--muted-foreground))" />
-            <select
-              value={statusFilter}
-              onChange={e => setStatusFilter(e.target.value as StatusFilter)}
-              className="roadmap-select"
-            >
-              <option value="all">All Status</option>
-              <option value="active">Active Only</option>
-              <option value="completed">Completed</option>
-              <option value="overdue">Overdue</option>
-            </select>
-          </div>
+          <NeumorphicSelect<StatusFilter>
+            value={statusFilter}
+            options={statusFilterOptions}
+            onChange={setStatusFilter}
+            size="sm"
+            style={{ minWidth: 135 }}
+          />
 
           {/* Scale Switcher */}
           <div className="roadmap-scale-group">
@@ -1030,8 +1068,9 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
 
                               {/* Dependency Indicator */}
                               {t.card.dependencies && t.card.dependencies.length > 0 && (
-                                <span className="roadmap-dep-badge" title={`Depends on ${t.card.dependencies.length} tasks`}>
-                                  🔗 {t.card.dependencies.length}
+                                <span className="roadmap-dep-badge" title={`Depends on ${t.card.dependencies.length} tasks`} style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                                  <Link2 size={10} />
+                                  <span>{t.card.dependencies.length}</span>
                                 </span>
                               )}
 
@@ -1474,30 +1513,32 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                   <div className="form-group">
                     <label className="field-label">Stage / Column</label>
-                    <select
+                    <NeumorphicSelect
                       value={quickTaskColumnId}
-                      onChange={e => setQuickTaskColumnId(e.target.value)}
-                      className="select-input"
-                    >
-                      {board.columns?.map(c => (
-                        <option key={c.id} value={c.id}>{c.name}</option>
-                      ))}
-                    </select>
+                      options={(board.columns || []).map(c => ({
+                        value: c.id,
+                        label: c.name,
+                        icon: <Kanban size={12} color="hsl(var(--primary))" />,
+                      }))}
+                      onChange={setQuickTaskColumnId}
+                      size="sm"
+                    />
                   </div>
                   <div className="form-group">
                     <label className="field-label">Assign Sprint</label>
-                    <select
+                    <NeumorphicSelect
                       value={quickTaskSprintId}
-                      onChange={e => setQuickTaskSprintId(e.target.value)}
-                      className="select-input"
-                    >
-                      <option value="">No Sprint (Backlog)</option>
-                      {(board.sprints || []).map(s => (
-                        <option key={s.id} value={s.id}>
-                          {s.name} {s.status === 'active' ? '(Active)' : ''}
-                        </option>
-                      ))}
-                    </select>
+                      options={[
+                        { value: '', label: 'No Sprint (Backlog)', icon: <Layers size={12} /> },
+                        ...(board.sprints || []).map(s => ({
+                          value: s.id,
+                          label: `${s.name}${s.status === 'active' ? ' (Active)' : ''}`,
+                          icon: <Layers size={12} color={s.color || '#6366f1'} />,
+                        }))
+                      ]}
+                      onChange={setQuickTaskSprintId}
+                      size="sm"
+                    />
                   </div>
                 </div>
 
@@ -1521,16 +1562,19 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 10, alignItems: 'end' }}>
                   <div className="form-group" style={{ marginBottom: 0 }}>
                     <label className="field-label">Assignee</label>
-                    <select
+                    <NeumorphicSelect
                       value={quickTaskAssignee}
-                      onChange={e => setQuickTaskAssignee(e.target.value)}
-                      className="select-input"
-                    >
-                      <option value="">Unassigned</option>
-                      {board.members?.map(m => (
-                        <option key={m.id} value={m.id}>{m.name}</option>
-                      ))}
-                    </select>
+                      options={[
+                        { value: '', label: 'Unassigned', icon: <User size={12} /> },
+                        ...(board.members || []).map(m => ({
+                          value: m.id,
+                          label: m.name,
+                          icon: <User size={12} color={m.color || '#6366f1'} />,
+                        }))
+                      ]}
+                      onChange={setQuickTaskAssignee}
+                      size="sm"
+                    />
                   </div>
 
                   <motion.button

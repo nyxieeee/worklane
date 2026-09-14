@@ -15,11 +15,13 @@ interface Props<T extends string = string> {
   options: SelectOption<T>[];
   onChange: (value: T) => void;
   placeholder?: string;
+  prefix?: React.ReactNode;
   size?: 'sm' | 'md';
   disabled?: boolean;
   style?: React.CSSProperties;
   className?: string;
   placement?: 'top' | 'bottom' | 'auto';
+  align?: 'left' | 'right';
 }
 
 export function NeumorphicSelect<T extends string = string>({
@@ -27,11 +29,13 @@ export function NeumorphicSelect<T extends string = string>({
   options,
   onChange,
   placeholder = 'Select option...',
+  prefix,
   size = 'md',
   disabled = false,
   style,
   className,
   placement = 'auto',
+  align = 'left',
 }: Props<T>) {
   const [isOpen, setIsOpen] = useState(false);
   const [computedPlacement, setComputedPlacement] = useState<'top' | 'bottom'>('bottom');
@@ -46,6 +50,11 @@ export function NeumorphicSelect<T extends string = string>({
         setIsOpen(false);
       }
     }
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') {
+        setIsOpen(false);
+      }
+    }
     if (isOpen) {
       if (placement === 'auto' && containerRef.current) {
         const rect = containerRef.current.getBoundingClientRect();
@@ -56,9 +65,11 @@ export function NeumorphicSelect<T extends string = string>({
         setComputedPlacement(placement === 'top' ? 'top' : 'bottom');
       }
       document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('keydown', handleKeyDown);
     }
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
     };
   }, [isOpen, placement]);
 
@@ -72,7 +83,7 @@ export function NeumorphicSelect<T extends string = string>({
         position: 'relative',
         display: 'inline-block',
         width: isSmall ? 'auto' : '100%',
-        minWidth: isSmall ? 130 : 160,
+        minWidth: isSmall ? 120 : 160,
         zIndex: isOpen ? 100 : 'auto',
         ...style,
       }}
@@ -110,12 +121,17 @@ export function NeumorphicSelect<T extends string = string>({
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, overflow: 'hidden' }}>
+          {prefix && (
+            <span style={{ fontSize: isSmall ? 11 : 12, fontWeight: 600, color: 'hsl(var(--muted-foreground))', flexShrink: 0 }}>
+              {prefix}
+            </span>
+          )}
           {selectedOption?.icon && (
-            <span style={{ display: 'flex', alignItems: 'center', color: selectedOption.color || 'hsl(var(--primary))' }}>
+            <span style={{ display: 'flex', alignItems: 'center', color: selectedOption.color || 'hsl(var(--primary))', flexShrink: 0 }}>
               {selectedOption.icon}
             </span>
           )}
-          <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: selectedOption?.color || 'hsl(var(--foreground))' }}>
             {selectedOption ? selectedOption.label : placeholder}
           </span>
         </div>
@@ -141,10 +157,10 @@ export function NeumorphicSelect<T extends string = string>({
               position: 'absolute',
               top: isTop ? 'auto' : '100%',
               bottom: isTop ? '100%' : 'auto',
-              left: 0,
-              right: 0,
+              left: align === 'right' ? 'auto' : 0,
+              right: align === 'right' ? 0 : 'auto',
               zIndex: 9999,
-              minWidth: isSmall ? 175 : '100%',
+              minWidth: isSmall ? 165 : '100%',
               backgroundColor: 'hsl(var(--card) / 0.98)',
               backdropFilter: 'blur(16px)',
               WebkitBackdropFilter: 'blur(16px)',
@@ -155,7 +171,9 @@ export function NeumorphicSelect<T extends string = string>({
               display: 'flex',
               flexDirection: 'column',
               gap: 2,
-              transformOrigin: isTop ? 'bottom center' : 'top center',
+              transformOrigin: isTop
+                ? (align === 'right' ? 'bottom right' : 'bottom left')
+                : (align === 'right' ? 'top right' : 'top left'),
             }}
           >
             {options.map((opt) => {
