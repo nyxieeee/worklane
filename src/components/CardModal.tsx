@@ -2276,6 +2276,7 @@ export default function CardModal({ cardId, boardId, onClose }: Props) {
                   onChange={newStart => {
                     updateCard(cardId, { startDate: newStart });
                   }}
+                  align="left"
                 />
               </div>
               <div className="form-group">
@@ -2287,6 +2288,7 @@ export default function CardModal({ cardId, boardId, onClose }: Props) {
                   onChange={newDue => {
                     updateCard(cardId, { dueDate: newDue });
                   }}
+                  align="right"
                 />
               </div>
             </div>

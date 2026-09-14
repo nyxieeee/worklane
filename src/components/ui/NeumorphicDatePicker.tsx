@@ -200,8 +200,8 @@ export default function NeumorphicDatePicker({
     return days;
   }, [viewYear, viewMonth]);
 
-  // Display trigger string
-  const displayString = useMemo(() => {
+  // Display trigger string (clean date and time separation)
+  const formatted = useMemo(() => {
     if (!value) return null;
     const d = new Date(value);
     if (isNaN(d.getTime())) return null;
@@ -215,7 +215,7 @@ export default function NeumorphicDatePicker({
       hour: 'numeric',
       minute: '2-digit'
     });
-    return `${datePart} • ${timePart}`;
+    return { datePart, timePart };
   }, [value]);
 
   const isToday = (d: Date) => {
@@ -242,46 +242,127 @@ export default function NeumorphicDatePicker({
       <motion.button
         type="button"
         whileTap={{ scale: 0.98 }}
-        className="text-input"
         style={{
           width: '100%',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
           cursor: 'pointer',
-          padding: '8px 12px',
-          fontSize: 12.5,
-          fontWeight: 300,
-          color: displayString ? 'hsl(var(--foreground))' : 'hsl(var(--muted-foreground))',
-          backgroundColor: 'hsl(var(--card))',
-          boxShadow: isOpen ? 'var(--neu-shadow-pressed)' : 'var(--neu-shadow-input)',
-          border: '1px solid transparent'
+          padding: '6px 8px',
+          minHeight: 44,
+          borderRadius: 10,
+          border: '1px solid hsl(var(--border) / 0.8)',
+          backgroundColor: isOpen
+            ? 'hsl(var(--secondary) / 0.7)'
+            : 'hsl(var(--card))',
+          boxShadow: isOpen
+            ? 'var(--neu-shadow-pressed)'
+            : 'var(--neu-shadow-raised-sm)',
+          outline: 'none',
+          transition: 'all 0.18s ease',
+          boxSizing: 'border-box',
         }}
         onClick={() => setIsOpen(o => !o)}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <CalendarIcon size={14} color="hsl(var(--primary))" style={{ flexShrink: 0 }} />
-          <span style={{ fontWeight: 300, fontSize: 12.5, lineHeight: 1.35 }}>
-            {displayString || placeholder}
-          </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0, flex: 1, overflow: 'hidden' }}>
+          <div
+            style={{
+              width: 26,
+              height: 26,
+              borderRadius: 7,
+              backgroundColor: formatted ? 'hsl(var(--primary) / 0.12)' : 'hsl(var(--secondary) / 0.8)',
+              color: formatted ? 'hsl(var(--primary))' : 'hsl(var(--muted-foreground))',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+              boxShadow: 'var(--neu-shadow-raised-sm)',
+            }}
+          >
+            <CalendarIcon size={13} strokeWidth={2} />
+          </div>
+
+          {formatted ? (
+            <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden', textAlign: 'left' }}>
+              <span
+                style={{
+                  fontSize: 11.5,
+                  fontWeight: 400,
+                  color: 'hsl(var(--foreground))',
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  lineHeight: 1.25,
+                  letterSpacing: '-0.01em',
+                }}
+              >
+                {formatted.datePart}
+              </span>
+              <span
+                style={{
+                  fontSize: 10.5,
+                  fontWeight: 300,
+                  color: 'hsl(var(--muted-foreground))',
+                  whiteSpace: 'nowrap',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 3,
+                  lineHeight: 1.2,
+                  marginTop: 1,
+                }}
+              >
+                <Clock size={9} style={{ opacity: 0.75, flexShrink: 0 }} />
+                <span>{formatted.timePart}</span>
+              </span>
+            </div>
+          ) : (
+            <span
+              style={{
+                fontSize: 11.5,
+                fontWeight: 300,
+                color: 'hsl(var(--muted-foreground))',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+              }}
+            >
+              {placeholder}
+            </span>
+          )}
         </div>
 
         {value ? (
-          <span
+          <motion.span
+            whileHover={{ scale: 1.15 }}
+            whileTap={{ scale: 0.9 }}
             onClick={handleClear}
             style={{
-              padding: 2,
-              borderRadius: '50%',
+              width: 20,
+              height: 20,
+              borderRadius: 6,
               display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
               color: 'hsl(var(--muted-foreground))',
-              cursor: 'pointer'
+              cursor: 'pointer',
+              flexShrink: 0,
+              marginLeft: 3,
+              transition: 'all 0.15s ease',
             }}
-            title="Clear due date"
+            onMouseEnter={e => {
+              e.currentTarget.style.color = '#ef4444';
+              e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.12)';
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.color = 'hsl(var(--muted-foreground))';
+              e.currentTarget.style.backgroundColor = 'transparent';
+            }}
+            title="Clear date & time"
           >
-            <X size={13} />
-          </span>
+            <X size={12} strokeWidth={2.2} />
+          </motion.span>
         ) : (
-          <Clock size={13} style={{ opacity: 0.4 }} />
+          <Clock size={12} style={{ opacity: 0.35, flexShrink: 0, marginLeft: 2 }} />
         )}
       </motion.button>
 

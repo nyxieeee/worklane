@@ -1551,6 +1551,7 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
                     <NeumorphicDatePicker
                       value={quickTaskStartDate || null}
                       onChange={val => setQuickTaskStartDate(val || '')}
+                      align="left"
                     />
                   </div>
                   <div className="form-group">
@@ -1558,6 +1559,7 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
                     <NeumorphicDatePicker
                       value={quickTaskDueDate || null}
                       onChange={val => setQuickTaskDueDate(val || '')}
+                      align="right"
                     />
                   </div>
                 </div>
