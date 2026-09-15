@@ -2270,9 +2270,7 @@ export default function CardModal({ cardId, boardId, onClose }: Props) {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                 <div className="form-group">
-                  <label className="field-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <Calendar size={12} /> Target Start
-                  </label>
+                  <label className="field-label">Start Date</label>
                   <NeumorphicDatePicker
                     value={card.startDate || null}
                     onChange={newStart => {
@@ -2282,9 +2280,7 @@ export default function CardModal({ cardId, boardId, onClose }: Props) {
                   />
                 </div>
                 <div className="form-group">
-                  <label className="field-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <Calendar size={12} /> Target Date
-                  </label>
+                  <label className="field-label">Due Date</label>
                   <NeumorphicDatePicker
                     value={card.dueDate}
                     onChange={newDue => {
@@ -2298,8 +2294,7 @@ export default function CardModal({ cardId, boardId, onClose }: Props) {
               {/* Actual / Projected Completion */}
               <div className="form-group">
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
-                  <label className="field-label" style={{ display: 'flex', alignItems: 'center', gap: 6, margin: 0 }}>
-                    <CalendarCheck size={12} color={card.completed ? '#10b981' : 'hsl(var(--primary))'} />
+                  <label className="field-label" style={{ margin: 0 }}>
                     {card.completed ? 'Actual Completion Date' : 'Actual / Projected Date'}
                   </label>
                   {/* Dynamic Projection / Variance badge */}
@@ -2374,7 +2369,6 @@ export default function CardModal({ cardId, boardId, onClose }: Props) {
                 <div className="form-group" style={{ marginBottom: 16 }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
                     <label className="field-label" style={{ display: 'flex', alignItems: 'center', gap: 6, margin: 0 }}>
-                      <CalendarCheck size={12} color="hsl(var(--muted-foreground))" />
                       Daily Work Confirmation
                       {workedCount > 0 && (
                         <span style={{
@@ -2396,10 +2390,10 @@ export default function CardModal({ cardId, boardId, onClose }: Props) {
                       style={{
                         height: 27,
                         fontSize: 11,
-                        padding: '3px 10px',
-                        display: 'flex',
+                        padding: '3px 12px',
+                        display: 'inline-flex',
                         alignItems: 'center',
-                        gap: 5,
+                        justifyContent: 'center',
                         borderRadius: 7,
                         fontWeight: 600,
                         backgroundColor: isWorkedToday ? '#10b981' : undefined,
@@ -2409,17 +2403,7 @@ export default function CardModal({ cardId, boardId, onClose }: Props) {
                       onClick={() => toggleCardWorkedDay(cardId)}
                       title={isWorkedToday ? 'Click to unmark work for today' : 'Confirm work done today'}
                     >
-                      {isWorkedToday ? (
-                        <>
-                          <Check size={12} strokeWidth={2.5} />
-                          Worked Today
-                        </>
-                      ) : (
-                        <>
-                          <Plus size={11} />
-                          Mark Worked Today
-                        </>
-                      )}
+                      {isWorkedToday ? 'Worked Today' : '+ Mark Worked Today'}
                     </button>
                   </div>
 
@@ -2446,7 +2430,7 @@ export default function CardModal({ cardId, boardId, onClose }: Props) {
                       </span>
                     </div>
                     <p style={{ margin: 0, fontSize: 10.5, color: 'hsl(var(--muted-foreground))' }}>
-                      ⚡ <strong>Automated tracking:</strong> Adding comments, files, or card updates automatically registers the day as worked. Unworked days are automatically treated as pauses in the Gantt schedule.
+                      <strong>Automated tracking:</strong> Adding comments, files, or card updates automatically registers the day as worked. Unworked days are automatically treated as pauses in the Gantt schedule.
                     </p>
                   </div>
                 </div>
@@ -2457,7 +2441,6 @@ export default function CardModal({ cardId, boardId, onClose }: Props) {
             <div className="form-group" style={{ marginBottom: 16 }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
                 <label className="field-label" style={{ display: 'flex', alignItems: 'center', gap: 6, margin: 0 }}>
-                  <Clock size={12} color="hsl(var(--muted-foreground))" />
                   Work Suspensions
                   {(card.workSuspensions || []).length > 0 && (
                     <span style={{
@@ -2483,8 +2466,7 @@ export default function CardModal({ cardId, boardId, onClose }: Props) {
                     updateCard(cardId, { workSuspensions: [...existing, { from: today, to: today, reason: '' }] });
                   }}
                 >
-                  <Plus size={11} />
-                  Add Pause
+                  + Add Pause
                 </button>
               </div>
               {(card.workSuspensions || []).length === 0 ? (

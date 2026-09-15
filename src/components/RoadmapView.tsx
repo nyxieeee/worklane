@@ -1426,20 +1426,19 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
-                gap: 4,
+                justifyContent: 'center',
                 fontSize: 10.5,
                 fontWeight: 600,
                 color: showHelpGuide ? 'hsl(var(--primary))' : 'hsl(var(--muted-foreground))',
                 background: showHelpGuide ? 'hsl(var(--primary) / 0.12)' : 'transparent',
                 border: '1px solid hsl(var(--border) / 0.6)',
                 borderRadius: 6,
-                padding: '2px 7px',
+                padding: '2px 8px',
                 cursor: 'pointer',
                 marginLeft: 4,
               }}
               title="Click for a quick explanation of this chart"
             >
-              <HelpCircle size={12} />
               <span>{showHelpGuide ? 'Hide Guide' : 'How it works'}</span>
             </button>
           </div>
@@ -1465,17 +1464,16 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-              <span style={{ fontSize: 12, fontWeight: 700, color: 'hsl(var(--foreground))', display: 'flex', alignItems: 'center', gap: 6 }}>
-                <HelpCircle size={14} color="hsl(var(--primary))" />
+              <span style={{ fontSize: 12, fontWeight: 700, color: 'hsl(var(--foreground))' }}>
                 How to read this chart (Quick 10-second guide)
               </span>
               <button
                 type="button"
                 onClick={() => setShowHelpGuide(false)}
-                style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'hsl(var(--muted-foreground))', padding: 2 }}
+                style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'hsl(var(--muted-foreground))', padding: '2px 6px', fontSize: 12, lineHeight: 1 }}
                 title="Close guide"
               >
-                <X size={13} />
+                ✕
               </button>
             </div>
             <div style={{
