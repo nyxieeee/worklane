@@ -80,6 +80,8 @@ export interface Card {
   workSuspensions?: WorkSuspension[];
   /** Dates (YYYY-MM-DD) confirmed as worked via manual mark or automatic activity. */
   workedDays?: string[];
+  /** Optional reference to a Project Roadmap */
+  linkedRoadmapId?: string | null;
   // due-date alert flags
   [key: string]: unknown;
 }
@@ -94,6 +96,8 @@ export interface Board {
   id: string;
   name: string;
   color: string;
+  type?: 'board' | 'roadmap';
+  description?: string;
   createdBy?: string; // email of the user who created this board
   members: Member[];
   columns: Column[];

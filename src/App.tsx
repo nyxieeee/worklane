@@ -11,6 +11,7 @@ import NotifPanel from './components/NotifPanel';
 import Toast from './components/Toast';
 import Dashboard from './components/Dashboard';
 import CreateBoardModal from './components/modals/CreateBoardModal';
+import CreateRoadmapModal from './components/modals/CreateRoadmapModal';
 import AddColumnModal from './components/modals/AddColumnModal';
 import SearchModal from './components/modals/SearchModal';
 import PrivacyModal from './components/modals/PrivacyModal';
@@ -283,6 +284,7 @@ export default function App() {
   const [openCardId, setOpenCardId] = useState<string | null>(initialRouting.cardId);
   const [openCardBoardId, setOpenCardBoardId] = useState<string | null>(null);
   const [showCreateBoard, setShowCreateBoard] = useState(false);
+  const [showCreateRoadmap, setShowCreateRoadmap] = useState(false);
   const [showAddColumn, setShowAddColumn] = useState(false);
   const [showMembers, setShowMembers] = useState(false);
   const [showEmail, setShowEmail] = useState(false);
@@ -401,15 +403,23 @@ export default function App() {
     }
   }, [page, activeBoardId, boards, hasLoadedOnce, initialRouting.boardId, switchBoard]);
 
-  const handleSelectBoard = useCallback((boardId: string) => {
+  const handleSelectBoard = useCallback((boardId: string, view?: 'board' | 'roadmap' | 'calendar') => {
     switchBoard(boardId);
     setPage('board');
     setShowBoardSelector(false);
+    const targetBoard = boards.find(b => b.id === boardId);
+    const resolvedView = view || (targetBoard?.type === 'roadmap' ? 'roadmap' : undefined);
+    if (resolvedView) {
+      setViewMode(resolvedView);
+    }
     try {
       localStorage.setItem('worklane_current_page_v1', 'board');
       localStorage.setItem('worklane_current_board_id_v1', boardId);
+      if (resolvedView) {
+        localStorage.setItem('worklane_current_view_mode_v1', resolvedView);
+      }
     } catch {}
-  }, [switchBoard]);
+  }, [switchBoard, boards]);
 
   const handleGoToDashboard = useCallback(() => {
     setPage('dashboard');
@@ -632,6 +642,7 @@ function saveAlertedSet(key: string, setObj: Set<string>) {
           onManageMembers={() => setShowMembers(true)}
           onOpenSettings={handleOpenSettings}
           onCreateBoard={() => setShowCreateBoard(true)}
+          onCreateRoadmap={() => setShowCreateRoadmap(true)}
           onGoToDashboard={handleGoToDashboard}
           onSelectBoard={handleSelectBoard}
           collapsed={!isMobile && sidebarCollapsed}
@@ -665,6 +676,7 @@ function saveAlertedSet(key: string, setObj: Set<string>) {
                 <Dashboard
                   onSelectBoard={handleSelectBoard}
                   onCreateBoard={() => setShowCreateBoard(true)}
+                  onCreateRoadmap={() => setShowCreateRoadmap(true)}
                   onOpenCard={handleOpenCard}
                 />
                 {!isMobile && (
@@ -746,6 +758,16 @@ function saveAlertedSet(key: string, setObj: Set<string>) {
             if (createdBoardId) {
               switchBoard(createdBoardId);
               setPage('board');
+            }
+          }}
+        />
+      )}
+      {showCreateRoadmap && (
+        <CreateRoadmapModal
+          onClose={(createdRoadmapId?: string) => {
+            setShowCreateRoadmap(false);
+            if (createdRoadmapId) {
+              handleSelectBoard(createdRoadmapId, 'roadmap');
             }
           }}
         />

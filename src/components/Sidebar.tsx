@@ -33,7 +33,8 @@ interface Props {
   onToggleCollapse: () => void;
   onGoToDashboard: () => void;
   onCreateBoard: () => void;
-  onSelectBoard: (boardId: string) => void;
+  onCreateRoadmap?: () => void;
+  onSelectBoard: (boardId: string, view?: 'board' | 'roadmap' | 'calendar') => void;
   isMobileOpen?: boolean;
   onCloseMobile?: () => void;
 }
@@ -52,6 +53,7 @@ export default function Sidebar({
   onToggleCollapse,
   onGoToDashboard,
   onCreateBoard,
+  onCreateRoadmap,
   onSelectBoard,
   isMobileOpen = false,
   onCloseMobile,
@@ -63,8 +65,8 @@ export default function Sidebar({
   const renameBoard = useWorkStore(s => s.renameBoard);
   const updateBoardColor = useWorkStore(s => s.updateBoardColor);
 
-  const handleSelectBoard = (boardId: string) => {
-    onSelectBoard(boardId);
+  const handleSelectBoard = (boardId: string, view?: 'board' | 'roadmap' | 'calendar') => {
+    onSelectBoard(boardId, view);
     onCloseMobile?.();
   };
   const handleGoToDashboard = () => {
@@ -77,6 +79,10 @@ export default function Sidebar({
   };
   const handleCreateBoard = () => {
     onCreateBoard();
+    onCloseMobile?.();
+  };
+  const handleCreateRoadmap = () => {
+    onCreateRoadmap?.();
     onCloseMobile?.();
   };
   const handleManageMembers = () => {
@@ -99,7 +105,12 @@ export default function Sidebar({
   const showToast        = useToastStore(s => s.showToast);
   const showConfirm      = useConfirmStore(s => s.showConfirm);
 
-  const boards = useMemo(() => getVisibleBoards(user?.email), [allBoards, user?.email, getVisibleBoards]);
+  const boards = useMemo(() => {
+    return getVisibleBoards(user?.email);
+  }, [allBoards, user?.email, getVisibleBoards]);
+
+  const taskBoards = useMemo(() => boards.filter(b => b.type !== 'roadmap'), [boards]);
+  const roadmaps   = useMemo(() => boards.filter(b => b.type === 'roadmap'), [boards]);
   const isDark  = useThemeStore(s => s.isDark);
   const toggleTheme = useThemeStore(s => s.toggle);
 
@@ -177,15 +188,26 @@ export default function Sidebar({
           </motion.button>
           {page === 'dashboard' ? (
             <>
-              {boards.map(b => (
+              {taskBoards.map(b => (
                 <motion.button
                   whileTap={{ scale: 0.92 }}
                   key={b.id}
                   className="icon-btn"
-                  title={b.name}
-                  onClick={() => handleSelectBoard(b.id)}
+                  title={`Board: ${b.name}`}
+                  onClick={() => handleSelectBoard(b.id, 'board')}
                 >
                   <div className="sidebar-board-dot" style={{ backgroundColor: b.color }} />
+                </motion.button>
+              ))}
+              {roadmaps.map(b => (
+                <motion.button
+                  whileTap={{ scale: 0.92 }}
+                  key={b.id}
+                  className="icon-btn"
+                  title={`Roadmap: ${b.name}`}
+                  onClick={() => handleSelectBoard(b.id, 'roadmap')}
+                >
+                  <Milestone size={14} color={b.color || 'hsl(var(--primary))'} />
                 </motion.button>
               ))}
               <motion.button
@@ -196,6 +218,16 @@ export default function Sidebar({
               >
                 <Plus size={16} />
               </motion.button>
+              {onCreateRoadmap && (
+                <motion.button
+                  whileTap={{ scale: 0.92 }}
+                  className="icon-btn"
+                  title="Create Project Roadmap"
+                  onClick={handleCreateRoadmap}
+                >
+                  <Milestone size={14} />
+                </motion.button>
+              )}
             </>
           ) : (
             <>
@@ -334,192 +366,361 @@ export default function Sidebar({
               </motion.button>
             </div>
 
+            {/* Task Boards section */}
             <div className="sidebar-section">
               <div className="sidebar-section-header">
-                <span>Boards</span>
+                <span>Task Boards</span>
                 <motion.button
                   whileTap={{ scale: 0.92 }}
                   className="sidebar-action-icon-btn"
                   onClick={handleCreateBoard}
-                  title="Create Board"
+                  title="Create Task Board"
                 >
                   <Plus size={13} />
                 </motion.button>
               </div>
 
-              {boards.map(b => (
-                <motion.div
-                  whileTap={colorPickerBoardId === b.id ? undefined : { scale: 0.97 }}
-                  key={b.id}
-                  className="sidebar-board-item"
-                  style={{
-                    position: 'relative',
-                    zIndex: colorPickerBoardId === b.id ? 40 : 1,
-                  }}
-                  onClick={() => handleSelectBoard(b.id)}
-                >
-                  {editingSidebarBoardId === b.id ? (
-                    <div
-                      style={{ display: 'flex', alignItems: 'center', gap: 4, flex: 1 }}
-                      onClick={e => e.stopPropagation()}
-                    >
-                      <input
-                        type="text"
-                        value={editingSidebarBoardName}
-                        onChange={e => setEditingSidebarBoardName(e.target.value)}
-                        onKeyDown={e => {
-                          if (e.key === 'Enter') {
+              {taskBoards.length === 0 ? (
+                <div style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))', padding: '4px 8px' }}>
+                  No task boards yet
+                </div>
+              ) : (
+                taskBoards.map(b => (
+                  <motion.div
+                    whileTap={colorPickerBoardId === b.id ? undefined : { scale: 0.97 }}
+                    key={b.id}
+                    className="sidebar-board-item"
+                    style={{
+                      position: 'relative',
+                      zIndex: colorPickerBoardId === b.id ? 40 : 1,
+                    }}
+                    onClick={() => handleSelectBoard(b.id, 'board')}
+                  >
+                    {editingSidebarBoardId === b.id ? (
+                      <div
+                        style={{ display: 'flex', alignItems: 'center', gap: 4, flex: 1 }}
+                        onClick={e => e.stopPropagation()}
+                      >
+                        <input
+                          type="text"
+                          value={editingSidebarBoardName}
+                          onChange={e => setEditingSidebarBoardName(e.target.value)}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter') {
+                              if (editingSidebarBoardName.trim() && editingSidebarBoardName.trim() !== b.name) {
+                                renameBoard(b.id, editingSidebarBoardName.trim());
+                                showToast(`Renamed to "${editingSidebarBoardName.trim()}"`, 'success');
+                              }
+                              setEditingSidebarBoardId(null);
+                            }
+                            if (e.key === 'Escape') {
+                              setEditingSidebarBoardId(null);
+                            }
+                          }}
+                          autoFocus
+                          className="text-input"
+                          style={{ fontSize: 12, padding: '2px 6px', height: 24, borderRadius: 4, flex: 1 }}
+                        />
+                        <button
+                          type="button"
+                          className="sidebar-action-icon-btn"
+                          style={{ color: 'hsl(var(--primary))' }}
+                          onClick={() => {
                             if (editingSidebarBoardName.trim() && editingSidebarBoardName.trim() !== b.name) {
                               renameBoard(b.id, editingSidebarBoardName.trim());
                               showToast(`Renamed to "${editingSidebarBoardName.trim()}"`, 'success');
                             }
                             setEditingSidebarBoardId(null);
-                          }
-                          if (e.key === 'Escape') {
+                          }}
+                          title="Save"
+                        >
+                          <Check size={11} />
+                        </button>
+                        <button
+                          type="button"
+                          className="sidebar-action-icon-btn"
+                          onClick={() => setEditingSidebarBoardId(null)}
+                          title="Cancel"
+                        >
+                          <X size={11} />
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        {(() => {
+                          const canEditB = (!b.createdBy || (user?.email && b.createdBy.toLowerCase().trim() === user.email.toLowerCase().trim()) || (b.members && b.members.some(m => m.email && user?.email && m.email.toLowerCase().trim() === user.email.toLowerCase().trim() && m.role !== 'observer')));
+                          return (
+                            <>
+                              <div
+                                className="sidebar-board-dot"
+                                style={{ backgroundColor: b.color, cursor: canEditB ? 'pointer' : 'default' }}
+                                title={canEditB ? "Change board color" : undefined}
+                                onClick={canEditB ? (e) => {
+                                  e.stopPropagation();
+                                  setColorPickerBoardId(colorPickerBoardId === b.id ? null : b.id);
+                                } : undefined}
+                              />
+                              <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {b.name}
+                              </span>
+                              <div className="sidebar-board-actions">
+                                {canEditB && (
+                                  <>
+                                    <button
+                                      className="sidebar-action-icon-btn"
+                                      title="Change Board Color"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setColorPickerBoardId(colorPickerBoardId === b.id ? null : b.id);
+                                      }}
+                                    >
+                                      <Palette size={11} />
+                                    </button>
+                                    <button
+                                      className="sidebar-action-icon-btn"
+                                      title="Rename Board"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setEditingSidebarBoardId(b.id);
+                                        setEditingSidebarBoardName(b.name);
+                                      }}
+                                    >
+                                      <Pencil size={11} />
+                                    </button>
+                                  </>
+                                )}
+                                {!b.createdBy || (user?.email && b.createdBy.toLowerCase().trim() === user.email.toLowerCase().trim()) ? (
+                                  <button
+                                    className="sidebar-action-icon-btn"
+                                    title="Delete Board"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      showConfirm({
+                                        title: `Delete "${b.name}"?`,
+                                        message: `Are you sure you want to permanently delete this board and all its tasks? This action cannot be undone.`,
+                                        confirmText: 'Delete Board',
+                                        variant: 'danger',
+                                        icon: 'trash',
+                                        onConfirm: () => {
+                                          deleteBoard(b.id);
+                                          showToast(`Deleted board "${b.name}"`, 'info');
+                                        }
+                                      });
+                                    }}
+                                  >
+                                    <X size={12} />
+                                  </button>
+                                ) : (
+                                  <button
+                                    className="sidebar-action-icon-btn"
+                                    title="Leave Board"
+                                    style={{ color: 'hsl(var(--destructive))' }}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      if (user?.email) {
+                                        showConfirm({
+                                          title: `Leave "${b.name}"?`,
+                                          message: `Are you sure you want to leave this board? You will need an invite from the owner to rejoin.`,
+                                          confirmText: 'Leave Board',
+                                          variant: 'danger',
+                                          icon: 'logout',
+                                          onConfirm: () => {
+                                            if (user?.email) {
+                                              leaveBoard(b.id, user.email);
+                                              showToast(`You left "${b.name}"`, 'info');
+                                            }
+                                          }
+                                        });
+                                      }
+                                    }}
+                                  >
+                                    <LogOut size={12} />
+                                  </button>
+                                )}
+                              </div>
+                              <AnimatePresence>
+                                {colorPickerBoardId === b.id && (
+                                  <BoardColorPicker
+                                    currentColor={b.color}
+                                    onSelectColor={(newCol) => {
+                                      updateBoardColor(b.id, newCol);
+                                      showToast(`Board color updated`, 'success');
+                                    }}
+                                    onClose={() => setColorPickerBoardId(null)}
+                                    align="left"
+                                  />
+                                )}
+                              </AnimatePresence>
+                            </>
+                          );
+                        })()}
+                      </>
+                    )}
+                  </motion.div>
+                ))
+              )}
+            </div>
+
+            {/* Project Roadmaps section */}
+            <div className="sidebar-section">
+              <div className="sidebar-section-header">
+                <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <Milestone size={12} color="hsl(var(--primary))" />
+                  <span>Roadmaps</span>
+                </span>
+                <motion.button
+                  whileTap={{ scale: 0.92 }}
+                  className="sidebar-action-icon-btn"
+                  onClick={handleCreateRoadmap}
+                  title="Create Project Roadmap"
+                >
+                  <Plus size={13} />
+                </motion.button>
+              </div>
+
+              {roadmaps.length === 0 ? (
+                <div style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))', padding: '4px 8px' }}>
+                  No roadmaps yet
+                </div>
+              ) : (
+                roadmaps.map(b => (
+                  <motion.div
+                    whileTap={colorPickerBoardId === b.id ? undefined : { scale: 0.97 }}
+                    key={b.id}
+                    className="sidebar-board-item"
+                    style={{
+                      position: 'relative',
+                      zIndex: colorPickerBoardId === b.id ? 40 : 1,
+                    }}
+                    onClick={() => handleSelectBoard(b.id, 'roadmap')}
+                  >
+                    {editingSidebarBoardId === b.id ? (
+                      <div
+                        style={{ display: 'flex', alignItems: 'center', gap: 4, flex: 1 }}
+                        onClick={e => e.stopPropagation()}
+                      >
+                        <input
+                          type="text"
+                          value={editingSidebarBoardName}
+                          onChange={e => setEditingSidebarBoardName(e.target.value)}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter') {
+                              if (editingSidebarBoardName.trim() && editingSidebarBoardName.trim() !== b.name) {
+                                renameBoard(b.id, editingSidebarBoardName.trim());
+                                showToast(`Renamed to "${editingSidebarBoardName.trim()}"`, 'success');
+                              }
+                              setEditingSidebarBoardId(null);
+                            }
+                            if (e.key === 'Escape') {
+                              setEditingSidebarBoardId(null);
+                            }
+                          }}
+                          autoFocus
+                          className="text-input"
+                          style={{ fontSize: 12, padding: '2px 6px', height: 24, borderRadius: 4, flex: 1 }}
+                        />
+                        <button
+                          type="button"
+                          className="sidebar-action-icon-btn"
+                          style={{ color: 'hsl(var(--primary))' }}
+                          onClick={() => {
+                            if (editingSidebarBoardName.trim() && editingSidebarBoardName.trim() !== b.name) {
+                              renameBoard(b.id, editingSidebarBoardName.trim());
+                              showToast(`Renamed to "${editingSidebarBoardName.trim()}"`, 'success');
+                            }
                             setEditingSidebarBoardId(null);
-                          }
-                        }}
-                        autoFocus
-                        className="text-input"
-                        style={{ fontSize: 12, padding: '2px 6px', height: 24, borderRadius: 4, flex: 1 }}
-                      />
-                      <button
-                        type="button"
-                        className="sidebar-action-icon-btn"
-                        style={{ color: 'hsl(var(--primary))' }}
-                        onClick={() => {
-                          if (editingSidebarBoardName.trim() && editingSidebarBoardName.trim() !== b.name) {
-                            renameBoard(b.id, editingSidebarBoardName.trim());
-                            showToast(`Renamed to "${editingSidebarBoardName.trim()}"`, 'success');
-                          }
-                          setEditingSidebarBoardId(null);
-                        }}
-                        title="Save"
-                      >
-                        <Check size={11} />
-                      </button>
-                      <button
-                        type="button"
-                        className="sidebar-action-icon-btn"
-                        onClick={() => setEditingSidebarBoardId(null)}
-                        title="Cancel"
-                      >
-                        <X size={11} />
-                      </button>
-                    </div>
-                  ) : (
-                    <>
-                      {(() => {
-                        const canEditB = (!b.createdBy || (user?.email && b.createdBy.toLowerCase().trim() === user.email.toLowerCase().trim()) || (b.members && b.members.some(m => m.email && user?.email && m.email.toLowerCase().trim() === user.email.toLowerCase().trim() && m.role !== 'observer')));
-                        return (
-                          <>
-                            <div
-                              className="sidebar-board-dot"
-                              style={{ backgroundColor: b.color, cursor: canEditB ? 'pointer' : 'default' }}
-                              title={canEditB ? "Change board color" : undefined}
-                              onClick={canEditB ? (e) => {
-                                e.stopPropagation();
-                                setColorPickerBoardId(colorPickerBoardId === b.id ? null : b.id);
-                              } : undefined}
-                            />
-                            <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                              {b.name}
-                            </span>
-                            <div className="sidebar-board-actions">
-                              {canEditB && (
-                                <>
-                                  <button
-                                    className="sidebar-action-icon-btn"
-                                    title="Change Board Color"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setColorPickerBoardId(colorPickerBoardId === b.id ? null : b.id);
-                                    }}
-                                  >
-                                    <Palette size={11} />
-                                  </button>
-                                  <button
-                                    className="sidebar-action-icon-btn"
-                                    title="Rename Board"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setEditingSidebarBoardId(b.id);
-                                      setEditingSidebarBoardName(b.name);
-                                    }}
-                                  >
-                                    <Pencil size={11} />
-                                  </button>
-                                </>
-                              )}
-                              {!b.createdBy || (user?.email && b.createdBy.toLowerCase().trim() === user.email.toLowerCase().trim()) ? (
+                          }}
+                          title="Save"
+                        >
+                          <Check size={11} />
+                        </button>
+                        <button
+                          type="button"
+                          className="sidebar-action-icon-btn"
+                          onClick={() => setEditingSidebarBoardId(null)}
+                          title="Cancel"
+                        >
+                          <X size={11} />
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        {(() => {
+                          const canEditB = (!b.createdBy || (user?.email && b.createdBy.toLowerCase().trim() === user.email.toLowerCase().trim()) || (b.members && b.members.some(m => m.email && user?.email && m.email.toLowerCase().trim() === user.email.toLowerCase().trim() && m.role !== 'observer')));
+                          return (
+                            <>
+                              <Milestone size={13} color={b.color || 'hsl(var(--primary))'} style={{ flexShrink: 0 }} />
+                              <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 600 }}>
+                                {b.name}
+                              </span>
+                              <div className="sidebar-board-actions">
+                                {canEditB && (
+                                  <>
+                                    <button
+                                      className="sidebar-action-icon-btn"
+                                      title="Change Color"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setColorPickerBoardId(colorPickerBoardId === b.id ? null : b.id);
+                                      }}
+                                    >
+                                      <Palette size={11} />
+                                    </button>
+                                    <button
+                                      className="sidebar-action-icon-btn"
+                                      title="Rename Roadmap"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setEditingSidebarBoardId(b.id);
+                                        setEditingSidebarBoardName(b.name);
+                                      }}
+                                    >
+                                      <Pencil size={11} />
+                                    </button>
+                                  </>
+                                )}
                                 <button
                                   className="sidebar-action-icon-btn"
-                                  title="Delete Board"
+                                  title="Delete Roadmap"
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     showConfirm({
                                       title: `Delete "${b.name}"?`,
-                                      message: `Are you sure you want to permanently delete this board and all its tasks? This action cannot be undone.`,
-                                      confirmText: 'Delete Board',
+                                      message: `Are you sure you want to permanently delete this project roadmap? This action cannot be undone.`,
+                                      confirmText: 'Delete Roadmap',
                                       variant: 'danger',
                                       icon: 'trash',
                                       onConfirm: () => {
                                         deleteBoard(b.id);
-                                        showToast(`Deleted board "${b.name}"`, 'info');
+                                        showToast(`Deleted roadmap "${b.name}"`, 'info');
                                       }
                                     });
                                   }}
                                 >
                                   <X size={12} />
                                 </button>
-                              ) : (
-                                <button
-                                  className="sidebar-action-icon-btn"
-                                  title="Leave Board"
-                                  style={{ color: 'hsl(var(--destructive))' }}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    if (user?.email) {
-                                      showConfirm({
-                                        title: `Leave "${b.name}"?`,
-                                        message: `Are you sure you want to leave this board? You will need an invite from the owner to rejoin.`,
-                                        confirmText: 'Leave Board',
-                                        variant: 'danger',
-                                        icon: 'logout',
-                                        onConfirm: () => {
-                                          if (user?.email) {
-                                            leaveBoard(b.id, user.email);
-                                            showToast(`You left "${b.name}"`, 'info');
-                                          }
-                                        }
-                                      });
-                                    }
-                                  }}
-                                >
-                                  <LogOut size={12} />
-                                </button>
-                              )}
-                            </div>
-                            <AnimatePresence>
-                              {colorPickerBoardId === b.id && (
-                                <BoardColorPicker
-                                  currentColor={b.color}
-                                  onSelectColor={(newCol) => {
-                                    updateBoardColor(b.id, newCol);
-                                    showToast(`Board color updated`, 'success');
-                                  }}
-                                  onClose={() => setColorPickerBoardId(null)}
-                                  align="left"
-                                />
-                              )}
-                            </AnimatePresence>
-                          </>
-                        );
-                      })()}
-                    </>
+                              </div>
+                              <AnimatePresence>
+                                {colorPickerBoardId === b.id && (
+                                  <BoardColorPicker
+                                    currentColor={b.color}
+                                    onSelectColor={(newCol) => {
+                                      updateBoardColor(b.id, newCol);
+                                      showToast(`Roadmap color updated`, 'success');
+                                    }}
+                                    onClose={() => setColorPickerBoardId(null)}
+                                    align="left"
+                                  />
+                                )}
+                              </AnimatePresence>
+                            </>
+                          );
+                        })()}
+                      </>
+                    )}
+                  </motion.div>
+                ))
               )}
-            </motion.div>
-          ))}
             </div>
           </>
         ) : (
@@ -532,7 +733,7 @@ export default function Sidebar({
                 onClick={handleGoToDashboard}
               >
                 <ArrowLeft size={14} />
-                <span>All Boards</span>
+                <span>{activeBoard?.type === 'roadmap' ? 'All Roadmaps' : 'All Boards'}</span>
               </motion.button>
               {activeBoard && (
                 editingSidebarBoardId === activeBoard.id ? (
@@ -612,6 +813,22 @@ export default function Sidebar({
                           <span style={{ fontWeight: 600, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>
                             {activeBoard.name}
                           </span>
+                          {activeBoard.type === 'roadmap' && (
+                            <span
+                              style={{
+                                fontSize: 9.5,
+                                fontWeight: 700,
+                                padding: '1px 5px',
+                                borderRadius: 4,
+                                background: 'hsl(var(--primary) / 0.15)',
+                                color: 'hsl(var(--primary))',
+                                textTransform: 'uppercase',
+                                flexShrink: 0,
+                              }}
+                            >
+                              Roadmap
+                            </span>
+                          )}
                           {canEditActive && (
                             <>
                               <button
@@ -662,68 +879,110 @@ export default function Sidebar({
             {/* Views */}
             <div className="sidebar-section">
               <div className="sidebar-section-header">
-                <span>Views</span>
+                <span>{activeBoard?.type === 'roadmap' ? 'Project Views' : 'Views'}</span>
               </div>
-              <motion.button
-                whileTap={{ scale: 0.97 }}
-                className={`sidebar-nav-item ${activeView === 'board' ? 'active' : ''}`}
-                onClick={() => handleSelectView('board')}
-              >
-                <KanbanSquare size={14} />
-                <span style={{ flex: 1 }}>Board</span>
-                {activeView === 'board' && <Check size={13} color="hsl(var(--primary))" />}
-              </motion.button>
-              <motion.button
-                whileTap={{ scale: 0.97 }}
-                className={`sidebar-nav-item ${activeView === 'roadmap' ? 'active' : ''}`}
-                onClick={() => handleSelectView('roadmap')}
-                title="Roadmap & Gantt chart for sprint development and project timelines"
-              >
-                <Milestone size={14} color="hsl(var(--primary))" />
-                <span style={{ flex: 1, fontWeight: activeView === 'roadmap' ? 700 : 500 }}>
-                  Roadmap (Gantt)
-                </span>
-                {activeSprint ? (
-                  <span
-                    style={{
-                      fontSize: 9.5,
-                      fontWeight: 700,
-                      padding: '1px 6px',
-                      borderRadius: 4,
-                      background: 'hsl(var(--primary) / 0.15)',
-                      color: 'hsl(var(--primary))',
-                      letterSpacing: '0.03em',
-                      textTransform: 'uppercase',
-                    }}
-                    title={`Active Sprint: ${activeSprint.name}`}
+              {activeBoard?.type === 'roadmap' ? (
+                <>
+                  <motion.button
+                    whileTap={{ scale: 0.97 }}
+                    className={`sidebar-nav-item ${activeView === 'roadmap' ? 'active' : ''}`}
+                    onClick={() => handleSelectView('roadmap')}
+                    title="Project Roadmap and subtask Gantt timeline"
                   >
-                    Sprint
-                  </span>
-                ) : scheduledCount > 0 ? (
-                  <span
-                    style={{
-                      fontSize: 10,
-                      fontWeight: 700,
-                      padding: '1px 6px',
-                      borderRadius: 10,
-                      background: 'hsl(var(--muted))',
-                      color: 'hsl(var(--muted-foreground))',
-                    }}
+                    <Milestone size={14} color="hsl(var(--primary))" />
+                    <span style={{ flex: 1, fontWeight: activeView === 'roadmap' ? 700 : 500 }}>
+                      Roadmap & Timeline
+                    </span>
+                    {scheduledCount > 0 && (
+                      <span
+                        style={{
+                          fontSize: 10,
+                          fontWeight: 700,
+                          padding: '1px 6px',
+                          borderRadius: 10,
+                          background: 'hsl(var(--muted))',
+                          color: 'hsl(var(--muted-foreground))',
+                        }}
+                      >
+                        {scheduledCount}
+                      </span>
+                    )}
+                    {activeView === 'roadmap' && <Check size={13} color="hsl(var(--primary))" />}
+                  </motion.button>
+                  <motion.button
+                    whileTap={{ scale: 0.97 }}
+                    className={`sidebar-nav-item ${activeView === 'calendar' ? 'active' : ''}`}
+                    onClick={() => handleSelectView('calendar')}
                   >
-                    {scheduledCount}
-                  </span>
-                ) : null}
-                {activeView === 'roadmap' && <Check size={13} color="hsl(var(--primary))" />}
-              </motion.button>
-              <motion.button
-                whileTap={{ scale: 0.97 }}
-                className={`sidebar-nav-item ${activeView === 'calendar' ? 'active' : ''}`}
-                onClick={() => handleSelectView('calendar')}
-              >
-                <Calendar size={14} />
-                <span style={{ flex: 1 }}>Calendar</span>
-                {activeView === 'calendar' && <Check size={13} color="hsl(var(--primary))" />}
-              </motion.button>
+                    <Calendar size={14} />
+                    <span style={{ flex: 1 }}>Calendar</span>
+                    {activeView === 'calendar' && <Check size={13} color="hsl(var(--primary))" />}
+                  </motion.button>
+                </>
+              ) : (
+                <>
+                  <motion.button
+                    whileTap={{ scale: 0.97 }}
+                    className={`sidebar-nav-item ${activeView === 'board' ? 'active' : ''}`}
+                    onClick={() => handleSelectView('board')}
+                  >
+                    <KanbanSquare size={14} />
+                    <span style={{ flex: 1 }}>Board</span>
+                    {activeView === 'board' && <Check size={13} color="hsl(var(--primary))" />}
+                  </motion.button>
+                  <motion.button
+                    whileTap={{ scale: 0.97 }}
+                    className={`sidebar-nav-item ${activeView === 'roadmap' ? 'active' : ''}`}
+                    onClick={() => handleSelectView('roadmap')}
+                    title="Roadmap & Gantt chart for sprint development and project timelines"
+                  >
+                    <Milestone size={14} color="hsl(var(--primary))" />
+                    <span style={{ flex: 1, fontWeight: activeView === 'roadmap' ? 700 : 500 }}>
+                      Roadmap (Gantt)
+                    </span>
+                    {activeSprint ? (
+                      <span
+                        style={{
+                          fontSize: 9.5,
+                          fontWeight: 700,
+                          padding: '1px 6px',
+                          borderRadius: 4,
+                          background: 'hsl(var(--primary) / 0.15)',
+                          color: 'hsl(var(--primary))',
+                          letterSpacing: '0.03em',
+                          textTransform: 'uppercase',
+                        }}
+                        title={`Active Sprint: ${activeSprint.name}`}
+                      >
+                        Sprint
+                      </span>
+                    ) : scheduledCount > 0 ? (
+                      <span
+                        style={{
+                          fontSize: 10,
+                          fontWeight: 700,
+                          padding: '1px 6px',
+                          borderRadius: 10,
+                          background: 'hsl(var(--muted))',
+                          color: 'hsl(var(--muted-foreground))',
+                        }}
+                      >
+                        {scheduledCount}
+                      </span>
+                    ) : null}
+                    {activeView === 'roadmap' && <Check size={13} color="hsl(var(--primary))" />}
+                  </motion.button>
+                  <motion.button
+                    whileTap={{ scale: 0.97 }}
+                    className={`sidebar-nav-item ${activeView === 'calendar' ? 'active' : ''}`}
+                    onClick={() => handleSelectView('calendar')}
+                  >
+                    <Calendar size={14} />
+                    <span style={{ flex: 1 }}>Calendar</span>
+                    {activeView === 'calendar' && <Check size={13} color="hsl(var(--primary))" />}
+                  </motion.button>
+                </>
+              )}
             </div>
 
             {/* Team Filter */}

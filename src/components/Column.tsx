@@ -44,6 +44,14 @@ export default function Column({ col, colIndex, dragState, setDragState, onOpenC
   const showToast          = useToastStore(s => s.showToast);
   const showConfirm        = useConfirmStore(s => s.showConfirm);
 
+  // Detect column type for auto-date propagation
+  const getColType = (name: string): 'in-progress' | 'done' | 'other' => {
+    const n = name.toLowerCase();
+    if (n.includes('done') || n.includes('complete') || n.includes('finished') || n.includes('closed')) return 'done';
+    if (n.includes('progress') || n.includes('active') || n.includes('doing') || n.includes('started') || n.includes('wip')) return 'in-progress';
+    return 'other';
+  };
+
   const [showAddCard,   setShowAddCard]   = useState(false);
   const [newCardTitle,  setNewCardTitle]  = useState('');
   const [isDragOver,    setIsDragOver]    = useState(false);
@@ -84,19 +92,41 @@ export default function Column({ col, colIndex, dragState, setDragState, onOpenC
     setActiveDropIdx(null);
     if (!dragState) return;
 
+    const colType = getColType(col.name);
+    const todayIso = new Date().toISOString().split('T')[0];
+
     if (dragState.fromInbox) {
       moveInboxCardToColumn(dragState.cardId, col.id, afterCardId);
       setDragState(null);
-      showToast(`Moved to ${col.name}`, 'info');
+      if (colType === 'in-progress') {
+        showToast(`Moved to "${col.name}" — Gantt start date recorded`, 'success', 4000);
+      } else if (colType === 'done') {
+        showToast(`Marked complete — Gantt finish date recorded`, 'success', 4000);
+      } else {
+        showToast(`Moved to ${col.name}`, 'info');
+      }
       return;
     }
 
     moveCard(dragState.cardId, dragState.fromColId, col.id, afterCardId);
+
+    if (colType === 'in-progress') {
+      showToast(`Moved to "${col.name}" — Gantt start date recorded`, 'success', 4000, {
+        label: 'Undo',
+        onClick: undoLastMove,
+      });
+    } else if (colType === 'done') {
+      showToast(`Marked complete — Gantt finish date recorded`, 'success', 4000, {
+        label: 'Undo',
+        onClick: undoLastMove,
+      });
+    } else {
+      showToast('Card moved', 'info', 5000, {
+        label: 'Undo',
+        onClick: undoLastMove,
+      });
+    }
     setDragState(null);
-    showToast('Card moved', 'info', 5000, {
-      label: 'Undo',
-      onClick: undoLastMove,
-    });
   };
 
   const dropZoneProps = (afterCardId: string | undefined, idx: number) => ({

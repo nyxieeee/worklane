@@ -4,11 +4,11 @@ import {
   Square, CheckSquare,
   Lock, Smartphone, Settings, Code, Paintbrush,
   Zap, BookOpen, Globe, Database, ShieldCheck, Layers,
-  ArrowRightLeft
+  ArrowRightLeft, Milestone
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { LABELS, type Card as CardType, type Member } from '../types';
-import { getDueStatus, formatDueDate, avatarInitials, getColDotColor } from '../utils';
+import { getDueStatus, formatDueDate, avatarInitials, getColDotColor, getScheduleHealth } from '../utils';
 import { useWorkStore } from '../store/useWorkStore';
 import { useSettingsStore } from '../store/useSettingsStore';
 import { useToastStore } from '../store/useToastStore';
@@ -83,6 +83,7 @@ export default function Card({
 
   const labelMode    = useSettingsStore(s => s.labelMode);
   const customLabels = useSettingsStore(s => s.customLabels);
+  const linkedRoadmap = card.linkedRoadmapId ? boards.find(b => b.id === card.linkedRoadmapId) : null;
   const [nowTick, setNowTick] = useState(() => Date.now());
   const [showMoveMenu, setShowMoveMenu] = useState(false);
   const [isTouchDragging, setIsTouchDragging] = useState(false);
@@ -126,6 +127,10 @@ export default function Card({
   );
   const priority  = getPriority(card);
   const icon      = getCardIcon(card);
+
+  const col = board?.columns.find(c => c.id === colId);
+  const columnName = col?.name || '';
+  const scheduleHealth = getScheduleHealth(card, columnName);
 
   // Helper to find target column by touch coordinates using bounding rectangles
   const getTargetColumn = (clientX: number, clientY: number): HTMLElement | null => {
@@ -328,6 +333,58 @@ export default function Card({
             <span style={{ width: 5, height: 5, borderRadius: '50%', backgroundColor: priority.color }} />
             {priority.label}
           </span>
+
+          {/* Schedule Health Pill (Gantt-aware) */}
+          {scheduleHealth && !card.completed && (
+            <span
+              style={{
+                fontSize: 10,
+                fontWeight: 600,
+                padding: '2px 7px',
+                borderRadius: 6,
+                backgroundColor: scheduleHealth.bg,
+                color: scheduleHealth.color,
+                boxShadow: 'var(--neu-shadow-raised-sm)',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4
+              }}
+              title={`Gantt Timeline: ${scheduleHealth.label}`}
+            >
+              <span style={{ width: 5, height: 5, borderRadius: '50%', backgroundColor: scheduleHealth.color }} />
+              {scheduleHealth.label}
+            </span>
+          )}
+
+          {/* Linked Project Roadmap Badge */}
+          {linkedRoadmap && (
+            <span
+              style={{
+                fontSize: 10,
+                fontWeight: 700,
+                padding: '2px 7px',
+                borderRadius: 6,
+                backgroundColor: 'hsl(var(--primary) / 0.15)',
+                color: 'hsl(var(--primary))',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4,
+                cursor: 'pointer',
+              }}
+              title={`Project Roadmap: ${linkedRoadmap.name}. Click to open.`}
+              onClick={(e) => {
+                e.stopPropagation();
+                useWorkStore.getState().switchBoard(linkedRoadmap.id);
+                localStorage.setItem('worklane_current_page_v1', 'board');
+                localStorage.setItem('worklane_current_board_id_v1', linkedRoadmap.id);
+                localStorage.setItem('worklane_current_view_mode_v1', 'roadmap');
+                window.dispatchEvent(new Event('storage'));
+              }}
+            >
+              <Milestone size={11} color="hsl(var(--primary))" />
+              <span>{linkedRoadmap.name}</span>
+            </span>
+          )}
           {labelHtml.map(lbl => lbl && (
             labelMode === 'dot' ? (
               <span
@@ -529,6 +586,30 @@ export default function Card({
           </button>
         </div>
       </div>
+
+      {/* Mini Timeline Bar (bottom edge of card) */}
+      {scheduleHealth && scheduleHealth.timelinePct !== undefined && !card.completed && (
+        <div
+          style={{
+            margin: '4px -12px -11px -12px',
+            height: 3,
+            background: 'hsl(var(--border) / 0.5)',
+            overflow: 'hidden',
+            borderRadius: '0 0 var(--radius) var(--radius)',
+            position: 'relative',
+          }}
+          title={`Scheduled timeline: ${scheduleHealth.timelinePct}% elapsed (${scheduleHealth.label})`}
+        >
+          <div
+            style={{
+              height: '100%',
+              width: `${scheduleHealth.timelinePct}%`,
+              backgroundColor: scheduleHealth.color,
+              transition: 'width 0.3s ease',
+            }}
+          />
+        </div>
+      )}
     </motion.div>
   );
 }

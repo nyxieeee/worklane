@@ -53,6 +53,8 @@ function getFileTypeInfo(fileName: string, type: string) {
 
 export default function CardModal({ cardId, boardId, onClose }: Props) {
   const boards = useWorkStore(s => s.boards);
+  const switchBoard = useWorkStore(s => s.switchBoard);
+  const createRoadmap = useWorkStore(s => s.createRoadmap);
   const updateCard = useWorkStore(s => s.updateCard);
   const deleteCard = useWorkStore(s => s.deleteCard);
   const moveCard = useWorkStore(s => s.moveCard);
@@ -132,6 +134,11 @@ export default function CardModal({ cardId, boardId, onClose }: Props) {
     [board.members, board.createdBy]
   );
   const allLabels = [...LABELS, ...customLabels];
+  const roadmaps = useMemo(() => boards.filter(b => b.type === 'roadmap'), [boards]);
+  const linkedRoadmap = useMemo(() => {
+    if (!card?.linkedRoadmapId) return null;
+    return roadmaps.find(r => r.id === card.linkedRoadmapId) || null;
+  }, [roadmaps, card?.linkedRoadmapId]);
 
   const currentEmail = currentUser?.email?.toLowerCase().trim();
   const currentUserName = currentUser?.name?.toLowerCase().trim();
@@ -2270,7 +2277,7 @@ export default function CardModal({ cardId, boardId, onClose }: Props) {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                 <div className="form-group">
-                  <label className="field-label">Start Date</label>
+                  <label className="field-label">Scheduled Start</label>
                   <NeumorphicDatePicker
                     value={card.startDate || null}
                     onChange={newStart => {
@@ -2280,7 +2287,7 @@ export default function CardModal({ cardId, boardId, onClose }: Props) {
                   />
                 </div>
                 <div className="form-group">
-                  <label className="field-label">Due Date</label>
+                  <label className="field-label">Scheduled Date</label>
                   <NeumorphicDatePicker
                     value={card.dueDate}
                     onChange={newDue => {
@@ -2291,69 +2298,226 @@ export default function CardModal({ cardId, boardId, onClose }: Props) {
                 </div>
               </div>
 
-              {/* Actual / Projected Completion */}
-              <div className="form-group">
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
-                  <label className="field-label" style={{ margin: 0 }}>
-                    {card.completed ? 'Actual Completion Date' : 'Actual / Projected Date'}
-                  </label>
-                  {/* Dynamic Projection / Variance badge */}
-                  {(() => {
-                    const targetDue = card.dueDate ? new Date(card.dueDate) : null;
-                    const actualOrProj = card.actualEndDate
-                      ? new Date(card.actualEndDate)
-                      : (card.completed && card.completedAt ? new Date(card.completedAt) : null);
+              {/* Actual Start & End — Manual override for real work dates */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <div className="form-group">
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
+                    <label className="field-label" style={{ margin: 0 }}>Actual Start</label>
+                    {card.actualStartDate && card.startDate && (() => {
+                      const sched = new Date(card.startDate);
+                      const actual = new Date(card.actualStartDate);
+                      const diff = Math.round((actual.getTime() - sched.getTime()) / 86400000);
+                      if (diff < 0) return (
+                        <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 6, backgroundColor: 'rgba(16,185,129,0.15)', color: '#10b981' }}>
+                          {Math.abs(diff)}d early
+                        </span>
+                      );
+                      if (diff > 0) return (
+                        <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 6, backgroundColor: 'rgba(239,68,68,0.15)', color: '#ef4444' }}>
+                          {diff}d late
+                        </span>
+                      );
+                      return null;
+                    })()}
+                  </div>
+                  <NeumorphicDatePicker
+                    value={card.actualStartDate || null}
+                    onChange={newActualStart => {
+                      updateCard(cardId, { actualStartDate: newActualStart });
+                    }}
+                    placeholder="When did work actually begin?"
+                    align="left"
+                  />
+                </div>
 
-                    if (!targetDue) return null;
-                    if (actualOrProj) {
-                      const diffDays = Math.round((actualOrProj.getTime() - targetDue.getTime()) / 86400000);
-                      if (diffDays > 0) {
-                        return (
+                {/* Actual / Projected End */}
+                <div className="form-group">
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
+                    <label className="field-label" style={{ margin: 0 }}>
+                      {card.completed ? 'Actual End Date' : 'Actual / Projected End'}
+                    </label>
+                    {(() => {
+                      const targetDue = card.dueDate ? new Date(card.dueDate) : null;
+                      const actualOrProj = card.actualEndDate
+                        ? new Date(card.actualEndDate)
+                        : (card.completed && card.completedAt ? new Date(card.completedAt) : null);
+
+                      if (!targetDue) return null;
+                      if (actualOrProj) {
+                        const diffDays = Math.round((actualOrProj.getTime() - targetDue.getTime()) / 86400000);
+                        if (diffDays > 0) return (
                           <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 6, backgroundColor: 'rgba(239,68,68,0.15)', color: '#ef4444' }}>
                             +{diffDays}d Delay
                           </span>
                         );
-                      } else if (diffDays < 0) {
-                        return (
+                        if (diffDays < 0) return (
                           <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 6, backgroundColor: 'rgba(16,185,129,0.15)', color: '#10b981' }}>
                             {Math.abs(diffDays)}d Early
                           </span>
                         );
-                      } else {
                         return (
                           <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 6, backgroundColor: 'rgba(59,130,246,0.15)', color: '#3b82f6' }}>
                             On Target
                           </span>
                         );
-                      }
-                    } else {
-                      const now = new Date();
-                      if (now.getTime() > targetDue.getTime() && !card.completed) {
-                        const diffDays = Math.max(1, Math.round((now.getTime() - targetDue.getTime()) / 86400000));
+                      } else {
+                        const now = new Date();
+                        if (now.getTime() > targetDue.getTime() && !card.completed) {
+                          const diffDays = Math.max(1, Math.round((now.getTime() - targetDue.getTime()) / 86400000));
+                          return (
+                            <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 6, backgroundColor: 'rgba(245,158,11,0.15)', color: '#f59e0b' }}>
+                              Projected +{diffDays}d
+                            </span>
+                          );
+                        }
                         return (
-                          <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 6, backgroundColor: 'rgba(245,158,11,0.15)', color: '#f59e0b' }}>
-                            Projected +{diffDays}d
+                          <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 6, backgroundColor: 'rgba(16,185,129,0.15)', color: '#10b981' }}>
+                            On Track
                           </span>
                         );
                       }
-                      return (
-                        <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 6, backgroundColor: 'rgba(16,185,129,0.15)', color: '#10b981' }}>
-                          On Track
-                        </span>
-                      );
-                    }
-                  })()}
+                    })()}
+                  </div>
+                  <NeumorphicDatePicker
+                    value={card.actualEndDate || (card.completed ? (card.completedAt || null) : null)}
+                    onChange={newActual => {
+                      updateCard(cardId, { actualEndDate: newActual });
+                    }}
+                    placeholder={card.completed ? 'Set actual completion date...' : 'Leave blank to auto-project...'}
+                    align="right"
+                  />
                 </div>
-                <NeumorphicDatePicker
-                  value={card.actualEndDate || (card.completed ? (card.completedAt || null) : null)}
-                  onChange={newActual => {
-                    updateCard(cardId, { actualEndDate: newActual });
-                  }}
-                  placeholder={card.completed ? 'Set actual completion date...' : 'Auto-projected (or set override)...'}
-                  align="left"
-                />
               </div>
             </div>
+
+            {/* Linked Project Roadmap (For Tasks on Boards) */}
+            {board.type !== 'roadmap' && (
+              <div className="form-group" style={{ marginBottom: 14 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                  <label className="field-label" style={{ display: 'flex', alignItems: 'center', gap: 6, margin: 0 }}>
+                    <Milestone size={13} color="hsl(var(--primary))" />
+                    <span>Project Roadmap</span>
+                  </label>
+                  {linkedRoadmap && (
+                    <button
+                      type="button"
+                      style={{ background: 'none', border: 'none', color: 'hsl(var(--muted-foreground))', fontSize: 11, cursor: 'pointer' }}
+                      onClick={() => {
+                        updateCard(cardId, { linkedRoadmapId: null });
+                        showToast('Unlinked from roadmap', 'info');
+                      }}
+                      title="Unlink roadmap"
+                    >
+                      Unlink
+                    </button>
+                  )}
+                </div>
+
+                {linkedRoadmap ? (
+                  <div
+                    style={{
+                      padding: '10px 12px',
+                      borderRadius: 8,
+                      backgroundColor: 'hsl(var(--card))',
+                      border: '1px solid hsl(var(--border))',
+                      boxShadow: 'var(--neu-shadow-raised-sm)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 8,
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <Milestone size={15} color={linkedRoadmap.color || 'hsl(var(--primary))'} />
+                      <span style={{ fontWeight: 700, fontSize: 13, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {linkedRoadmap.name}
+                      </span>
+                      <span style={{
+                        fontSize: 10,
+                        fontWeight: 700,
+                        padding: '1px 6px',
+                        borderRadius: 4,
+                        backgroundColor: 'hsl(var(--primary) / 0.15)',
+                        color: 'hsl(var(--primary))',
+                      }}>
+                        Roadmap
+                      </span>
+                    </div>
+
+                    <div style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))' }}>
+                      {linkedRoadmap.columns.reduce((s, c) => s + c.cards.length, 0)} subtasks & phases
+                    </div>
+
+                    <motion.button
+                      whileTap={{ scale: 0.95 }}
+                      type="button"
+                      className="btn btn-primary"
+                      style={{ fontSize: 11.5, padding: '5px 10px', width: '100%', justifyContent: 'center', gap: 6 }}
+                      onClick={() => {
+                        onClose();
+                        switchBoard(linkedRoadmap.id);
+                        try {
+                          localStorage.setItem('worklane_current_page_v1', 'board');
+                          localStorage.setItem('worklane_current_board_id_v1', linkedRoadmap.id);
+                          localStorage.setItem('worklane_current_view_mode_v1', 'roadmap');
+                          window.dispatchEvent(new Event('storage'));
+                        } catch {}
+                      }}
+                    >
+                      <span>Open Roadmap Timeline</span>
+                      <ExternalLink size={12} />
+                    </motion.button>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <NeumorphicSelect
+                      value={card.linkedRoadmapId || ''}
+                      options={[
+                        { value: '', label: 'None (Select a roadmap...)' },
+                        ...roadmaps.map(r => ({
+                          value: r.id,
+                          label: r.name,
+                          color: r.color || undefined,
+                        }))
+                      ]}
+                      onChange={(newRoadmapId) => {
+                        updateCard(cardId, { linkedRoadmapId: newRoadmapId || null });
+                        if (newRoadmapId) {
+                          showToast(`Linked to roadmap`, 'success');
+                        }
+                      }}
+                      size="sm"
+                    />
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      style={{ fontSize: 11, padding: '5px 8px', justifyContent: 'center', gap: 5, borderRadius: 7 }}
+                      onClick={async () => {
+                        const created = await createRoadmap(
+                          card.title,
+                          '#3b82f6',
+                          currentUser?.email || undefined,
+                          currentUser?.name || undefined,
+                          `Roadmap for ${card.title}`,
+                          [
+                            'Planning',
+                            'Making the UI',
+                            'Making the frontend',
+                            'Making the backend',
+                            'QA & Launch'
+                          ]
+                        );
+                        updateCard(cardId, { linkedRoadmapId: created.id });
+                        showToast(`Created & linked roadmap "${card.title}"`, 'success');
+                      }}
+                    >
+                      <Plus size={12} />
+                      <span>Create Roadmap for "{card.title}"</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
 
             {/* Daily Work Confirmation (Option A: Manual Mark + Option B: Activity Detection) */}
             {(() => {

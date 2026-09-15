@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import {
   KanbanSquare, Plus, CheckSquare, Clock,
-  Layers, Zap, CheckCircle2,
+  Layers, Zap, CheckCircle2, Milestone,
   Calendar, Activity, ArrowUpRight, Sparkles, Trash2, LogOut, Pencil, Check, X, Palette
 } from 'lucide-react';
 import { motion, AnimatePresence, type Variants } from 'framer-motion';
@@ -17,8 +17,9 @@ import Tilt3D from './ui/Tilt3D';
 import BoardColorPicker from './ui/BoardColorPicker';
 
 interface Props {
-  onSelectBoard: (boardId: string) => void;
+  onSelectBoard: (boardId: string, view?: 'board' | 'roadmap' | 'calendar') => void;
   onCreateBoard: () => void;
+  onCreateRoadmap?: () => void;
   onOpenCard?: (cardId: string, boardId?: string) => void;
 }
 
@@ -54,7 +55,7 @@ const itemMobileVariants: Variants = {
 
 type TaskFilter = 'all' | 'assigned' | 'dueSoon' | 'urgent' | 'completed';
 
-export default function Dashboard({ onSelectBoard, onCreateBoard, onOpenCard }: Props) {
+export default function Dashboard({ onSelectBoard, onCreateBoard, onCreateRoadmap, onOpenCard }: Props) {
   const isMobile           = useIsMobile(860);
   const user               = useAuthStore(s => s.user);
   const allBoards          = useWorkStore(s => s.boards);
@@ -86,6 +87,8 @@ export default function Dashboard({ onSelectBoard, onCreateBoard, onOpenCard }: 
   const [taskFilter, setTaskFilter] = useState<TaskFilter>('all');
 
   const boards: Board[] = useMemo(() => getVisibleBoards(user?.email), [allBoards, user?.email, getVisibleBoards]);
+  const taskBoards = useMemo(() => boards.filter(b => b.type !== 'roadmap'), [boards]);
+  const roadmaps   = useMemo(() => boards.filter(b => b.type === 'roadmap'), [boards]);
   const notifications = useMemo(() => {
     if (!user?.email) return rawNotifications.filter(n => !n.recipientEmail);
     const email = user.email.toLowerCase().trim();
@@ -193,14 +196,26 @@ export default function Dashboard({ onSelectBoard, onCreateBoard, onOpenCard }: 
           </p>
         </div>
 
-        <motion.button
-          whileTap={{ scale: 0.95 }}
-          className="btn btn-primary hide-on-mobile"
-          onClick={onCreateBoard}
-          style={{ fontSize: 13, padding: '8px 18px', boxShadow: 'var(--neu-shadow-raised-sm)' }}
-        >
-          <Plus size={15} /> New Board
-        </motion.button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {onCreateRoadmap && (
+            <motion.button
+              whileTap={{ scale: 0.95 }}
+              className="btn btn-secondary hide-on-mobile"
+              onClick={onCreateRoadmap}
+              style={{ fontSize: 13, padding: '8px 16px', boxShadow: 'var(--neu-shadow-raised-sm)', display: 'flex', alignItems: 'center', gap: 6 }}
+            >
+              <Milestone size={15} color="hsl(var(--primary))" /> New Roadmap
+            </motion.button>
+          )}
+          <motion.button
+            whileTap={{ scale: 0.95 }}
+            className="btn btn-primary hide-on-mobile"
+            onClick={onCreateBoard}
+            style={{ fontSize: 13, padding: '8px 18px', boxShadow: 'var(--neu-shadow-raised-sm)' }}
+          >
+            <Plus size={15} /> New Board
+          </motion.button>
+        </div>
       </motion.div>
 
       {/* 4-Metric Overview Cards Row */}
@@ -265,355 +280,471 @@ export default function Dashboard({ onSelectBoard, onCreateBoard, onOpenCard }: 
       <div className="dashboard-layout-grid" style={{ width: '100%', minWidth: 0 }}>
         {/* Left Column: Boards + My Tasks */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 24, width: '100%', minWidth: 0 }}>
-          {/* Boards Section */}
-          <motion.div variants={isMobile ? itemMobileVariants : item3DVariants} style={{ display: 'flex', flexDirection: 'column', gap: 14, width: '100%', minWidth: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <KanbanSquare size={16} color="hsl(var(--primary))" />
-                <h2 style={{ fontSize: 15, fontWeight: 700, color: 'hsl(var(--foreground))' }}>Your Boards</h2>
-                <span style={{ fontSize: 11, fontWeight: 600, padding: '1px 7px', borderRadius: 9999, backgroundColor: 'hsl(var(--card))', boxShadow: 'var(--neu-shadow-input)', color: 'hsl(var(--muted-foreground))' }}>
-                  {boards.length}
-                </span>
-              </div>
-            </div>
+          {/* Helper to render board/roadmap card */}
+          {(() => {
+            const renderBoardCard = (board: Board, isRoadmap: boolean) => {
+              const totalCards  = board.columns.reduce((s, c) => s + c.cards.length, 0);
+              const doneCards   = board.columns.reduce((s, c) => s + c.cards.filter(card => card.completed).length, 0);
+              const progress    = totalCards > 0 ? Math.round((doneCards / totalCards) * 100) : 0;
+              const memberCount = board.members?.length ?? 0;
 
-            {boards.length === 0 ? (
-              <div
-                style={{
-                  padding: 36,
-                  textAlign: 'center',
-                  boxShadow: 'var(--neu-shadow-input)',
-                  borderRadius: 'var(--radius)',
-                  backgroundColor: 'hsl(var(--card))'
-                }}
-              >
-                <div style={{ fontSize: 14, fontWeight: 600, color: 'hsl(var(--foreground))', marginBottom: 4 }}>
-                  No boards yet
-                </div>
-                <div style={{ fontSize: 12.5, color: 'hsl(var(--muted-foreground))', marginBottom: 14 }}>
-                  Create your first board to start managing your projects.
-                </div>
-                <motion.button whileTap={{ scale: 0.95 }} className="btn btn-primary" onClick={onCreateBoard}>
-                  <Plus size={14} /> Create First Board
-                </motion.button>
-              </div>
-            ) : (
-              <div className="dashboard-boards-grid" style={{ width: '100%', minWidth: 0 }}>
-                {boards.map(board => {
-                  const totalCards  = board.columns.reduce((s, c) => s + c.cards.length, 0);
-                  const doneCards   = board.columns.reduce((s, c) => s + c.cards.filter(card => card.completed).length, 0);
-                  const progress    = totalCards > 0 ? Math.round((doneCards / totalCards) * 100) : 0;
-                  const memberCount = board.members?.length ?? 0;
-
-                  return (
-                    <motion.div
-                      key={board.id}
-                      whileHover={isMobile || colorPickerBoardId === board.id ? undefined : { scale: 1.02, y: -2 }}
-                      whileTap={colorPickerBoardId === board.id ? undefined : { scale: 0.98 }}
-                      transition={{ duration: 0.15 }}
-                      className="dashboard-board-card"
-                      style={{
-                        cursor: 'pointer',
-                        position: 'relative',
-                        zIndex: colorPickerBoardId === board.id ? 40 : 1,
-                        width: '100%',
-                        minWidth: 0,
-                        boxSizing: 'border-box',
-                      }}
-                      onClick={() => onSelectBoard(board.id)}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, width: '100%', minWidth: 0 }}>
-                        {editingBoardId === board.id ? (
+              return (
+                <motion.div
+                  key={board.id}
+                  whileHover={isMobile || colorPickerBoardId === board.id ? undefined : { scale: 1.02, y: -2 }}
+                  whileTap={colorPickerBoardId === board.id ? undefined : { scale: 0.98 }}
+                  transition={{ duration: 0.15 }}
+                  className="dashboard-board-card"
+                  style={{
+                    cursor: 'pointer',
+                    position: 'relative',
+                    zIndex: colorPickerBoardId === board.id ? 40 : 1,
+                    width: '100%',
+                    minWidth: 0,
+                    boxSizing: 'border-box',
+                  }}
+                  onClick={() => onSelectBoard(board.id, isRoadmap ? 'roadmap' : 'board')}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, width: '100%', minWidth: 0 }}>
+                    {editingBoardId === board.id ? (
+                      <div
+                        style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1 }}
+                        onClick={e => e.stopPropagation()}
+                      >
+                        <input
+                          type="text"
+                          value={editingBoardName}
+                          onChange={e => setEditingBoardName(e.target.value)}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter') {
+                              if (editingBoardName.trim() && editingBoardName.trim() !== board.name) {
+                                renameBoard(board.id, editingBoardName.trim());
+                                showToast(`Renamed to "${editingBoardName.trim()}"`, 'success');
+                              }
+                              setEditingBoardId(null);
+                            }
+                            if (e.key === 'Escape') {
+                              setEditingBoardId(null);
+                            }
+                          }}
+                          autoFocus
+                          className="text-input"
+                          style={{ fontSize: 13.5, fontWeight: 600, padding: '2px 8px', height: 28, borderRadius: 6, width: '100%', maxWidth: 200 }}
+                        />
+                        <motion.button
+                          whileTap={{ scale: 0.9 }}
+                          type="button"
+                          className="icon-btn"
+                          style={{ width: 26, height: 26, color: 'hsl(var(--primary))' }}
+                          onClick={() => {
+                            if (editingBoardName.trim() && editingBoardName.trim() !== board.name) {
+                              renameBoard(board.id, editingBoardName.trim());
+                              showToast(`Renamed to "${editingBoardName.trim()}"`, 'success');
+                            }
+                            setEditingBoardId(null);
+                          }}
+                          title="Save name"
+                        >
+                          <Check size={13} />
+                        </motion.button>
+                        <motion.button
+                          whileTap={{ scale: 0.9 }}
+                          type="button"
+                          className="icon-btn"
+                          style={{ width: 26, height: 26 }}
+                          onClick={() => setEditingBoardId(null)}
+                          title="Cancel"
+                        >
+                          <X size={13} />
+                        </motion.button>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flex: 1, overflow: 'hidden' }}>
+                        {isRoadmap ? (
                           <div
-                            style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1 }}
-                            onClick={e => e.stopPropagation()}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              cursor: (!board.createdBy || (user?.email && board.createdBy.toLowerCase().trim() === user.email.toLowerCase().trim()) || (board.members && board.members.some(m => m.email && user?.email && m.email.toLowerCase().trim() === user.email.toLowerCase().trim() && m.role !== 'observer'))) ? 'pointer' : 'default'
+                            }}
+                            title={(!board.createdBy || (user?.email && board.createdBy.toLowerCase().trim() === user.email.toLowerCase().trim()) || (board.members && board.members.some(m => m.email && user?.email && m.email.toLowerCase().trim() === user.email.toLowerCase().trim() && m.role !== 'observer'))) ? "Change roadmap color" : "Roadmap"}
+                            onClick={(!board.createdBy || (user?.email && board.createdBy.toLowerCase().trim() === user.email.toLowerCase().trim()) || (board.members && board.members.some(m => m.email && user?.email && m.email.toLowerCase().trim() === user.email.toLowerCase().trim() && m.role !== 'observer'))) ? (e) => {
+                              e.stopPropagation();
+                              setColorPickerBoardId(colorPickerBoardId === board.id ? null : board.id);
+                            } : undefined}
                           >
-                            <input
-                              type="text"
-                              value={editingBoardName}
-                              onChange={e => setEditingBoardName(e.target.value)}
-                              onKeyDown={e => {
-                                if (e.key === 'Enter') {
-                                  if (editingBoardName.trim() && editingBoardName.trim() !== board.name) {
-                                    renameBoard(board.id, editingBoardName.trim());
-                                    showToast(`Renamed to "${editingBoardName.trim()}"`, 'success');
-                                  }
-                                  setEditingBoardId(null);
-                                }
-                                if (e.key === 'Escape') {
-                                  setEditingBoardId(null);
-                                }
-                              }}
-                              autoFocus
-                              className="text-input"
-                              style={{ fontSize: 13.5, fontWeight: 600, padding: '2px 8px', height: 28, borderRadius: 6, width: '100%', maxWidth: 200 }}
+                            <Milestone
+                              size={14}
+                              color={board.color || 'hsl(var(--primary))'}
+                              style={{ flexShrink: 0 }}
                             />
-                            <motion.button
-                              whileTap={{ scale: 0.9 }}
-                              type="button"
-                              className="icon-btn"
-                              style={{ width: 26, height: 26, color: 'hsl(var(--primary))' }}
-                              onClick={() => {
-                                if (editingBoardName.trim() && editingBoardName.trim() !== board.name) {
-                                  renameBoard(board.id, editingBoardName.trim());
-                                  showToast(`Renamed to "${editingBoardName.trim()}"`, 'success');
-                                }
-                                setEditingBoardId(null);
-                              }}
-                              title="Save name"
-                            >
-                              <Check size={13} />
-                            </motion.button>
-                            <motion.button
-                              whileTap={{ scale: 0.9 }}
-                              type="button"
-                              className="icon-btn"
-                              style={{ width: 26, height: 26 }}
-                              onClick={() => setEditingBoardId(null)}
-                              title="Cancel"
-                            >
-                              <X size={13} />
-                            </motion.button>
                           </div>
                         ) : (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flex: 1, overflow: 'hidden' }}>
-                            <div
-                              style={{
-                                width: 12,
-                                height: 12,
-                                minWidth: 12,
-                                minHeight: 12,
-                                flexShrink: 0,
-                                borderRadius: '50%',
-                                backgroundColor: board.color,
-                                boxShadow: 'var(--neu-shadow-raised-sm)',
-                                cursor: (!board.createdBy || (user?.email && board.createdBy.toLowerCase().trim() === user.email.toLowerCase().trim()) || (board.members && board.members.some(m => m.email && user?.email && m.email.toLowerCase().trim() === user.email.toLowerCase().trim() && m.role !== 'observer'))) ? 'pointer' : 'default',
-                              }}
-                              title={(!board.createdBy || (user?.email && board.createdBy.toLowerCase().trim() === user.email.toLowerCase().trim()) || (board.members && board.members.some(m => m.email && user?.email && m.email.toLowerCase().trim() === user.email.toLowerCase().trim() && m.role !== 'observer'))) ? "Change board color" : undefined}
-                              onClick={(!board.createdBy || (user?.email && board.createdBy.toLowerCase().trim() === user.email.toLowerCase().trim()) || (board.members && board.members.some(m => m.email && user?.email && m.email.toLowerCase().trim() === user.email.toLowerCase().trim() && m.role !== 'observer'))) ? (e) => {
-                                e.stopPropagation();
-                                setColorPickerBoardId(colorPickerBoardId === board.id ? null : board.id);
-                              } : undefined}
-                            />
-                            <span
-                              style={{
-                                fontSize: 14,
-                                fontWeight: 700,
-                                color: 'hsl(var(--foreground))',
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                                whiteSpace: 'nowrap',
-                                minWidth: 0,
-                              }}
-                              title={board.name}
-                            >
-                              {board.name}
-                            </span>
-                          </div>
+                          <div
+                            style={{
+                              width: 12,
+                              height: 12,
+                              minWidth: 12,
+                              minHeight: 12,
+                              flexShrink: 0,
+                              borderRadius: '50%',
+                              backgroundColor: board.color,
+                              boxShadow: 'var(--neu-shadow-raised-sm)',
+                              cursor: (!board.createdBy || (user?.email && board.createdBy.toLowerCase().trim() === user.email.toLowerCase().trim()) || (board.members && board.members.some(m => m.email && user?.email && m.email.toLowerCase().trim() === user.email.toLowerCase().trim() && m.role !== 'observer'))) ? 'pointer' : 'default',
+                            }}
+                            title={(!board.createdBy || (user?.email && board.createdBy.toLowerCase().trim() === user.email.toLowerCase().trim()) || (board.members && board.members.some(m => m.email && user?.email && m.email.toLowerCase().trim() === user.email.toLowerCase().trim() && m.role !== 'observer'))) ? "Change board color" : undefined}
+                            onClick={(!board.createdBy || (user?.email && board.createdBy.toLowerCase().trim() === user.email.toLowerCase().trim()) || (board.members && board.members.some(m => m.email && user?.email && m.email.toLowerCase().trim() === user.email.toLowerCase().trim() && m.role !== 'observer'))) ? (e) => {
+                              e.stopPropagation();
+                              setColorPickerBoardId(colorPickerBoardId === board.id ? null : board.id);
+                            } : undefined}
+                          />
                         )}
-                        <div
-                          style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 3 : 6, flexShrink: 0, position: 'relative', zIndex: 20 }}
-                          onClick={e => e.stopPropagation()}
+                        <span
+                          style={{
+                            fontSize: 14,
+                            fontWeight: 700,
+                            color: 'hsl(var(--foreground))',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                            minWidth: 0,
+                          }}
+                          title={board.name}
                         >
-                          {/* Color & Rename board */}
-                          {(!board.createdBy || (user?.email && board.createdBy.toLowerCase().trim() === user.email.toLowerCase().trim()) || (board.members && board.members.some(m => m.email && user?.email && m.email.toLowerCase().trim() === user.email.toLowerCase().trim() && m.role !== 'observer'))) && (
-                            <>
-                              <motion.button
-                                type="button"
-                                whileTap={{ scale: 0.88 }}
-                                className="icon-btn"
-                                style={{ width: isMobile ? 26 : 28, height: isMobile ? 26 : 28, minWidth: isMobile ? 26 : 28, minHeight: isMobile ? 26 : 28, cursor: 'pointer' }}
-                                title="Change board color"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setColorPickerBoardId(colorPickerBoardId === board.id ? null : board.id);
-                                }}
-                              >
-                                <Palette size={13} />
-                              </motion.button>
-                              <motion.button
-                                type="button"
-                                whileTap={{ scale: 0.88 }}
-                                className="icon-btn"
-                                style={{ width: isMobile ? 26 : 28, height: isMobile ? 26 : 28, minWidth: isMobile ? 26 : 28, minHeight: isMobile ? 26 : 28, cursor: 'pointer' }}
-                                title="Rename board"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setEditingBoardId(board.id);
-                                  setEditingBoardName(board.name);
-                                }}
-                              >
-                                <Pencil size={13} />
-                              </motion.button>
-                            </>
-                          )}
-                          <AnimatePresence>
-                            {colorPickerBoardId === board.id && (
-                              <BoardColorPicker
-                                currentColor={board.color}
-                                onSelectColor={(col) => {
-                                  updateBoardColor(board.id, col);
-                                  showToast(`Board color updated`, 'success');
-                                }}
-                                onClose={() => setColorPickerBoardId(null)}
-                                align="right"
-                              />
-                            )}
-                          </AnimatePresence>
-                          {!board.createdBy || (user?.email && board.createdBy.toLowerCase().trim() === user.email.toLowerCase().trim()) ? (
-                            <motion.button
-                              type="button"
-                              whileTap={{ scale: 0.88 }}
-                              className="icon-btn"
-                              style={{ width: isMobile ? 26 : 28, height: isMobile ? 26 : 28, minWidth: isMobile ? 26 : 28, minHeight: isMobile ? 26 : 28, color: 'hsl(var(--destructive))', cursor: 'pointer' }}
-                              title="Delete board"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                showConfirm({
-                                  title: `Delete "${board.name}"?`,
-                                  message: `Are you sure you want to permanently delete this board and all its tasks? This action cannot be undone.`,
-                                  confirmText: 'Delete Board',
-                                  variant: 'danger',
-                                  icon: 'trash',
-                                  onConfirm: () => {
-                                    deleteBoard(board.id);
-                                    showToast(`Deleted board "${board.name}"`, 'info');
-                                  }
-                                });
-                              }}
-                            >
-                              <Trash2 size={13} />
-                            </motion.button>
-                          ) : (
-                            <motion.button
-                              type="button"
-                              whileTap={{ scale: 0.88 }}
-                              className="icon-btn"
-                              style={{ width: isMobile ? 26 : 28, height: isMobile ? 26 : 28, minWidth: isMobile ? 26 : 28, minHeight: isMobile ? 26 : 28, color: 'hsl(var(--destructive))', cursor: 'pointer' }}
-                              title="Leave board"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                if (user?.email) {
-                                  showConfirm({
-                                    title: `Leave "${board.name}"?`,
-                                    message: `Are you sure you want to leave this board? You will need an invite from the owner to rejoin.`,
-                                    confirmText: 'Leave Board',
-                                    variant: 'danger',
-                                    icon: 'logout',
-                                    onConfirm: () => {
-                                      if (user?.email) {
-                                        leaveBoard(board.id, user.email);
-                                        showToast(`You left "${board.name}"`, 'info');
-                                      }
-                                    }
-                                  });
-                                }
-                              }}
-                            >
-                              <LogOut size={13} />
-                            </motion.button>
-                          )}
+                          {board.name}
+                        </span>
+                        {isRoadmap && (
+                          <span
+                            style={{
+                              fontSize: 9.5,
+                              fontWeight: 700,
+                              padding: '1px 5px',
+                              borderRadius: 4,
+                              background: 'hsl(var(--primary) / 0.15)',
+                              color: 'hsl(var(--primary))',
+                              textTransform: 'uppercase',
+                              flexShrink: 0,
+                            }}
+                          >
+                            Roadmap
+                          </span>
+                        )}
+                      </div>
+                    )}
+                    <div
+                      style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 3 : 6, flexShrink: 0, position: 'relative', zIndex: 20 }}
+                      onClick={e => e.stopPropagation()}
+                    >
+                      {/* Color & Rename board */}
+                      {(!board.createdBy || (user?.email && board.createdBy.toLowerCase().trim() === user.email.toLowerCase().trim()) || (board.members && board.members.some(m => m.email && user?.email && m.email.toLowerCase().trim() === user.email.toLowerCase().trim() && m.role !== 'observer'))) && (
+                        <>
                           <motion.button
                             type="button"
                             whileTap={{ scale: 0.88 }}
                             className="icon-btn"
                             style={{ width: isMobile ? 26 : 28, height: isMobile ? 26 : 28, minWidth: isMobile ? 26 : 28, minHeight: isMobile ? 26 : 28, cursor: 'pointer' }}
-                            title="Open board"
+                            title={isRoadmap ? "Change roadmap color" : "Change board color"}
                             onClick={(e) => {
                               e.stopPropagation();
-                              onSelectBoard(board.id);
+                              setColorPickerBoardId(colorPickerBoardId === board.id ? null : board.id);
                             }}
                           >
-                            <ArrowUpRight size={14} />
+                            <Palette size={13} />
                           </motion.button>
-                        </div>
-                      </div>
-
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 'auto', width: '100%', minWidth: 0 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 11.5, color: 'hsl(var(--muted-foreground))', width: '100%', minWidth: 0 }}>
-                          <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{doneCards}/{totalCards} tasks done</span>
-                          <span style={{ fontWeight: 700, color: 'hsl(var(--foreground))', flexShrink: 0 }}>{progress}%</span>
-                        </div>
-
-                        <div style={{ width: '100%', height: 6, borderRadius: 9999, backgroundColor: 'hsl(var(--card))', boxShadow: 'var(--neu-shadow-input)', overflow: 'hidden' }}>
-                          <motion.div
-                            initial={{ width: 0 }}
-                            animate={{ width: `${progress}%` }}
-                            transition={{ duration: 0.5, ease: 'easeOut' }}
-                            style={{
-                              height: '100%',
-                              backgroundColor: board.color,
-                              borderRadius: 9999
+                          <motion.button
+                            type="button"
+                            whileTap={{ scale: 0.88 }}
+                            className="icon-btn"
+                            style={{ width: isMobile ? 26 : 28, height: isMobile ? 26 : 28, minWidth: isMobile ? 26 : 28, minHeight: isMobile ? 26 : 28, cursor: 'pointer' }}
+                            title={isRoadmap ? "Rename roadmap" : "Rename board"}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setEditingBoardId(board.id);
+                              setEditingBoardName(board.name);
                             }}
+                          >
+                            <Pencil size={13} />
+                          </motion.button>
+                        </>
+                      )}
+                      <AnimatePresence>
+                        {colorPickerBoardId === board.id && (
+                          <BoardColorPicker
+                            currentColor={board.color}
+                            onSelectColor={(col) => {
+                              updateBoardColor(board.id, col);
+                              showToast(isRoadmap ? `Roadmap color updated` : `Board color updated`, 'success');
+                            }}
+                            onClose={() => setColorPickerBoardId(null)}
+                            align="right"
                           />
-                        </div>
+                        )}
+                      </AnimatePresence>
+                      {!board.createdBy || (user?.email && board.createdBy.toLowerCase().trim() === user.email.toLowerCase().trim()) ? (
+                        <motion.button
+                          type="button"
+                          whileTap={{ scale: 0.88 }}
+                          className="icon-btn"
+                          style={{ width: isMobile ? 26 : 28, height: isMobile ? 26 : 28, minWidth: isMobile ? 26 : 28, minHeight: isMobile ? 26 : 28, color: 'hsl(var(--destructive))', cursor: 'pointer' }}
+                          title={isRoadmap ? "Delete roadmap" : "Delete board"}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            showConfirm({
+                              title: `Delete "${board.name}"?`,
+                              message: `Are you sure you want to permanently delete this ${isRoadmap ? 'project roadmap' : 'board'}? This action cannot be undone.`,
+                              confirmText: isRoadmap ? 'Delete Roadmap' : 'Delete Board',
+                              variant: 'danger',
+                              icon: 'trash',
+                              onConfirm: () => {
+                                deleteBoard(board.id);
+                                showToast(`Deleted ${isRoadmap ? 'roadmap' : 'board'} "${board.name}"`, 'info');
+                              }
+                            });
+                          }}
+                        >
+                          <Trash2 size={13} />
+                        </motion.button>
+                      ) : (
+                        <motion.button
+                          type="button"
+                          whileTap={{ scale: 0.88 }}
+                          className="icon-btn"
+                          style={{ width: isMobile ? 26 : 28, height: isMobile ? 26 : 28, minWidth: isMobile ? 26 : 28, minHeight: isMobile ? 26 : 28, color: 'hsl(var(--destructive))', cursor: 'pointer' }}
+                          title="Leave"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (user?.email) {
+                              showConfirm({
+                                title: `Leave "${board.name}"?`,
+                                message: `Are you sure you want to leave this ${isRoadmap ? 'roadmap' : 'board'}? You will need an invite from the owner to rejoin.`,
+                                confirmText: 'Leave',
+                                variant: 'danger',
+                                icon: 'logout',
+                                onConfirm: () => {
+                                  if (user?.email) {
+                                    leaveBoard(board.id, user.email);
+                                    showToast(`You left "${board.name}"`, 'info');
+                                  }
+                                }
+                              });
+                            }
+                          }}
+                        >
+                          <LogOut size={13} />
+                        </motion.button>
+                      )}
+                      <motion.button
+                        type="button"
+                        whileTap={{ scale: 0.88 }}
+                        className="icon-btn"
+                        style={{ width: isMobile ? 26 : 28, height: isMobile ? 26 : 28, minWidth: isMobile ? 26 : 28, minHeight: isMobile ? 26 : 28, cursor: 'pointer' }}
+                        title={`Open ${isRoadmap ? 'roadmap' : 'board'}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onSelectBoard(board.id, isRoadmap ? 'roadmap' : 'board');
+                        }}
+                      >
+                        <ArrowUpRight size={14} />
+                      </motion.button>
+                    </div>
+                  </div>
 
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 11, color: 'hsl(var(--muted-foreground))', paddingTop: 6, width: '100%', minWidth: 0 }}>
-                          <span style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 'auto', width: '100%', minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 11.5, color: 'hsl(var(--muted-foreground))', width: '100%', minWidth: 0 }}>
+                      <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {doneCards}/{totalCards} {isRoadmap ? 'phases complete' : 'tasks done'}
+                      </span>
+                      <span style={{ fontWeight: 700, color: 'hsl(var(--foreground))', flexShrink: 0 }}>{progress}%</span>
+                    </div>
+
+                    <div style={{ width: '100%', height: 6, borderRadius: 9999, backgroundColor: 'hsl(var(--card))', boxShadow: 'var(--neu-shadow-input)', overflow: 'hidden' }}>
+                      <motion.div
+                        initial={{ width: 0 }}
+                        animate={{ width: `${progress}%` }}
+                        transition={{ duration: 0.5, ease: 'easeOut' }}
+                        style={{
+                          height: '100%',
+                          backgroundColor: board.color,
+                          borderRadius: 9999
+                        }}
+                      />
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 11, color: 'hsl(var(--muted-foreground))', paddingTop: 6, width: '100%', minWidth: 0 }}>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+                        {isRoadmap ? (
+                          <>
+                            <Milestone size={12} /> {totalCards} {totalCards === 1 ? 'phase' : 'phases'}
+                          </>
+                        ) : (
+                          <>
                             <KanbanSquare size={12} /> {board.columns?.length ?? 0} columns
-                          </span>
+                          </>
+                        )}
+                      </span>
 
-                          {/* Member Avatars */}
-                          {memberCount > 0 && (
-                            <div style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
-                              {board.members.slice(0, 3).map((m, idx) => (
-                                <div
-                                  key={m.id}
-                                  style={{
-                                    width: 20,
-                                    height: 20,
-                                    borderRadius: '50%',
-                                    backgroundColor: m.color,
-                                    color: '#fff',
-                                    fontSize: 8.5,
-                                    fontWeight: 700,
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    marginLeft: idx === 0 ? 0 : -6,
-                                    border: '2px solid hsl(var(--card))',
-                                    boxShadow: 'var(--neu-shadow-raised-sm)',
-                                    overflow: 'hidden'
-                                  }}
-                                  title={m.name}
-                                >
-                                  {m.avatarUrl ? (
-                                    <img src={m.avatarUrl} alt={m.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                                  ) : (
-                                    avatarInitials(m.name)
-                                  )}
-                                </div>
-                              ))}
-                              {memberCount > 3 && (
-                                <div
-                                  style={{
-                                    width: 20,
-                                    height: 20,
-                                    borderRadius: '50%',
-                                    backgroundColor: 'hsl(var(--secondary))',
-                                    color: 'hsl(var(--secondary-foreground))',
-                                    fontSize: 8,
-                                    fontWeight: 700,
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    marginLeft: -6,
-                                    border: '2px solid hsl(var(--card))'
-                                  }}
-                                >
-                                  +{memberCount - 3}
-                                </div>
+                      {/* Member Avatars */}
+                      {memberCount > 0 && (
+                        <div style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+                          {board.members.slice(0, 3).map((m, idx) => (
+                            <div
+                              key={m.id}
+                              style={{
+                                width: 20,
+                                height: 20,
+                                borderRadius: '50%',
+                                backgroundColor: m.color,
+                                color: '#fff',
+                                fontSize: 8.5,
+                                fontWeight: 700,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                marginLeft: idx === 0 ? 0 : -6,
+                                border: '2px solid hsl(var(--card))',
+                                boxShadow: 'var(--neu-shadow-raised-sm)',
+                                overflow: 'hidden'
+                              }}
+                              title={m.name}
+                            >
+                              {m.avatarUrl ? (
+                                <img src={m.avatarUrl} alt={m.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                              ) : (
+                                avatarInitials(m.name)
                               )}
+                            </div>
+                          ))}
+                          {memberCount > 3 && (
+                            <div
+                              style={{
+                                width: 20,
+                                height: 20,
+                                borderRadius: '50%',
+                                backgroundColor: 'hsl(var(--secondary))',
+                                color: 'hsl(var(--secondary-foreground))',
+                                fontSize: 8,
+                                fontWeight: 700,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                marginLeft: -6,
+                                border: '2px solid hsl(var(--card))'
+                              }}
+                            >
+                              +{memberCount - 3}
                             </div>
                           )}
                         </div>
+                      )}
+                    </div>
+                  </div>
+                </motion.div>
+              );
+            };
+
+            return (
+              <>
+                {/* 1. Task Boards Section */}
+                <motion.div variants={isMobile ? itemMobileVariants : item3DVariants} style={{ display: 'flex', flexDirection: 'column', gap: 14, width: '100%', minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <KanbanSquare size={16} color="hsl(var(--primary))" />
+                      <h2 style={{ fontSize: 15, fontWeight: 700, color: 'hsl(var(--foreground))' }}>Task Boards</h2>
+                      <span style={{ fontSize: 11, fontWeight: 600, padding: '1px 7px', borderRadius: 9999, backgroundColor: 'hsl(var(--card))', boxShadow: 'var(--neu-shadow-input)', color: 'hsl(var(--muted-foreground))' }}>
+                        {taskBoards.length}
+                      </span>
+                    </div>
+                    <motion.button
+                      whileTap={{ scale: 0.92 }}
+                      className="btn btn-secondary"
+                      onClick={onCreateBoard}
+                      style={{ fontSize: 12, padding: '4px 10px', gap: 4 }}
+                    >
+                      <Plus size={13} /> New Board
+                    </motion.button>
+                  </div>
+
+                  {taskBoards.length === 0 ? (
+                    <div
+                      style={{
+                        padding: 30,
+                        textAlign: 'center',
+                        boxShadow: 'var(--neu-shadow-input)',
+                        borderRadius: 'var(--radius)',
+                        backgroundColor: 'hsl(var(--card))'
+                      }}
+                    >
+                      <div style={{ fontSize: 14, fontWeight: 600, color: 'hsl(var(--foreground))', marginBottom: 4 }}>
+                        No task boards yet
                       </div>
-                    </motion.div>
-                  );
-                })}
-              </div>
-            )}
-          </motion.div>
+                      <div style={{ fontSize: 12.5, color: 'hsl(var(--muted-foreground))', marginBottom: 14 }}>
+                        Create a board for day-to-day task tracking with Kanban columns.
+                      </div>
+                      <motion.button whileTap={{ scale: 0.95 }} className="btn btn-primary" onClick={onCreateBoard}>
+                        <Plus size={14} /> Create First Board
+                      </motion.button>
+                    </div>
+                  ) : (
+                    <div className="dashboard-boards-grid" style={{ width: '100%', minWidth: 0 }}>
+                      {taskBoards.map(b => renderBoardCard(b, false))}
+                    </div>
+                  )}
+                </motion.div>
+
+                {/* 2. Project Roadmaps Section */}
+                <motion.div variants={isMobile ? itemMobileVariants : item3DVariants} style={{ display: 'flex', flexDirection: 'column', gap: 14, width: '100%', minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <Milestone size={16} color="hsl(var(--primary))" />
+                      <h2 style={{ fontSize: 15, fontWeight: 700, color: 'hsl(var(--foreground))' }}>Project Roadmaps</h2>
+                      <span style={{ fontSize: 11, fontWeight: 600, padding: '1px 7px', borderRadius: 9999, backgroundColor: 'hsl(var(--card))', boxShadow: 'var(--neu-shadow-input)', color: 'hsl(var(--muted-foreground))' }}>
+                        {roadmaps.length}
+                      </span>
+                    </div>
+                    {onCreateRoadmap && (
+                      <motion.button
+                        whileTap={{ scale: 0.92 }}
+                        className="btn btn-secondary"
+                        onClick={onCreateRoadmap}
+                        style={{ fontSize: 12, padding: '4px 10px', gap: 4 }}
+                      >
+                        <Plus size={13} /> New Roadmap
+                      </motion.button>
+                    )}
+                  </div>
+
+                  {roadmaps.length === 0 ? (
+                    <div
+                      style={{
+                        padding: 30,
+                        textAlign: 'center',
+                        boxShadow: 'var(--neu-shadow-input)',
+                        borderRadius: 'var(--radius)',
+                        backgroundColor: 'hsl(var(--card))'
+                      }}
+                    >
+                      <div style={{ fontSize: 14, fontWeight: 600, color: 'hsl(var(--foreground))', marginBottom: 4 }}>
+                        No project roadmaps yet
+                      </div>
+                      <div style={{ fontSize: 12.5, color: 'hsl(var(--muted-foreground))', marginBottom: 14 }}>
+                        Create a roadmap for your application (e.g. Inky) to track phases like Planning, UI, Frontend, and Backend.
+                      </div>
+                      {onCreateRoadmap && (
+                        <motion.button whileTap={{ scale: 0.95 }} className="btn btn-secondary" onClick={onCreateRoadmap}>
+                          <Milestone size={14} color="hsl(var(--primary))" /> Create First Roadmap
+                        </motion.button>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="dashboard-boards-grid" style={{ width: '100%', minWidth: 0 }}>
+                      {roadmaps.map(b => renderBoardCard(b, true))}
+                    </div>
+                  )}
+                </motion.div>
+              </>
+            );
+          })()}
 
           {/* Section: My Tasks & Upcoming Deadlines */}
           <motion.div variants={isMobile ? itemMobileVariants : item3DVariants} className="dashboard-widget-card" style={{ width: '100%', minWidth: 0, boxSizing: 'border-box' }}>

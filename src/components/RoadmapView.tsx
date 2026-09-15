@@ -1,15 +1,14 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
-  Milestone, ChevronLeft, ChevronRight,
-  CheckSquare, Square, Clock, AlertCircle, CheckCircle2,
-  ChevronDown, ChevronUp, User, Layers, Plus, Search, Filter,
-  Play, Check, Trash2, Edit3, Tag,
-  X, Target, BarChart2, Kanban, Link2, HelpCircle
+  ChevronLeft, ChevronRight,
+  CheckSquare, Square,
+  ChevronDown, ChevronUp, Layers, Plus,
+  X, Milestone,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { Board, Card as CardType, Member, Sprint } from '../types';
 import { LABELS } from '../types';
-import { formatDueDate, avatarInitials, uid } from '../utils';
+import { formatDueDate, avatarInitials, uid, deriveCardProgress } from '../utils';
 import { useWorkStore } from '../store/useWorkStore';
 import { useToastStore } from '../store/useToastStore';
 import { useAuthStore } from '../store/useAuthStore';
@@ -76,6 +75,7 @@ interface TaskWithSchedule {
   actualOrProjectedEndDate: Date;
   isProjected: boolean;
   varianceDays: number;
+  startVarianceDays: number;
   /** Total suspended (paused) calendar days already factored into variance */
   suspendedDays: number;
   /** Whether work was confirmed today (via check-in or activity) */
@@ -101,22 +101,7 @@ interface GroupSection {
   tasks: TaskWithSchedule[];
 }
 
-export function deriveCardProgress(card: CardType, columnName: string): number {
-  if (card.completed) return 100;
-  const col = (columnName || '').toLowerCase();
-  // 100% - Handover / Closeout / Approved / Delivered / Done / Signed-off
-  if (col.includes('done') || col.includes('complete') || col.includes('handover') || col.includes('closeout') || col.includes('delivered') || col.includes('approved') || col.includes('finished') || col.includes('sign-off') || col.includes('signed off')) return 100;
-  // 80% - Testing / Commissioning / Inspection / Review / QA / Punch List / Validation / SAT / FAT
-  if (col.includes('review') || col.includes('qa') || col.includes('test') || col.includes('inspection') || col.includes('commissioning') || col.includes('punch list') || col.includes('validation') || col.includes('sat') || col.includes('fat') || col.includes('audit')) return 80;
-  // 50% - In Progress / Installation / Assembly / Construction / Rough-In / Field Work / Integration
-  if (col.includes('in progress') || col.includes('doing') || col.includes('active') || col.includes('install') || col.includes('assembly') || col.includes('construction') || col.includes('execution') || col.includes('fabrication') || col.includes('wiring') || col.includes('rough-in') || col.includes('integration') || col.includes('field work') || col.includes('site work')) return 50;
-  // 25% - Procurement / Ordering / Permits / Mobilization / Staging / Engineering / Submittal
-  if (col.includes('urgent') || col.includes('critical') || col.includes('procurement') || col.includes('ordering') || col.includes('permit') || col.includes('mobilization') || col.includes('engineering') || col.includes('staging') || col.includes('submittal') || col.includes('triage')) return 25;
-  // 10% - To Do / Planning / Design / Schematic / Backlog / Queued
-  if (col.includes('to do') || col.includes('todo') || col.includes('backlog') || col.includes('planning') || col.includes('design') || col.includes('schematic') || col.includes('draft') || col.includes('queued') || col.includes('scope')) return 10;
-  if (card.progress !== undefined && card.progress !== null) return card.progress;
-  return 0;
-}
+export { deriveCardProgress };
 
 export function isMilestoneTask(card: CardType): boolean {
   if (card.isMilestone) return true;
@@ -272,7 +257,7 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
   const [showUnscheduled, setShowUnscheduled] = useState(false);
-  const [showProjectionComparison, setShowProjectionComparison] = useState(true);
+  const [showProjectionComparison, setShowProjectionComparison] = useState(false);
   const [mobileTab, setMobileTab] = useState<'deliverables' | 'timeline'>('deliverables');
   const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth <= 768);
   const [showHelpGuide, setShowHelpGuide] = useState(false);
@@ -283,52 +268,20 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  // Group By options with Lucide icons (Universal across Construction, Systems Integration & Business PM)
+  // Group By options
   const groupByOptions: SelectOption<GroupByMode>[] = useMemo(() => [
-    {
-      value: 'column',
-      label: 'By Stage / Phase',
-      icon: <Kanban size={13} color="#3b82f6" />,
-    },
-    {
-      value: 'sprint',
-      label: 'By Project Phase',
-      icon: <Layers size={13} color="#6366f1" />,
-    },
-    {
-      value: 'assignee',
-      label: 'By Assignee / Lead',
-      icon: <User size={13} color="#10b981" />,
-    },
-    {
-      value: 'label',
-      label: 'By Workstream',
-      icon: <Tag size={13} color="#f59e0b" />,
-    },
+    { value: 'column', label: 'By Stage / Phase', icon: <span style={{ width: 8, height: 8, borderRadius: 2, background: '#3b82f6', display: 'inline-block', flexShrink: 0 }} /> },
+    { value: 'sprint', label: 'By Project Phase', icon: <span style={{ width: 8, height: 8, borderRadius: 2, background: '#6366f1', display: 'inline-block', flexShrink: 0 }} /> },
+    { value: 'assignee', label: 'By Assignee / Lead', icon: <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#10b981', display: 'inline-block', flexShrink: 0 }} /> },
+    { value: 'label', label: 'By Workstream', icon: <span style={{ width: 8, height: 8, borderRadius: 2, background: '#f59e0b', display: 'inline-block', flexShrink: 0 }} /> },
   ], []);
 
-  // Status Filter options with Lucide icons (No emojis, high contrast in dark mode)
+  // Status Filter options
   const statusFilterOptions: SelectOption<StatusFilter>[] = useMemo(() => [
-    {
-      value: 'all',
-      label: 'All Status',
-      icon: <Filter size={12} color="hsl(var(--muted-foreground))" />,
-    },
-    {
-      value: 'active',
-      label: 'Active Only',
-      icon: <Clock size={12} color="#3b82f6" />,
-    },
-    {
-      value: 'completed',
-      label: 'Completed',
-      icon: <CheckCircle2 size={12} color="#10b981" />,
-    },
-    {
-      value: 'overdue',
-      label: 'Overdue',
-      icon: <AlertCircle size={12} color="#ef4444" />,
-    },
+    { value: 'all', label: 'All Status', icon: <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'hsl(var(--muted-foreground))', display: 'inline-block', flexShrink: 0 }} /> },
+    { value: 'active', label: 'Active Only', icon: <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#3b82f6', display: 'inline-block', flexShrink: 0 }} /> },
+    { value: 'completed', label: 'Completed', icon: <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#10b981', display: 'inline-block', flexShrink: 0 }} /> },
+    { value: 'overdue', label: 'Overdue', icon: <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#ef4444', display: 'inline-block', flexShrink: 0 }} /> },
   ], []);
 
   // Modals / Dialogs
@@ -347,6 +300,8 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
   const [quickTaskSprintId, setQuickTaskSprintId] = useState('');
   const [quickTaskStartDate, setQuickTaskStartDate] = useState('');
   const [quickTaskDueDate, setQuickTaskDueDate] = useState('');
+  const [quickTaskActualStartDate, setQuickTaskActualStartDate] = useState('');
+  const [quickTaskActualEndDate, setQuickTaskActualEndDate] = useState('');
   const [quickTaskAssignee, setQuickTaskAssignee] = useState('');
   const [quickTaskIsMilestone, setQuickTaskIsMilestone] = useState(false);
 
@@ -545,6 +500,9 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
         //    Suspended days are already factored into actOrProjEnd, so the
         //    variance naturally reflects only real work-time delay.
         const varianceDays = Math.round((actOrProjEnd.getTime() - targetEnd.getTime()) / 86400000);
+        const startVarianceDays = card.actualStartDate
+          ? Math.round((actStart.getTime() - targetStart.getTime()) / 86400000)
+          : 0;
 
         list.push({
           card,
@@ -557,6 +515,7 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
           actualOrProjectedEndDate: actOrProjEnd,
           isProjected,
           varianceDays,
+          startVarianceDays,
           suspendedDays,
           isWorkedToday: workStatus.isWorkedToday,
           workedDaysCount: workStatus.workedDaysCount,
@@ -871,17 +830,21 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
       updateCard(newCard.id, {
         startDate: quickTaskStartDate || null,
         dueDate: quickTaskDueDate || null,
+        actualStartDate: quickTaskActualStartDate || null,
+        actualEndDate: quickTaskActualEndDate || null,
         sprintId: quickTaskSprintId || null,
         assignees: quickTaskAssignee ? [quickTaskAssignee] : [],
         isMilestone: quickTaskIsMilestone,
       });
-      showToast(`Added task "${quickTaskTitle.trim()}"`, 'success');
+      showToast(`Added "${quickTaskTitle.trim()}"`, 'success');
     }
 
     setShowQuickAddModal(false);
     setQuickTaskTitle('');
     setQuickTaskStartDate('');
     setQuickTaskDueDate('');
+    setQuickTaskActualStartDate('');
+    setQuickTaskActualEndDate('');
     setQuickTaskAssignee('');
     setQuickTaskIsMilestone(false);
   };
@@ -1151,87 +1114,144 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
   const isTodayInView = todayProgress >= 0 && todayProgress <= 1;
   const todayXPos = todayProgress * totalTimelineWidth;
 
+  // Plain-English status helper
+  const getStatusPill = (t: TaskWithSchedule) => {
+    if (t.card.completed) {
+      if (t.startVarianceDays < 0) {
+        return { label: `Done (started ${Math.abs(t.startVarianceDays)}d early)`, color: '#10b981', bg: 'rgba(16,185,129,0.15)' };
+      }
+      return { label: 'Done', color: '#10b981', bg: 'rgba(16,185,129,0.12)' };
+    }
+    if (!t.card.completed && t.endDate < today) return { label: `${t.varianceDays}d overdue`, color: '#ef4444', bg: 'rgba(239,68,68,0.12)' };
+    if (t.startVarianceDays < 0 && t.varianceDays <= 0) {
+      return { label: `Started ${Math.abs(t.startVarianceDays)}d early`, color: '#10b981', bg: 'rgba(16,185,129,0.15)' };
+    }
+    if (t.varianceDays > 0) return { label: `${t.varianceDays}d behind`, color: '#f59e0b', bg: 'rgba(245,158,11,0.12)' };
+    if (t.varianceDays < 0) return { label: `${Math.abs(t.varianceDays)}d ahead`, color: '#10b981', bg: 'rgba(16,185,129,0.12)' };
+    return { label: 'On track', color: '#3b82f6', bg: 'rgba(59,130,246,0.12)' };
+  };
+
+  const behindCount = allTasks.filter(t => !t.card.completed && t.varianceDays > 0).length;
+
   return (
     <div className={`roadmap-view-container roadmap-mobile-mode-${mobileTab}`}>
-      {/* Top Header & Toolbar */}
-      <div className="roadmap-header-bar">
-        <div className="roadmap-header-left">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-            <div
-              style={{
-                width: 32,
-                height: 32,
-                borderRadius: 8,
-                background: 'hsl(var(--primary) / 0.15)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                boxShadow: 'var(--neu-shadow-raised-sm)',
-              }}
-            >
-              <Milestone size={18} color="hsl(var(--primary))" />
+
+      {/* ── Project Roadmap Header (When viewing a Roadmap) ── */}
+      {board.type === 'roadmap' && (
+        <div style={{
+          padding: '14px 16px 4px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: 12,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{
+              width: 34,
+              height: 34,
+              borderRadius: 8,
+              background: 'hsl(var(--primary) / 0.15)',
+              color: 'hsl(var(--primary))',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+            }}>
+              <Milestone size={18} />
             </div>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <h2 style={{ fontSize: 16, fontWeight: 700, margin: 0, color: 'hsl(var(--foreground))' }}>
-                  Roadmap & Gantt
-                </h2>
-                <span
-                  style={{
-                    fontSize: 10.5,
-                    fontWeight: 700,
-                    padding: '2px 7px',
-                    borderRadius: 6,
-                    background: 'hsl(var(--primary) / 0.15)',
-                    color: 'hsl(var(--primary))',
-                    letterSpacing: '0.04em',
-                    textTransform: 'uppercase',
-                  }}
-                >
-                  PROJECT SCHEDULE
+                <h1 style={{ fontSize: 17, fontWeight: 700, margin: 0, color: 'hsl(var(--foreground))' }}>
+                  {board.name}
+                </h1>
+                <span style={{
+                  fontSize: 10,
+                  fontWeight: 700,
+                  padding: '1px 6px',
+                  borderRadius: 4,
+                  background: 'hsl(var(--primary) / 0.15)',
+                  color: 'hsl(var(--primary))',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.04em',
+                }}>
+                  Project Roadmap
                 </span>
               </div>
-              <span className="roadmap-header-subtitle" style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))' }}>
-                Milestone tracking, work packages & timeline scheduling
-              </span>
+              <p style={{ margin: '2px 0 0', fontSize: 12, color: 'hsl(var(--muted-foreground))' }}>
+                {board.description || 'Track deliverables, scheduled milestones, and actual start/completion dates.'}
+              </p>
             </div>
           </div>
-
-          {/* Quick Statistics Chips */}
-          <div className="roadmap-stats-chips">
-            <span className="roadmap-stat-pill" title="Total Tasks on Roadmap">
-              <strong>{totalCount}</strong> tasks
-            </span>
-            <span className="roadmap-stat-pill success" title="Completed Tasks">
-              <CheckCircle2 size={12} />
-              <span>{completedCount} done ({totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0}%)</span>
-            </span>
-            {milestonesCount > 0 && (
-              <span className="roadmap-stat-pill" style={{ background: 'hsl(280 84% 60% / 0.15)', color: '#a855f7' }} title="Business Milestones">
-                <Target size={12} />
-                <span>{milestonesCount} milestones</span>
-              </span>
-            )}
-            {overdueCount > 0 && (
-              <span className="roadmap-stat-pill warning" title="Overdue Tasks">
-                <AlertCircle size={12} />
-                <span>{overdueCount} overdue</span>
-              </span>
-            )}
-          </div>
         </div>
+      )}
 
-        {/* Row 3: Action Buttons (Aligned to top header row on desktop) */}
-        <div className="roadmap-toolbar-row-3">
+      {/* ── Top Summary Cards ── */}
+      <div style={{
+        display: 'flex',
+        gap: 10,
+        padding: '12px 16px 0',
+        flexWrap: 'wrap',
+        alignItems: 'stretch',
+      }}>
+        {[
+          { value: totalCount, label: board.type === 'roadmap' ? 'Deliverables & Phases' : 'Total Tasks', color: 'hsl(var(--foreground))', accent: 'hsl(var(--primary) / 0.12)' },
+          { value: completedCount, label: 'Completed', color: '#10b981', accent: 'rgba(16,185,129,0.1)' },
+          { value: overdueCount, label: 'Overdue', color: '#ef4444', accent: 'rgba(239,68,68,0.1)' },
+          { value: behindCount, label: 'Behind Schedule', color: '#f59e0b', accent: 'rgba(245,158,11,0.1)' },
+        ].map(card => (
+          <div key={card.label} style={{
+            flex: '1 1 100px',
+            minWidth: 90,
+            maxWidth: 160,
+            background: card.accent,
+            border: `1px solid ${card.color}30`,
+            borderRadius: 10,
+            padding: '10px 14px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 2,
+          }}>
+            <span style={{ fontSize: 22, fontWeight: 800, color: card.color, lineHeight: 1 }}>{card.value}</span>
+            <span style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))', fontWeight: 500 }}>{card.label}</span>
+          </div>
+        ))}
+
+        {/* Spacer + Action Buttons */}
+        <div style={{ flex: '1 1 auto', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 7, flexWrap: 'wrap', paddingTop: 2 }}>
+          {activeSprint && (
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 8,
+              background: 'hsl(var(--card))',
+              border: '1px solid hsl(var(--border))',
+              borderRadius: 8, padding: '5px 10px', fontSize: 12,
+            }}>
+              <span className="sprint-status-dot pulse" />
+              <span style={{ fontWeight: 600 }}>{activeSprint.name}</span>
+              <span style={{ color: 'hsl(var(--muted-foreground))' }}>
+                {activeSprintCompleted}/{activeSprintTasks.length} done
+              </span>
+              {!isObserver && (
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  style={{ fontSize: 10.5, padding: '2px 7px', height: 22, borderRadius: 5 }}
+                  onClick={() => {
+                    completeSprint(board.id, activeSprint.id);
+                    showToast(`Completed phase "${activeSprint.name}"!`, 'success');
+                  }}
+                >Finish Phase</button>
+              )}
+            </div>
+          )}
+
           {!isObserver && (
             <>
-              <motion.button
-                whileTap={{ scale: 0.95 }}
-                type="button"
-                className="btn btn-secondary roadmap-btn-phase"
+              <motion.button whileTap={{ scale: 0.95 }} type="button"
+                className="btn btn-secondary"
                 onClick={() => {
                   setEditingSprint(null);
-                  setSprintName(`Sprint ${(board.sprints?.length || 0) + 1}`);
+                  setSprintName(`Phase ${(board.sprints?.length || 0) + 1}`);
                   setSprintGoal('');
                   const now = new Date();
                   setSprintStartDate(now.toISOString().split('T')[0]);
@@ -1240,356 +1260,117 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
                   setSprintEndDate(twoWeeks.toISOString().split('T')[0]);
                   setShowSprintModal(true);
                 }}
-                title="Create a new project delivery phase"
-              >
-                <span>+ Phase</span>
-              </motion.button>
+                title="Create a new project phase"
+              >+ Phase</motion.button>
 
-              <motion.button
-                whileTap={{ scale: 0.95 }}
-                type="button"
-                className="btn btn-primary roadmap-btn-add-task"
+              <motion.button whileTap={{ scale: 0.95 }} type="button"
+                className="btn btn-primary"
                 onClick={() => setShowQuickAddModal(true)}
-                title="Quick add a new task to roadmap"
+                title={board.type === 'roadmap' ? "Add a new phase or subtask" : "Quick add a new task"}
               >
-                <span className="hide-on-mobile-inline">+ Add Task</span>
-                <span className="show-on-mobile-inline">+ Task</span>
+                {board.type === 'roadmap' ? '+ Add Phase / Subtask' : '+ Add Task'}
               </motion.button>
             </>
           )}
 
-          <motion.button
-            whileTap={{ scale: 0.95 }}
-            type="button"
-            className={`btn ${showProjectionComparison ? 'btn-primary' : 'btn-secondary'} roadmap-btn-compare`}
-            onClick={() => setShowProjectionComparison(s => !s)}
-            title="Switch between comparing the original plan vs actual work, or showing a clean simple bar"
-          >
-            <span className="hide-on-mobile-inline">{showProjectionComparison ? 'Plan vs Actual (Dual)' : 'Simple View'}</span>
-            <span className="show-on-mobile-inline">{showProjectionComparison ? 'Dual' : 'Simple'}</span>
-          </motion.button>
-
-          <motion.button
-            whileTap={{ scale: 0.95 }}
-            type="button"
-            className="btn btn-secondary roadmap-btn-export"
+          <motion.button whileTap={{ scale: 0.95 }} type="button"
+            className="btn btn-secondary"
             onClick={handleExportCSV}
-            title="Export complete Gantt chart timeline and task data as CSV for Microsoft Excel"
-          >
-            <span>Export Gantt CSV</span>
-          </motion.button>
+            title="Export Gantt chart as CSV for Excel"
+          >Export CSV</motion.button>
         </div>
       </div>
 
-      {/* Mobile Segmented View Switcher Tabs (Only displayed on mobile screens) */}
+      {/* Mobile Segmented View Switcher */}
       <div className="roadmap-mobile-view-tabs" role="tablist" aria-label="Roadmap View Options">
-        <button
-          type="button"
-          role="tab"
-          aria-selected={mobileTab === 'deliverables'}
+        <button type="button" role="tab" aria-selected={mobileTab === 'deliverables'}
           className={`mobile-view-tab ${mobileTab === 'deliverables' ? 'active' : ''}`}
-          onClick={() => setMobileTab('deliverables')}
-        >
-          <span>Deliverables ({totalCount})</span>
+          onClick={() => setMobileTab('deliverables')}>
+          <span>Tasks ({totalCount})</span>
         </button>
+        <button type="button" role="tab" aria-selected={mobileTab === 'timeline'}
+          className={`mobile-view-tab ${mobileTab === 'timeline' ? 'active' : ''}`}
+          onClick={() => setMobileTab('timeline')}>
+          <span>Timeline</span>
+        </button>
+      </div>
+
+      {/* ── Single Controls Row ── */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 8,
+        padding: '8px 16px',
+        flexWrap: 'wrap',
+        borderBottom: '1px solid hsl(var(--border) / 0.5)',
+      }}>
+        {/* Search */}
+        <div className="roadmap-search-box" style={{ flex: '1 1 160px', minWidth: 120 }}>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="hsl(var(--muted-foreground))" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input
+            type="text"
+            placeholder="Search tasks..."
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            className="roadmap-search-input"
+          />
+          {searchQuery && (
+            <button onClick={() => setSearchQuery('')} className="roadmap-search-clear">
+              <X size={12} />
+            </button>
+          )}
+        </div>
+
+        {/* Scale Switcher */}
+        <div className="roadmap-scale-group" style={{ flexShrink: 0 }}>
+          <button type="button" className={`scale-btn ${scale === 'days' ? 'active' : ''}`} onClick={() => setScale('days')}>Days</button>
+          <button type="button" className={`scale-btn ${scale === 'weeks' ? 'active' : ''}`} onClick={() => setScale('weeks')}>Weeks</button>
+          <button type="button" className={`scale-btn ${scale === 'months' ? 'active' : ''}`} onClick={() => setScale('months')}>Months</button>
+        </div>
+
+        {/* Group By */}
+        <NeumorphicSelect<GroupByMode>
+          value={groupBy}
+          options={groupByOptions}
+          onChange={setGroupBy}
+          prefix="Group:"
+          size="sm"
+          style={{ minWidth: 135, flex: '0 0 auto' }}
+        />
+
+        {/* Status Filter */}
+        <NeumorphicSelect<StatusFilter>
+          value={statusFilter}
+          options={statusFilterOptions}
+          onChange={setStatusFilter}
+          size="sm"
+          style={{ minWidth: 120, flex: '0 0 auto' }}
+        />
+
+        {/* Dual View toggle */}
         <button
           type="button"
-          role="tab"
-          aria-selected={mobileTab === 'timeline'}
-          className={`mobile-view-tab ${mobileTab === 'timeline' ? 'active' : ''}`}
-          onClick={() => setMobileTab('timeline')}
+          className={`btn ${showProjectionComparison ? 'btn-primary' : 'btn-secondary'}`}
+          style={{ fontSize: 11.5, flexShrink: 0 }}
+          onClick={() => setShowProjectionComparison(s => !s)}
+          title="Show both the original plan and actual work done as two separate bars"
         >
-          <span>Gantt Timeline</span>
+          {showProjectionComparison ? 'Dual View: On' : 'Dual View'}
         </button>
       </div>
 
-      {/* Controls Bar: Search, GroupBy, Status, Scale, Navigation, Legend */}
-      <div className="roadmap-controls-bar">
-        {/* Row 1: Search & Filter Selectors */}
-        <div className="roadmap-toolbar-row-1">
-          {/* Search bar */}
-          <div className="roadmap-search-box">
-            <Search size={13} color="hsl(var(--muted-foreground))" />
-            <input
-              type="text"
-              placeholder="Search roadmap..."
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              className="roadmap-search-input"
-            />
-            {searchQuery && (
-              <button onClick={() => setSearchQuery('')} className="roadmap-search-clear">
-                <X size={12} />
-              </button>
-            )}
-          </div>
-
-          {/* Group By Selector */}
-          <NeumorphicSelect<GroupByMode>
-            value={groupBy}
-            options={groupByOptions}
-            onChange={setGroupBy}
-            prefix="Group:"
-            size="sm"
-            style={{ minWidth: 140, flex: '1 1 auto' }}
-          />
-
-          {/* Status Filter */}
-          <NeumorphicSelect<StatusFilter>
-            value={statusFilter}
-            options={statusFilterOptions}
-            onChange={setStatusFilter}
-            size="sm"
-            style={{ minWidth: 125, flex: '1 1 auto' }}
-          />
-        </div>
-
-        {/* Row 2: Scale Switcher & Time Navigation & Legend */}
-        <div className="roadmap-toolbar-row-2">
-          {/* Scale Switcher */}
-          <div className="roadmap-scale-group">
-            <button
-              type="button"
-              className={`scale-btn ${scale === 'days' ? 'active' : ''}`}
-              onClick={() => setScale('days')}
-            >
-              Days
-            </button>
-            <button
-              type="button"
-              className={`scale-btn ${scale === 'weeks' ? 'active' : ''}`}
-              onClick={() => setScale('weeks')}
-            >
-              Weeks
-            </button>
-            <button
-              type="button"
-              className={`scale-btn ${scale === 'months' ? 'active' : ''}`}
-              onClick={() => setScale('months')}
-            >
-              Months
-            </button>
-          </div>
-
-          {/* Time Navigation */}
-          <div className="roadmap-nav-group">
-            <motion.button
-              whileTap={{ scale: 0.94 }}
-              type="button"
-              className="btn btn-secondary today-btn"
-              onClick={handleJumpToday}
-              title="Jump to Today"
-            >
-              Today
-            </motion.button>
-            <motion.button
-              whileTap={{ scale: 0.92 }}
-              type="button"
-              className="icon-btn"
-              onClick={() => handleNav('prev')}
-              title="Previous window"
-              style={{ width: 28, height: 28, minWidth: 28 }}
-            >
-              <ChevronLeft size={15} />
-            </motion.button>
-            <span className="roadmap-date-label">
-              {viewStart.toLocaleDateString([], { month: 'short', year: 'numeric' })}
-              {viewStart.getMonth() !== viewEnd.getMonth() && (
-                <span> – {viewEnd.toLocaleDateString([], { month: 'short', year: 'numeric' })}</span>
-              )}
-            </span>
-            <motion.button
-              whileTap={{ scale: 0.92 }}
-              type="button"
-              className="icon-btn"
-              onClick={() => handleNav('next')}
-              title="Next window"
-              style={{ width: 28, height: 28, minWidth: 28 }}
-            >
-              <ChevronRight size={15} />
-            </motion.button>
-          </div>
-
-          {/* Visual Legend with Friendly Non-Technical Labels & Help Trigger */}
-          <div className="roadmap-legend-container" title="Schedule Tracking Legend">
-            <div className="roadmap-legend-item">
-              <div className="roadmap-legend-swatch" style={{ backgroundColor: '#10b981' }} />
-              <span>Planned Goal</span>
-            </div>
-            <div className="roadmap-legend-item">
-              <div className="roadmap-legend-swatch" style={{ backgroundColor: '#f97316' }} />
-              <span>Work Done</span>
-            </div>
-            <button
-              type="button"
-              onClick={() => setShowHelpGuide(s => !s)}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: 10.5,
-                fontWeight: 600,
-                color: showHelpGuide ? 'hsl(var(--primary))' : 'hsl(var(--muted-foreground))',
-                background: showHelpGuide ? 'hsl(var(--primary) / 0.12)' : 'transparent',
-                border: '1px solid hsl(var(--border) / 0.6)',
-                borderRadius: 6,
-                padding: '2px 8px',
-                cursor: 'pointer',
-                marginLeft: 4,
-              }}
-              title="Click for a quick explanation of this chart"
-            >
-              <span>{showHelpGuide ? 'Hide Guide' : 'How it works'}</span>
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Friendly Explainer Guide for Non-Technical Stakeholders */}
-      <AnimatePresence>
-        {showHelpGuide && (
-          <motion.div
-            initial={{ opacity: 0, height: 0, y: -6 }}
-            animate={{ opacity: 1, height: 'auto', y: 0 }}
-            exit={{ opacity: 0, height: 0, y: -6 }}
-            transition={{ duration: 0.2 }}
-            style={{
-              overflow: 'hidden',
-              margin: '6px 16px 10px',
-              padding: '12px 16px',
-              borderRadius: 10,
-              background: 'hsl(var(--card))',
-              border: '1px solid hsl(var(--primary) / 0.35)',
-              boxShadow: '0 4px 14px rgba(0,0,0,0.08)',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-              <span style={{ fontSize: 12, fontWeight: 700, color: 'hsl(var(--foreground))' }}>
-                How to read this chart (Quick 10-second guide)
-              </span>
-              <button
-                type="button"
-                onClick={() => setShowHelpGuide(false)}
-                style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'hsl(var(--muted-foreground))', padding: '2px 6px', fontSize: 12, lineHeight: 1 }}
-                title="Close guide"
-              >
-                ✕
-              </button>
-            </div>
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))',
-              gap: 12,
-            }}>
-              <div style={{ display: 'flex', gap: 9, alignItems: 'flex-start' }}>
-                <div style={{ width: 10, height: 10, borderRadius: 2, backgroundColor: '#10b981', marginTop: 3, flexShrink: 0 }} />
-                <div>
-                  <div style={{ fontSize: 11.5, fontWeight: 700, color: 'hsl(var(--foreground))' }}>Top Green Bar = The Plan</div>
-                  <div style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))' }}>The agreed deadline. Stays fixed so everyone knows what was promised.</div>
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', gap: 9, alignItems: 'flex-start' }}>
-                <div style={{ width: 10, height: 10, borderRadius: 2, backgroundColor: '#f97316', marginTop: 3, flexShrink: 0 }} />
-                <div>
-                  <div style={{ fontSize: 11.5, fontWeight: 700, color: 'hsl(var(--foreground))' }}>Bottom Orange Bar = Work Done</div>
-                  <div style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))' }}>Real progress. Automatically pauses if no work or comments happened today.</div>
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', gap: 9, alignItems: 'flex-start' }}>
-                <div style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: '#3b82f6', marginTop: 3, flexShrink: 0 }} />
-                <div>
-                  <div style={{ fontSize: 11.5, fontWeight: 700, color: 'hsl(var(--foreground))' }}>Blue Vertical Line = Today</div>
-                  <div style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))' }}>Current day. If the orange bar is behind this line, the task is running late.</div>
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', gap: 9, alignItems: 'flex-start' }}>
-                <div style={{ width: 10, height: 10, transform: 'rotate(45deg)', backgroundColor: '#a855f7', marginTop: 3, flexShrink: 0 }} />
-                <div>
-                  <div style={{ fontSize: 11.5, fontWeight: 700, color: 'hsl(var(--foreground))' }}>Purple Diamond = Key Milestone</div>
-                  <div style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))' }}>Major checkpoints (e.g. client sign-off, permits, releases).</div>
-                </div>
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Active Phase Highlights Bar (When an active phase exists) */}
-      {activeSprint && (
-        <div className="roadmap-active-sprint-banner">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 }}>
-            <div className="sprint-status-dot pulse" />
-            <div style={{ minWidth: 0 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ fontWeight: 700, fontSize: 13, color: 'hsl(var(--foreground))' }}>
-                  {activeSprint.name}
-                </span>
-                <span className="sprint-active-badge">CURRENT PHASE</span>
-                <span style={{ fontSize: 11.5, color: 'hsl(var(--muted-foreground))' }}>
-                  {formatDueDate(activeSprint.startDate)} – {formatDueDate(activeSprint.endDate)}
-                </span>
-              </div>
-              {activeSprint.goal && (
-                <div style={{ fontSize: 12, color: 'hsl(var(--foreground) / 0.8)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  <strong>Scope:</strong> {activeSprint.goal}
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
-              <BarChart2 size={14} color="hsl(var(--primary))" />
-              <span>
-                <strong>{activeSprintCompleted}</strong> / {activeSprintTasks.length} deliverables done
-              </span>
-              <div className="sprint-mini-progress-bar">
-                <div
-                  className="sprint-mini-progress-fill"
-                  style={{
-                    width: `${activeSprintTasks.length > 0 ? (activeSprintCompleted / activeSprintTasks.length) * 100 : 0}%`
-                  }}
-                />
-              </div>
-            </div>
-
-            {!isObserver && (
-              <button
-                type="button"
-                className="btn btn-secondary"
-                style={{ fontSize: 11, padding: '3px 9px', height: 26 }}
-                onClick={() => {
-                  completeSprint(board.id, activeSprint.id);
-                  showToast(`Completed phase "${activeSprint.name}"!`, 'success');
-                }}
-              >
-                Complete Phase
-              </button>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Split-Pane: Left Task Hierarchy & Right Timeline Canvas */}
+      {/* ── Split Pane ── */}
       <div className={`roadmap-split-pane mobile-tab-${mobileTab}`}>
+
         {/* Left Side: Tasks Table */}
         <div className="roadmap-tasks-pane">
           <div className="roadmap-pane-header">
-            <span style={{ flex: 1, paddingLeft: 8 }}>Task Name</span>
-            <span className="hide-on-mobile-inline" style={{ width: 38, textAlign: 'center' }}>Done</span>
-            <span className="hide-on-mobile-inline" style={{ width: 68, textAlign: 'center' }}>Due Date</span>
-            <span className="hide-on-mobile-inline" style={{ width: 95, textAlign: 'right', paddingRight: 8 }}>Status</span>
-            <span className="show-on-mobile-inline" style={{ width: 95, textAlign: 'right', paddingRight: 8 }}>Status & Due</span>
+            <span style={{ flex: 1, paddingLeft: 8 }}>Task</span>
+            <span className="hide-on-mobile-inline" style={{ width: 120, textAlign: 'right', paddingRight: 8 }}>Progress &amp; Status</span>
+            <span className="show-on-mobile-inline" style={{ width: 80, textAlign: 'right', paddingRight: 8 }}>Status</span>
           </div>
 
-          <div
-            className="roadmap-tasks-list"
-            ref={taskListRef}
-            onScroll={handleTaskListScroll}
-          >
+          <div className="roadmap-tasks-list" ref={taskListRef} onScroll={handleTaskListScroll}>
             {groupedSections.map(section => {
               const tasks = section.tasks;
               const isCollapsed = collapsedGroups[section.id] !== undefined
@@ -1605,24 +1386,18 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
                     title="Click to collapse/expand"
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, minWidth: 0 }}>
-                      {isCollapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
-                      <span
-                        style={{
-                          width: 8,
-                          height: 8,
-                          borderRadius: '50%',
-                          backgroundColor: section.color || 'hsl(var(--primary))',
-                          flexShrink: 0
-                        }}
-                      />
+                      {isCollapsed
+                        ? <ChevronRight size={14} />
+                        : <ChevronDown size={14} />
+                      }
+                      <span style={{
+                        width: 8, height: 8, borderRadius: '50%',
+                        backgroundColor: section.color || 'hsl(var(--primary))',
+                        flexShrink: 0
+                      }} />
                       <span style={{ fontWeight: 700, fontSize: 12.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {section.title}
                       </span>
-                      {section.badge && (
-                        <span className="roadmap-col-badge" style={{ fontSize: 9.5 }}>
-                          {section.badge}
-                        </span>
-                      )}
                       <span className="roadmap-col-badge">{tasks.length}</span>
                     </div>
 
@@ -1632,29 +1407,19 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
                           {sectionCompleted}/{tasks.length}
                         </span>
                       )}
-
-                      {/* Sprint action menu */}
                       {section.sprint && !isObserver && (
                         <div style={{ display: 'flex', alignItems: 'center', gap: 3 }} onClick={e => e.stopPropagation()}>
                           {section.sprint.status === 'planned' && (
-                            <button
-                              type="button"
-                              className="icon-btn"
-                              title="Start Sprint"
-                              style={{ width: 22, height: 22 }}
+                            <button type="button" className="icon-btn" title="Start Phase"
+                              style={{ width: 22, height: 22, fontSize: 10, fontWeight: 700 }}
                               onClick={() => {
                                 startSprint(board.id, section.sprint!.id);
-                                showToast(`Started sprint "${section.sprint!.name}"`, 'success');
+                                showToast(`Started phase "${section.sprint!.name}"`, 'success');
                               }}
-                            >
-                              <Play size={11} color="#10b981" />
-                            </button>
+                            >▶</button>
                           )}
-                          <button
-                            type="button"
-                            className="icon-btn"
-                            title="Edit Sprint"
-                            style={{ width: 22, height: 22 }}
+                          <button type="button" className="icon-btn" title="Edit Phase"
+                            style={{ width: 22, height: 22, fontSize: 11 }}
                             onClick={() => {
                               setEditingSprint(section.sprint!);
                               setSprintName(section.sprint!.name);
@@ -1664,9 +1429,7 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
                               setSprintColor(section.sprint!.color || '#6366f1');
                               setShowSprintModal(true);
                             }}
-                          >
-                            <Edit3 size={11} />
-                          </button>
+                          >✎</button>
                         </div>
                       )}
                     </div>
@@ -1675,161 +1438,97 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
                   {!isCollapsed && (
                     <div className="roadmap-col-rows">
                       {tasks.length === 0 ? (
-                        <div className="roadmap-empty-col-row">
-                          No tasks scheduled in this group
-                        </div>
+                        <div className="roadmap-empty-col-row">No tasks in this group</div>
                       ) : (
                         tasks.map(t => {
-                          const isOverdue = !t.card.completed && t.endDate < today;
+                          const progressPct = deriveCardProgress(t.card, t.columnName);
+                          const isMilestone = isMilestoneTask(t.card);
+                          const statusPill = getStatusPill(t);
                           const assignees = (t.card.assignees || []).map(id =>
                             board.members?.find((m: Member) => m.id === id)
                           ).filter(Boolean);
-
-                          const progressPct = deriveCardProgress(t.card, t.columnName);
-                          const isMilestone = isMilestoneTask(t.card);
 
                           return (
                             <div
                               key={t.card.id}
                               className={`roadmap-task-row ${t.card.completed ? 'completed' : ''}`}
                               onClick={() => onOpenCard(t.card.id)}
-                              title={`Open details for "${t.card.title}"`}
+                              title={`Open "${t.card.title}"`}
                             >
-                              <button
-                                type="button"
-                                className="roadmap-check-btn"
+                              <button type="button" className="roadmap-check-btn"
                                 onClick={(e) => handleToggleComplete(e, t.card)}
                               >
-                                {t.card.completed ? (
-                                  <CheckSquare size={15} color="hsl(var(--primary))" />
-                                ) : (
-                                  <Square size={15} color="hsl(var(--muted-foreground))" />
-                                )}
+                                {t.card.completed
+                                  ? <CheckSquare size={15} color="hsl(var(--primary))" />
+                                  : <Square size={15} color="hsl(var(--muted-foreground))" />
+                                }
                               </button>
 
-                              {/* Milestone Diamond Badge */}
                               {isMilestone && (
-                                <div
-                                  title="Major Business Milestone"
-                                  style={{
-                                    width: 14,
-                                    height: 14,
-                                    transform: 'rotate(45deg)',
-                                    background: 'linear-gradient(135deg, #a855f7, #ec4899)',
-                                    borderRadius: 2,
-                                    flexShrink: 0,
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    boxShadow: '0 0 6px rgba(168, 85, 247, 0.4)'
-                                  }}
-                                />
+                                <div title="Key Milestone" style={{
+                                  width: 10, height: 10,
+                                  transform: 'rotate(45deg)',
+                                  background: 'linear-gradient(135deg, #a855f7, #ec4899)',
+                                  borderRadius: 2, flexShrink: 0,
+                                  boxShadow: '0 0 5px rgba(168,85,247,0.4)'
+                                }} />
                               )}
 
                               <span className="roadmap-task-title" title={t.card.title}>
                                 {t.card.title}
                               </span>
 
-                              {/* Dependency Indicator */}
-                              {t.card.dependencies && t.card.dependencies.length > 0 && (
-                                <span className="roadmap-dep-badge" title={`Depends on ${t.card.dependencies.length} tasks`} style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
-                                  <Link2 size={10} />
-                                  <span>{t.card.dependencies.length}</span>
+                              {t.startVarianceDays < 0 && (
+                                <span
+                                  style={{
+                                    fontSize: 9.5,
+                                    fontWeight: 700,
+                                    padding: '1px 6px',
+                                    borderRadius: 4,
+                                    background: 'rgba(16,185,129,0.18)',
+                                    color: '#10b981',
+                                    whiteSpace: 'nowrap',
+                                    flexShrink: 0,
+                                  }}
+                                  title={`Scheduled to start ${formatShortDate(t.targetStartDate)}, but work started early on ${formatShortDate(t.actualStartDate)}`}
+                                >
+                                  🟢 Started {Math.abs(t.startVarianceDays)}d early
                                 </span>
                               )}
 
-                              {/* Member Avatars */}
                               {assignees.length > 0 && (
                                 <div className="roadmap-task-assignees">
                                   {assignees.slice(0, 2).map((m: any) => (
                                     <AvatarBorder key={m.id} size={18} title={m.name}>
-                                      {m.avatarUrl ? (
-                                        <img src={m.avatarUrl} alt={m.name} style={{ width: 18, height: 18, borderRadius: '50%' }} />
-                                      ) : (
-                                        <div style={{ width: 18, height: 18, borderRadius: '50%', backgroundColor: m.color, color: '#fff', fontSize: 8, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                          {avatarInitials(m.name)}
-                                        </div>
-                                      )}
+                                      {m.avatarUrl
+                                        ? <img src={m.avatarUrl} alt={m.name} style={{ width: 18, height: 18, borderRadius: '50%' }} />
+                                        : <div style={{ width: 18, height: 18, borderRadius: '50%', backgroundColor: m.color, color: '#fff', fontSize: 8, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{avatarInitials(m.name)}</div>
+                                      }
                                     </AvatarBorder>
                                   ))}
                                 </div>
                               )}
 
-                              {/* Progress % (Desktop) */}
-                              <span className="hide-on-mobile-inline" style={{ width: 38, fontSize: 10.5, fontWeight: 600, textAlign: 'center', color: 'hsl(var(--muted-foreground))' }}>
-                                {progressPct}%
-                              </span>
-
-                              {/* Target Date (Desktop) */}
-                              <span
-                                className="hide-on-mobile-inline"
-                                style={{
-                                  width: 68,
-                                  fontSize: 10.5,
-                                  fontWeight: 500,
-                                  textAlign: 'center',
-                                  color: 'hsl(var(--foreground) / 0.8)',
-                                  whiteSpace: 'nowrap',
-                                  overflow: 'hidden',
-                                  textOverflow: 'ellipsis'
-                                }}
-                                title={`Target Date: ${t.targetEndDate.toLocaleDateString()}`}
-                              >
-                                {formatShortDate(t.targetEndDate)}
-                              </span>
-
-                              {/* Actual / Projected Date with variance (Desktop) */}
-                              <div className="hide-on-mobile-flex" style={{ width: 95, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', paddingRight: 8, whiteSpace: 'nowrap' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                                  {!t.card.completed && (
-                                    <span
-                                      title={t.isWorkedToday ? 'Work confirmed for today' : `Work not marked today (line held at ${formatShortDate(t.lastWorkedDate)})`}
-                                      style={{
-                                        width: 6,
-                                        height: 6,
-                                        borderRadius: '50%',
-                                        backgroundColor: t.isWorkedToday ? '#10b981' : '#f59e0b',
-                                        flexShrink: 0,
-                                      }}
-                                    />
-                                  )}
-                                  <span style={{ fontSize: 10.5, fontWeight: 600, color: t.card.completed ? '#10b981' : (t.varianceDays > 0 ? '#ef4444' : 'hsl(var(--foreground))') }}>
-                                    {formatShortDate(t.actualOrProjectedEndDate)}
-                                  </span>
+                              {/* Progress + Status — Desktop */}
+                              <div className="hide-on-mobile-flex" style={{ width: 120, display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-end', paddingRight: 8 }}>
+                                {/* Mini progress bar */}
+                                <div style={{ width: '100%', height: 4, borderRadius: 4, background: 'hsl(var(--border))', overflow: 'hidden' }}>
+                                  <div style={{ height: '100%', width: `${progressPct}%`, borderRadius: 4, background: t.card.completed ? '#10b981' : 'hsl(var(--primary))', transition: 'width 0.4s ease' }} />
                                 </div>
-                                {t.varianceDays !== 0 && (
-                                  <span className={`variance-tag ${t.varianceDays > 0 ? 'delay' : 'early'}`}>
-                                    {t.varianceDays > 0 ? `${t.varianceDays}d late` : `${Math.abs(t.varianceDays)}d ahead`}
-                                  </span>
-                                )}
-                                {t.varianceDays === 0 && (
-                                  <span className="variance-tag on-track">
-                                    {t.card.completed ? 'On Time' : 'On schedule'}
-                                  </span>
-                                )}
+                                {/* Status pill */}
+                                <span style={{
+                                  fontSize: 10, fontWeight: 700,
+                                  padding: '1px 6px', borderRadius: 20,
+                                  background: statusPill.bg,
+                                  color: statusPill.color,
+                                  whiteSpace: 'nowrap',
+                                }}>{statusPill.label}</span>
                               </div>
 
-                              {/* Mobile Status & Date Stack */}
-                              <div className="roadmap-task-mobile-meta show-on-mobile-flex">
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 4, justifyContent: 'flex-end' }}>
-                                  <span style={{ fontSize: 10, fontWeight: 700, color: progressPct === 100 ? '#10b981' : 'hsl(var(--primary))' }}>
-                                    {progressPct}%
-                                  </span>
-                                  <span style={{ fontSize: 11, fontWeight: 600, color: 'hsl(var(--foreground))' }}>
-                                    {formatShortDate(t.targetEndDate)}
-                                  </span>
-                                </div>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 3, justifyContent: 'flex-end' }}>
-                                  {t.card.completed ? (
-                                    <span style={{ fontSize: 9.5, fontWeight: 600, color: '#10b981' }}>Done</span>
-                                  ) : t.varianceDays !== 0 ? (
-                                    <span className={`variance-tag ${t.varianceDays > 0 ? 'delay' : 'early'}`} style={{ fontSize: 9, padding: '1px 4px' }}>
-                                      {t.varianceDays > 0 ? `${t.varianceDays}d late` : `${Math.abs(t.varianceDays)}d ahead`}
-                                    </span>
-                                  ) : (
-                                    <span style={{ fontSize: 9.5, color: 'hsl(var(--muted-foreground))' }}>On schedule</span>
-                                  )}
-                                </div>
+                              {/* Mobile status */}
+                              <div className="show-on-mobile-flex" style={{ width: 80, display: 'flex', flexDirection: 'column', gap: 2, alignItems: 'flex-end', paddingRight: 6 }}>
+                                <span style={{ fontSize: 9.5, fontWeight: 700, padding: '1px 5px', borderRadius: 20, background: statusPill.bg, color: statusPill.color, whiteSpace: 'nowrap' }}>{statusPill.label}</span>
+                                <span style={{ fontSize: 9.5, color: 'hsl(var(--muted-foreground))' }}>{formatShortDate(t.targetEndDate)}</span>
                               </div>
                             </div>
                           );
@@ -1843,413 +1542,362 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
           </div>
         </div>
 
-        {/* Right Side: Interactive Gantt Canvas */}
-        <div
-          className="roadmap-canvas-pane"
-          ref={timelineContainerRef}
-          onScroll={handleTimelineScroll}
-        >
-          {/* Fixed Timeline Header with Days/Weeks columns */}
-          <div
-            className="roadmap-timeline-header"
-            style={{ width: totalTimelineWidth }}
-          >
-            {intervals.map((intDate, i) => {
-              const isToday = intDate.toDateString() === today.toDateString();
-              let label = '';
-              let subLabel = '';
+        {/* Right Side: Gantt Canvas */}
+        <div className="roadmap-canvas-pane" ref={timelineContainerRef} onScroll={handleTimelineScroll}>
 
-              if (scale === 'days') {
-                label = intDate.toLocaleDateString([], { weekday: 'short' });
-                subLabel = intDate.getDate().toString();
-              } else if (scale === 'weeks') {
-                label = `W${Math.ceil(intDate.getDate() / 7)}`;
-                subLabel = intDate.toLocaleDateString([], { month: 'short', day: 'numeric' });
-              } else {
-                label = intDate.toLocaleDateString([], { month: 'short' });
-                subLabel = intDate.getFullYear().toString();
-              }
-
-              return (
-                <div
-                  key={i}
-                  className={`roadmap-timeline-cell ${isToday ? 'is-today' : ''}`}
-                  style={{ width: intervalWidthPx }}
-                >
-                  <span className="cell-day">{label}</span>
-                  <span className={`cell-num ${isToday ? 'today-pill' : ''}`}>{subLabel}</span>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Timeline Bars Grid */}
-          <div
-            className="roadmap-bars-area"
-            style={{ width: totalTimelineWidth }}
-          >
-            {/* Background Grid Lines */}
-            <div className="roadmap-grid-background">
-              {intervals.map((_, i) => (
-                <div
-                  key={i}
-                  className="roadmap-grid-col"
-                  style={{ width: intervalWidthPx }}
-                />
-              ))}
+          {/* Canvas Header: Date nav + legend strip */}
+          <div style={{
+            position: 'sticky', top: 0, zIndex: 15,
+            background: 'hsl(var(--card))',
+            borderBottom: '1px solid hsl(var(--border) / 0.5)',
+            display: 'flex', flexDirection: 'column',
+          }}>
+            {/* Nav row */}
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              padding: '5px 10px', borderBottom: '1px solid hsl(var(--border) / 0.3)',
+            }}>
+              <motion.button whileTap={{ scale: 0.92 }} type="button" className="icon-btn"
+                onClick={() => handleNav('prev')} title="Go back" style={{ width: 26, height: 26, minWidth: 26 }}>
+                <ChevronLeft size={14} />
+              </motion.button>
+              <span className="roadmap-date-label" style={{ fontSize: 11.5, fontWeight: 600, flex: 1, textAlign: 'center' }}>
+                {viewStart.toLocaleDateString([], { month: 'short', year: 'numeric' })}
+                {viewStart.getMonth() !== viewEnd.getMonth() && (
+                  <span> – {viewEnd.toLocaleDateString([], { month: 'short', year: 'numeric' })}</span>
+                )}
+              </span>
+              <motion.button whileTap={{ scale: 0.92 }} type="button" className="icon-btn"
+                onClick={() => handleNav('next')} title="Go forward" style={{ width: 26, height: 26, minWidth: 26 }}>
+                <ChevronRight size={14} />
+              </motion.button>
+              <motion.button whileTap={{ scale: 0.95 }} type="button"
+                className="btn btn-secondary today-btn" onClick={handleJumpToday} title="Jump to today"
+                style={{ fontSize: 11, padding: '2px 8px', height: 24 }}
+              >Today</motion.button>
             </div>
 
-            {/* Vertical "Today" Marker Line */}
-            {isTodayInView && (
-              <div
-                className="roadmap-today-marker"
-                style={{ left: todayXPos }}
-              >
-                <div className="today-badge">TODAY</div>
-              </div>
-            )}
+            {/* Legend strip — always visible */}
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 12,
+              padding: '5px 10px',
+              fontSize: 10.5, color: 'hsl(var(--muted-foreground))'
+            }}>
+              {showProjectionComparison ? (
+                <>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <span style={{ width: 10, height: 6, borderRadius: 3, background: '#10b981', display: 'inline-block' }} />
+                    Original plan
+                  </span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <span style={{ width: 10, height: 6, borderRadius: 3, background: '#f97316', display: 'inline-block' }} />
+                    Work done
+                  </span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <span style={{ width: 10, height: 6, borderRadius: 3, background: 'repeating-linear-gradient(90deg,#ef444460 0,#ef444460 4px,transparent 4px,transparent 8px)', display: 'inline-block' }} />
+                    Behind schedule
+                  </span>
+                </>
+              ) : (
+                <>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <span style={{ width: 10, height: 6, borderRadius: 3, background: '#10b981', display: 'inline-block' }} />
+                    Completed
+                  </span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <span style={{ width: 10, height: 6, borderRadius: 3, background: 'hsl(var(--primary))', display: 'inline-block' }} />
+                    In progress
+                  </span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <span style={{ width: 10, height: 6, borderRadius: 3, background: '#ef4444', display: 'inline-block' }} />
+                    Overdue
+                  </span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <span style={{ width: 2, height: 14, borderRadius: 2, background: '#3b82f6', display: 'inline-block' }} />
+                    Today
+                  </span>
+                </>
+              )}
+            </div>
+          </div>
 
-            {/* Gantt Bar Rows aligned 1:1 with left table */}
-            <div className="roadmap-bars-rows">
-              {groupedSections.map(section => {
-                const tasks = section.tasks;
-                const isCollapsed = collapsedGroups[section.id];
-
-                // If this section is a sprint, calculate its duration band across the timeline
-                let sprintBand = null;
-                if (section.sprint) {
-                  const spStart = new Date(section.sprint.startDate).getTime();
-                  const spEnd = new Date(section.sprint.endDate).getTime();
-                  const spLeftPct = Math.max(0, Math.min(100, ((spStart - viewStart.getTime()) / totalViewMs) * 100));
-                  const spRightPct = Math.max(0, Math.min(100, ((spEnd - viewStart.getTime()) / totalViewMs) * 100));
-                  const spWidthPct = Math.max(1, spRightPct - spLeftPct);
-                  sprintBand = { left: spLeftPct, width: spWidthPct };
+          {/* Scrollable timeline canvas */}
+          <div style={{ overflowX: 'auto' }}>
+            {/* Timeline column headers */}
+            <div className="roadmap-timeline-header" style={{ width: totalTimelineWidth }}>
+              {intervals.map((intDate, i) => {
+                const isToday = intDate.toDateString() === today.toDateString();
+                let label = '';
+                let subLabel = '';
+                if (scale === 'days') {
+                  label = intDate.toLocaleDateString([], { weekday: 'short' });
+                  subLabel = intDate.getDate().toString();
+                } else if (scale === 'weeks') {
+                  label = `W${Math.ceil(intDate.getDate() / 7)}`;
+                  subLabel = intDate.toLocaleDateString([], { month: 'short', day: 'numeric' });
+                } else {
+                  label = intDate.toLocaleDateString([], { month: 'short' });
+                  subLabel = intDate.getFullYear().toString();
                 }
-
                 return (
-                  <div key={section.id} className="roadmap-col-bars-group">
-                    {/* Header spacer matches column header height (34px) with optional sprint span badge */}
-                    <div style={{ height: 34, position: 'relative', overflow: 'hidden' }}>
-                      {sprintBand && (
-                        <div
-                          className="roadmap-sprint-span-indicator"
-                          style={{
-                            left: `${sprintBand.left}%`,
-                            width: `${sprintBand.width}%`,
-                            borderColor: section.color || 'hsl(var(--primary))',
-                            backgroundColor: `${section.color || 'hsl(var(--primary))'}14`
-                          }}
-                        >
-                          <span style={{ fontSize: 10, fontWeight: 700, color: section.color || 'hsl(var(--primary))' }}>
-                            {section.sprint?.name} Span
-                          </span>
-                        </div>
-                      )}
-                    </div>
-
-                    {!isCollapsed && (
-                      tasks.length === 0 ? (
-                        <div style={{ height: 38 }} />
-                      ) : (
-                        tasks.map(t => {
-                          const progressPct = deriveCardProgress(t.card, t.columnName);
-                          const isMilestone = isMilestoneTask(t.card);
-
-                          // Target baseline positions (Top Track: Planned Schedule)
-                          const targetStartMs = Math.max(viewStart.getTime(), t.targetStartDate.getTime());
-                          const targetEndMs = Math.min(viewEnd.getTime(), t.targetEndDate.getTime());
-                          const targetLeftPct = Math.max(0, Math.min(100, ((targetStartMs - viewStart.getTime()) / totalViewMs) * 100));
-                          const targetRightPct = Math.max(0, Math.min(100, ((targetEndMs - viewStart.getTime()) / totalViewMs) * 100));
-                          const targetWidthPct = Math.max(2.0, targetRightPct - targetLeftPct);
-
-                          // Actual schedule positions (Bottom Track: Accomplished / Done)
-                          const actualStartMs = Math.max(viewStart.getTime(), t.actualStartDate.getTime());
-                          const actualEndMs = Math.min(viewEnd.getTime(), t.actualOrProjectedEndDate.getTime());
-                          const actualLeftPct = Math.max(0, Math.min(100, ((actualStartMs - viewStart.getTime()) / totalViewMs) * 100));
-                          const actualRightPct = Math.max(0, Math.min(100, ((actualEndMs - viewStart.getTime()) / totalViewMs) * 100));
-                          const actualTotalWidthPct = Math.max(2.0, actualRightPct - actualLeftPct);
-                          const actualWidthPct = actualTotalWidthPct;
-
-                          // For the orange fill:
-                          // 1. If completed: full bar to actualEndMs
-                          // 2. If active AND worked today: fills up to today
-                          // 3. If active AND NOT worked today: fills up to lastWorkedDate (does NOT move to today!)
-                          let fillCapMs: number;
-                          if (t.card.completed) {
-                            fillCapMs = actualEndMs;
-                          } else if (t.isWorkedToday) {
-                            fillCapMs = Math.min(actualEndMs, today.getTime() + 12 * 3600000);
-                          } else if (t.lastWorkedDate) {
-                            fillCapMs = Math.min(actualEndMs, Math.max(actualStartMs, t.lastWorkedDate.getTime()));
-                          } else {
-                            // Work has not started or not marked yet
-                            fillCapMs = actualStartMs;
-                          }
-                          const fillRightPct = Math.max(actualLeftPct, Math.min(actualRightPct, ((fillCapMs - viewStart.getTime()) / totalViewMs) * 100));
-                          // doneRatio within the track width
-                          const doneRatio = t.card.completed
-                            ? 1
-                            : (actualTotalWidthPct > 0
-                                ? Math.max(0, Math.min(1, (fillRightPct - actualLeftPct) / actualTotalWidthPct))
-                                : 0);
-
-                          const friendlyStatus = t.card.completed
-                            ? 'Completed on time'
-                            : t.varianceDays > 0
-                              ? `Behind schedule by ${t.varianceDays} ${t.varianceDays === 1 ? 'day' : 'days'}`
-                              : t.varianceDays < 0
-                                ? `Ahead of schedule by ${Math.abs(t.varianceDays)} ${Math.abs(t.varianceDays) === 1 ? 'day' : 'days'}`
-                                : 'On schedule';
-
-                          const actualTooltip = [
-                            `📋 Task: ${t.card.title}`,
-                            `📅 Planned Goal: ${formatShortDate(t.targetStartDate)} to ${formatShortDate(t.targetEndDate)}`,
-                            `📊 Work Accomplished: ${progressPct}%`,
-                            `🚦 Status: ${friendlyStatus}`,
-                            !t.card.completed
-                              ? (t.isWorkedToday
-                                  ? '✅ Daily Work: Confirmed for today'
-                                  : `⏸️ Daily Work: Paused today (held at ${formatShortDate(t.lastWorkedDate)})`)
-                              : null,
-                            t.suspendedDays > 0
-                              ? `⏸️ Paused / Suspended: ${t.suspendedDays} ${t.suspendedDays === 1 ? 'day' : 'days'}`
-                              : null,
-                          ].filter(Boolean).join('\n');
-
-                          return (
-                            <div key={t.card.id} className="roadmap-bar-row">
-                              {/* Mobile-only sticky task title pill so user knows which row is which during horizontal scroll */}
-                              <div className="roadmap-mobile-row-label" title={t.card.title}>
-                                <span className="mobile-row-title">{t.card.title}</span>
-                              </div>
-
-                              {showProjectionComparison ? (
-                                <>
-                                  {/* Top Track: Target Baseline (Solid Green Bar matching Excel reference) */}
-                                  <div
-                                    className="roadmap-target-baseline-bar"
-                                    style={{
-                                      left: `${targetLeftPct}%`,
-                                      width: `${targetWidthPct}%`,
-                                    }}
-                                    onClick={() => onOpenCard(t.card.id)}
-                                    title={`Planned Goal: ${formatShortDate(t.targetStartDate)} to ${formatShortDate(t.targetEndDate)}`}
-                                  >
-                                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                                      {isMilestone && (
-                                        <span
-                                          style={{
-                                            width: 7,
-                                            height: 7,
-                                            transform: 'rotate(45deg)',
-                                            backgroundColor: '#fff',
-                                            borderRadius: 1,
-                                            flexShrink: 0,
-                                          }}
-                                          title="Milestone Deliverable"
-                                        />
-                                      )}
-                                      Goal: {formatShortDate(t.targetEndDate)}
-                                    </span>
-                                  </div>
-
-                                  {/* Bottom Track: Actual / Accomplished (Fills ONLY for deliverables/tasks done for that day) */}
-                                  <div
-                                    className="roadmap-actual-track"
-                                    style={{
-                                      left: `${actualLeftPct}%`,
-                                      width: `${actualTotalWidthPct}%`,
-                                    }}
-                                    onClick={() => onOpenCard(t.card.id)}
-                                    title={actualTooltip}
-                                  >
-                                    {/* Filled portion: Fills ONLY for task or deliverable done for that day */}
-                                    <div
-                                      className={`roadmap-actual-filled-bar ${t.card.completed ? 'completed' : ''}`}
-                                      style={{
-                                        width: `${doneRatio * 100}%`,
-                                        ...((!t.card.completed && !t.isWorkedToday) ? { opacity: 0.85 } : {}),
-                                      }}
-                                    >
-                                      {doneRatio > 0 && (
-                                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                                          {t.card.completed ? (
-                                            <>
-                                              <span>Done</span>
-                                              <CheckCircle2 size={10} color="#fff" />
-                                            </>
-                                          ) : (
-                                            <>
-                                              <span>{progressPct}%</span>
-                                              {!t.isWorkedToday && (
-                                                <span style={{ fontSize: 8.5, opacity: 0.9, backgroundColor: 'rgba(0,0,0,0.35)', padding: '1px 3.5px', borderRadius: 3 }} title="Work paused today: mark worked today or add a comment/attachment to advance">
-                                                  Paused
-                                                </span>
-                                              )}
-                                            </>
-                                          )}
-                                          {isMilestone && (
-                                            <span
-                                              style={{
-                                                width: 7,
-                                                height: 7,
-                                                transform: 'rotate(45deg)',
-                                                backgroundColor: '#fff',
-                                                borderRadius: 1,
-                                                flexShrink: 0,
-                                                marginLeft: 2,
-                                              }}
-                                              title="Milestone Accomplishment"
-                                            />
-                                          )}
-                                        </span>
-                                      )}
-                                    </div>
-
-                                    {/* Slipped extension striped zone if delayed */}
-                                    {t.varianceDays > 0 && !t.card.completed && targetRightPct < actualRightPct && (
-                                      <div
-                                        className="roadmap-slipped-extension"
-                                        style={{
-                                          left: `${Math.max(0, ((targetRightPct - actualLeftPct) / actualTotalWidthPct) * 100)}%`,
-                                          right: 0,
-                                        }}
-                                        title={`Behind schedule by ${t.varianceDays} ${t.varianceDays === 1 ? 'day' : 'days'}`}
-                                      />
-                                    )}
-
-                                    {/* Unfilled track label if progress < 60% */}
-                                    {doneRatio < 0.6 && (
-                                      <span className="roadmap-actual-track-label">
-                                        {doneRatio === 0 ? '0% done' : `${progressPct}%`}
-                                        {t.varianceDays > 0 && !t.card.completed && ` (${t.varianceDays}d late)`}
-                                      </span>
-                                    )}
-
-                                    {/* Milestone indicator badge if task is a milestone */}
-                                    {isMilestone && (
-                                      <div
-                                        title={`Milestone deliverable: ${t.card.title}`}
-                                        style={{
-                                          position: 'absolute',
-                                          right: 4,
-                                          width: 8,
-                                          height: 8,
-                                          transform: 'rotate(45deg)',
-                                          background: 'linear-gradient(135deg, #a855f7, #ec4899)',
-                                          borderRadius: 1,
-                                          border: '1px solid #fff',
-                                          boxShadow: '0 0 3px rgba(0,0,0,0.4)',
-                                          zIndex: 5,
-                                          pointerEvents: 'none',
-                                        }}
-                                      />
-                                    )}
-                                  </div>
-                                </>
-                              ) : (
-                                /* Standard Single Bar Fallback */
-                                isMilestone ? (
-                                  <motion.div
-                                    whileHover={{ scale: 1.2, y: -2 }}
-                                    className="roadmap-milestone-marker"
-                                    style={{
-                                      left: `${actualLeftPct}%`,
-                                    }}
-                                    onClick={() => onOpenCard(t.card.id)}
-                                    title={`Milestone: ${t.card.title} (${formatShortDate(t.actualOrProjectedEndDate)})`}
-                                  >
-                                    <div className="milestone-diamond" />
-                                    <span className="milestone-label">{t.card.title}</span>
-                                  </motion.div>
-                                ) : (
-                                  <motion.div
-                                    whileHover={{ y: -1.5, scale: 1.01 }}
-                                    className={`roadmap-gantt-bar ${t.card.completed ? 'completed' : ''}`}
-                                    style={{
-                                      left: `${actualLeftPct}%`,
-                                      width: `${actualWidthPct}%`,
-                                      top: 13,
-                                      backgroundColor: t.card.completed
-                                        ? '#10b981'
-                                        : (section.color || t.columnColor || 'hsl(var(--primary))'),
-                                    }}
-                                    onClick={() => onOpenCard(t.card.id)}
-                                    title={`${t.card.title}\nDue: ${formatShortDate(t.targetEndDate)}\nStatus: ${t.card.completed ? 'Completed' : `${progressPct}% done (${friendlyStatus})`}`}
-                                  >
-                                    <div
-                                      className="roadmap-bar-progress-fill"
-                                      style={{ width: `${progressPct}%` }}
-                                    />
-                                    <div className="roadmap-bar-content">
-                                      <span className="bar-title">{t.card.title}</span>
-                                      {t.card.completed && <CheckCircle2 size={12} color="#fff" style={{ flexShrink: 0 }} />}
-                                      {!t.card.completed && progressPct > 0 && (
-                                        <span className="bar-progress-tag">{progressPct}%</span>
-                                      )}
-                                    </div>
-                                  </motion.div>
-                                )
-                              )}
-                            </div>
-                          );
-                        })
-                      )
-                    )}
+                  <div key={i} className={`roadmap-timeline-cell ${isToday ? 'is-today' : ''}`} style={{ width: intervalWidthPx }}>
+                    <span className="cell-day">{label}</span>
+                    <span className={`cell-num ${isToday ? 'today-pill' : ''}`}>{subLabel}</span>
                   </div>
                 );
               })}
+            </div>
+
+            {/* Bars area */}
+            <div className="roadmap-bars-area" style={{ width: totalTimelineWidth }}>
+              {/* Grid background */}
+              <div className="roadmap-grid-background">
+                {intervals.map((_, i) => (
+                  <div key={i} className="roadmap-grid-col" style={{ width: intervalWidthPx }} />
+                ))}
+              </div>
+
+              {/* Today marker */}
+              {isTodayInView && (
+                <div className="roadmap-today-marker" style={{ left: todayXPos }}>
+                  <div className="today-badge">TODAY</div>
+                </div>
+              )}
+
+              {/* Bar rows */}
+              <div className="roadmap-bars-rows">
+                {groupedSections.map(section => {
+                  const tasks = section.tasks;
+                  const isCollapsed = collapsedGroups[section.id];
+
+                  let sprintBand = null;
+                  if (section.sprint) {
+                    const spStart = new Date(section.sprint.startDate).getTime();
+                    const spEnd = new Date(section.sprint.endDate).getTime();
+                    const spLeftPct = Math.max(0, Math.min(100, ((spStart - viewStart.getTime()) / totalViewMs) * 100));
+                    const spRightPct = Math.max(0, Math.min(100, ((spEnd - viewStart.getTime()) / totalViewMs) * 100));
+                    const spWidthPct = Math.max(1, spRightPct - spLeftPct);
+                    sprintBand = { left: spLeftPct, width: spWidthPct };
+                  }
+
+                  return (
+                    <div key={section.id} className="roadmap-col-bars-group">
+                      <div style={{ height: 34, position: 'relative', overflow: 'hidden' }}>
+                        {sprintBand && (
+                          <div className="roadmap-sprint-span-indicator" style={{
+                            left: `${sprintBand.left}%`, width: `${sprintBand.width}%`,
+                            borderColor: section.color || 'hsl(var(--primary))',
+                            backgroundColor: `${section.color || 'hsl(var(--primary))'}14`
+                          }}>
+                            <span style={{ fontSize: 10, fontWeight: 700, color: section.color || 'hsl(var(--primary))' }}>
+                              {section.sprint?.name}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+
+                      {!isCollapsed && (
+                        tasks.length === 0 ? (
+                          <div style={{ height: 38 }} />
+                        ) : (
+                          tasks.map(t => {
+                            const progressPct = deriveCardProgress(t.card, t.columnName);
+                            const isMilestone = isMilestoneTask(t.card);
+                            const statusPill = getStatusPill(t);
+
+                            // Positions
+                            const targetStartMs = Math.max(viewStart.getTime(), t.targetStartDate.getTime());
+                            const targetEndMs = Math.min(viewEnd.getTime(), t.targetEndDate.getTime());
+                            const targetLeftPct = Math.max(0, Math.min(100, ((targetStartMs - viewStart.getTime()) / totalViewMs) * 100));
+                            const targetRightPct = Math.max(0, Math.min(100, ((targetEndMs - viewStart.getTime()) / totalViewMs) * 100));
+                            const targetWidthPct = Math.max(2.0, targetRightPct - targetLeftPct);
+
+                            const actualStartMs = Math.max(viewStart.getTime(), t.actualStartDate.getTime());
+                            const actualEndMs = Math.min(viewEnd.getTime(), t.actualOrProjectedEndDate.getTime());
+                            const actualLeftPct = Math.max(0, Math.min(100, ((actualStartMs - viewStart.getTime()) / totalViewMs) * 100));
+                            const actualRightPct = Math.max(0, Math.min(100, ((actualEndMs - viewStart.getTime()) / totalViewMs) * 100));
+                            const actualTotalWidthPct = Math.max(2.0, actualRightPct - actualLeftPct);
+
+                            let fillCapMs: number;
+                            if (t.card.completed) {
+                              fillCapMs = actualEndMs;
+                            } else if (t.isWorkedToday) {
+                              fillCapMs = Math.min(actualEndMs, today.getTime() + 12 * 3600000);
+                            } else if (t.lastWorkedDate) {
+                              fillCapMs = Math.min(actualEndMs, Math.max(actualStartMs, t.lastWorkedDate.getTime()));
+                            } else {
+                              fillCapMs = actualStartMs;
+                            }
+                            const fillRightPct = Math.max(actualLeftPct, Math.min(actualRightPct, ((fillCapMs - viewStart.getTime()) / totalViewMs) * 100));
+                            const doneRatio = t.card.completed
+                              ? 1
+                              : (actualTotalWidthPct > 0
+                                  ? Math.max(0, Math.min(1, (fillRightPct - actualLeftPct) / actualTotalWidthPct))
+                                  : 0);
+
+                            // Plain-English tooltip
+                            const tooltipText = [
+                              t.card.title,
+                              `Start: ${formatShortDate(t.targetStartDate)}  ·  Due: ${formatShortDate(t.targetEndDate)}`,
+                              t.card.completed
+                                ? 'Status: Completed'
+                                : t.varianceDays > 0
+                                  ? `Status: ${t.varianceDays} day${t.varianceDays === 1 ? '' : 's'} behind schedule`
+                                  : t.varianceDays < 0
+                                    ? `Status: ${Math.abs(t.varianceDays)} day${Math.abs(t.varianceDays) === 1 ? '' : 's'} ahead of schedule`
+                                    : 'Status: On track',
+                              !t.card.completed && (
+                                t.isWorkedToday
+                                  ? 'Work confirmed for today'
+                                  : t.lastWorkedDate
+                                    ? `Last worked: ${formatShortDate(t.lastWorkedDate)}`
+                                    : 'No work recorded yet'
+                              ),
+                            ].filter(Boolean).join('\n');
+
+                            // Bar color for simple view
+                            const simpleBarColor = t.card.completed
+                              ? '#10b981'
+                              : (!t.card.completed && t.endDate < today)
+                                ? '#ef4444'
+                                : (section.color || t.columnColor || 'hsl(var(--primary))');
+
+                            return (
+                              <div key={t.card.id} className="roadmap-bar-row">
+                                <div className="roadmap-mobile-row-label" title={t.card.title}>
+                                  <span className="mobile-row-title">{t.card.title}</span>
+                                </div>
+
+                                {showProjectionComparison ? (
+                                  <>
+                                    {/* Top Track: Planned Goal */}
+                                    <div
+                                      className="roadmap-target-baseline-bar"
+                                      style={{ left: `${targetLeftPct}%`, width: `${targetWidthPct}%` }}
+                                      onClick={() => onOpenCard(t.card.id)}
+                                      title={`Original plan: ${formatShortDate(t.targetStartDate)} to ${formatShortDate(t.targetEndDate)}`}
+                                    >
+                                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                                        {isMilestone && <span style={{ width: 7, height: 7, transform: 'rotate(45deg)', backgroundColor: '#fff', borderRadius: 1, flexShrink: 0 }} />}
+                                        Plan: {formatShortDate(t.targetEndDate)}
+                                      </span>
+                                    </div>
+
+                                    {/* Bottom Track: Work Done */}
+                                    <div
+                                      className="roadmap-actual-track"
+                                      style={{ left: `${actualLeftPct}%`, width: `${actualTotalWidthPct}%` }}
+                                      onClick={() => onOpenCard(t.card.id)}
+                                      title={tooltipText}
+                                    >
+                                      {t.startVarianceDays < 0 && (
+                                        <div
+                                          style={{
+                                            position: 'absolute',
+                                            left: 0,
+                                            width: `${Math.min(100, Math.max(0, ((targetLeftPct - actualLeftPct) / actualTotalWidthPct) * 100))}%`,
+                                            top: 0,
+                                            bottom: 0,
+                                            background: 'rgba(16,185,129,0.25)',
+                                            borderRight: '1.5px dashed #10b981',
+                                            borderRadius: '4px 0 0 4px',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            paddingLeft: 4,
+                                            zIndex: 2,
+                                            pointerEvents: 'none',
+                                          }}
+                                          title={`Started ${Math.abs(t.startVarianceDays)} day(s) before scheduled date`}
+                                        >
+                                          <span style={{ fontSize: 8, fontWeight: 800, color: '#10b981', whiteSpace: 'nowrap' }}>
+                                            Early Start
+                                          </span>
+                                        </div>
+                                      )}
+                                      <div
+                                        className={`roadmap-actual-filled-bar ${t.card.completed ? 'completed' : ''}`}
+                                        style={{ width: `${doneRatio * 100}%`, ...(!t.card.completed && !t.isWorkedToday ? { opacity: 0.85 } : {}) }}
+                                      >
+                                        {doneRatio > 0 && (
+                                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                                            {t.card.completed ? 'Done' : `${progressPct}%`}
+                                            {!t.card.completed && !t.isWorkedToday && (
+                                              <span style={{ fontSize: 8.5, opacity: 0.9, backgroundColor: 'rgba(0,0,0,0.35)', padding: '1px 3.5px', borderRadius: 3 }}>Paused</span>
+                                            )}
+                                          </span>
+                                        )}
+                                      </div>
+                                      {t.varianceDays > 0 && !t.card.completed && targetRightPct < actualRightPct && (
+                                        <div
+                                          className="roadmap-slipped-extension"
+                                          style={{
+                                            left: `${Math.max(0, ((targetRightPct - actualLeftPct) / actualTotalWidthPct) * 100)}%`,
+                                            right: 0,
+                                          }}
+                                          title={`${t.varianceDays} day${t.varianceDays === 1 ? '' : 's'} behind schedule`}
+                                        />
+                                      )}
+                                      {doneRatio < 0.6 && (
+                                        <span className="roadmap-actual-track-label">
+                                          {doneRatio === 0 ? 'Not started' : `${progressPct}%`}
+                                          {t.varianceDays > 0 && !t.card.completed && ` · ${t.varianceDays}d behind`}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </>
+                                ) : (
+                                  /* Simple single bar */
+                                  isMilestone ? (
+                                    <motion.div
+                                      whileHover={{ scale: 1.2, y: -2 }}
+                                      className="roadmap-milestone-marker"
+                                      style={{ left: `${actualLeftPct}%` }}
+                                      onClick={() => onOpenCard(t.card.id)}
+                                      title={tooltipText}
+                                    >
+                                      <div className="milestone-diamond" />
+                                      <span className="milestone-label">{t.card.title}</span>
+                                    </motion.div>
+                                  ) : (
+                                    <motion.div
+                                      whileHover={{ y: -1.5, scale: 1.01 }}
+                                      className={`roadmap-gantt-bar ${t.card.completed ? 'completed' : ''}`}
+                                      style={{
+                                        left: `${actualLeftPct}%`,
+                                        width: `${actualTotalWidthPct}%`,
+                                        top: 13,
+                                        backgroundColor: simpleBarColor,
+                                      }}
+                                      onClick={() => onOpenCard(t.card.id)}
+                                      title={tooltipText}
+                                    >
+                                      <div className="roadmap-bar-progress-fill" style={{ width: `${progressPct}%` }} />
+                                      <div className="roadmap-bar-content">
+                                        <span className="bar-title">{t.card.title}</span>
+                                        <span style={{
+                                          fontSize: 9.5, fontWeight: 700,
+                                          background: 'rgba(0,0,0,0.25)',
+                                          borderRadius: 3, padding: '1px 4px',
+                                          flexShrink: 0,
+                                        }}>{statusPill.label}</span>
+                                      </div>
+                                    </motion.div>
+                                  )
+                                )}
+                              </div>
+                            );
+                          })
+                        )
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Unscheduled Tasks Bottom Drawer / Tray */}
-      {unscheduledTasks.length > 0 && (
-        <div className="roadmap-unscheduled-tray">
-          <div
-            className="tray-toggle-header"
-            onClick={() => setShowUnscheduled(s => !s)}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-              <Clock size={14} color="hsl(var(--muted-foreground))" />
-              <span style={{ fontSize: 12.5, fontWeight: 600 }}>
-                Unscheduled Tasks ({unscheduledTasks.length})
-              </span>
-              <span style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))' }}>
-                — click task to set start/due dates or assign to a sprint
-              </span>
-            </div>
-            {showUnscheduled ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
-          </div>
-
-          <AnimatePresence>
-            {showUnscheduled && (
-              <motion.div
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: 'auto', opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                className="tray-content"
-              >
-                <div className="unscheduled-cards-grid">
-                  {unscheduledTasks.map(t => (
-                    <div
-                      key={t.card.id}
-                      className="unscheduled-card-pill"
-                      onClick={() => onOpenCard(t.card.id)}
-                      title="Click to schedule onto Gantt"
-                    >
-                      <span className="dot" style={{ backgroundColor: t.columnColor || 'hsl(var(--primary))' }} />
-                      <span className="title">{t.card.title}</span>
-                      <span className="col-name">{t.columnName}</span>
-                    </div>
-                  ))}
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-      )}
 
       {/* ── Roadmap Modals (Side-by-Side & Centered) ── */}
       <AnimatePresence>
@@ -2414,7 +2062,7 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <Plus size={18} color="hsl(var(--primary))" />
                       <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>
-                        Add Task / Milestone to Roadmap
+                        {board.type === 'roadmap' ? 'Add Phase / Subtask to Roadmap' : 'Add Task / Milestone to Roadmap'}
                       </h3>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -2451,12 +2099,14 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
 
                   <div className="roadmap-modal-body">
                     <div className="form-group">
-                      <label className="field-label">Task Title</label>
+                      <label className="field-label">
+                        {board.type === 'roadmap' ? 'Phase / Subtask Name' : 'Task Title'}
+                      </label>
                       <input
                         type="text"
                         value={quickTaskTitle}
                         onChange={e => setQuickTaskTitle(e.target.value)}
-                        placeholder="e.g. Implement user authentication flow"
+                        placeholder={board.type === 'roadmap' ? "e.g. Planning, Making the UI, Making the frontend..." : "e.g. Implement user authentication flow"}
                         className="text-input"
                         autoFocus
                       />
@@ -2528,7 +2178,7 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
 
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                       <div className="form-group">
-                        <label className="field-label">Start Date</label>
+                        <label className="field-label">Scheduled Start</label>
                         <NeumorphicDatePicker
                           value={quickTaskStartDate || null}
                           onChange={val => setQuickTaskStartDate(val ? val.split('T')[0] : '')}
@@ -2536,10 +2186,35 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
                         />
                       </div>
                       <div className="form-group">
-                        <label className="field-label">Due Date</label>
+                        <label className="field-label">Scheduled Date</label>
                         <NeumorphicDatePicker
                           value={quickTaskDueDate || null}
                           onChange={val => setQuickTaskDueDate(val ? val.split('T')[0] : '')}
+                          align="right"
+                        />
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                      <div className="form-group">
+                        <label className="field-label" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <span>Actual Start</span>
+                          <span style={{ fontSize: 10, color: 'hsl(var(--muted-foreground))' }}>(optional)</span>
+                        </label>
+                        <NeumorphicDatePicker
+                          value={quickTaskActualStartDate || null}
+                          onChange={val => setQuickTaskActualStartDate(val ? val.split('T')[0] : '')}
+                          align="left"
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label className="field-label" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <span>Actual End</span>
+                          <span style={{ fontSize: 10, color: 'hsl(var(--muted-foreground))' }}>(optional)</span>
+                        </label>
+                        <NeumorphicDatePicker
+                          value={quickTaskActualEndDate || null}
+                          onChange={val => setQuickTaskActualEndDate(val ? val.split('T')[0] : '')}
                           align="right"
                         />
                       </div>

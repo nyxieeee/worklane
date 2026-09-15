@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import type { CustomBorderDef } from './types';
+import type { CustomBorderDef, Card as CardType } from './types';
 
 export const uid = (): string =>
   Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
@@ -334,6 +334,142 @@ export function getColDotColor(name: string): string {
   if (n.includes('todo') || n.includes('to do') || n.includes('backlog'))    return '#8b5cf6';
   return '#64748b';
 }
+
+export function deriveCardProgress(card: CardType, columnName?: string): number {
+  if (card.completed) return 100;
+  const col = (columnName || '').toLowerCase();
+  // 100% - Handover / Closeout / Approved / Delivered / Done / Signed-off
+  if (col.includes('done') || col.includes('complete') || col.includes('handover') || col.includes('closeout') || col.includes('delivered') || col.includes('approved') || col.includes('finished') || col.includes('sign-off') || col.includes('signed off')) return 100;
+  // 80% - Testing / Commissioning / Inspection / Review / QA / Punch List / Validation / SAT / FAT
+  if (col.includes('review') || col.includes('qa') || col.includes('test') || col.includes('inspection') || col.includes('commissioning') || col.includes('punch list') || col.includes('validation') || col.includes('sat') || col.includes('fat') || col.includes('audit')) return 80;
+  // 50% - In Progress / Installation / Assembly / Construction / Rough-In / Field Work / Integration
+  if (col.includes('in progress') || col.includes('doing') || col.includes('active') || col.includes('install') || col.includes('assembly') || col.includes('construction') || col.includes('execution') || col.includes('fabrication') || col.includes('wiring') || col.includes('rough-in') || col.includes('integration') || col.includes('field work') || col.includes('site work')) return 50;
+  // 25% - Procurement / Ordering / Permits / Mobilization / Staging / Engineering / Submittal
+  if (col.includes('urgent') || col.includes('critical') || col.includes('procurement') || col.includes('ordering') || col.includes('permit') || col.includes('mobilization') || col.includes('engineering') || col.includes('staging') || col.includes('submittal') || col.includes('triage')) return 25;
+  // 10% - To Do / Planning / Design / Schematic / Backlog / Queued
+  if (col.includes('to do') || col.includes('todo') || col.includes('backlog') || col.includes('planning') || col.includes('design') || col.includes('schematic') || col.includes('draft') || col.includes('queued') || col.includes('scope')) return 10;
+  if (card.progress !== undefined && card.progress !== null) return card.progress;
+  return 0;
+}
+
+export interface ScheduleHealth {
+  status: 'completed' | 'overdue' | 'due-soon' | 'behind' | 'on-track';
+  label: string;
+  color: string;
+  bg: string;
+  progressPct: number;
+  timelinePct?: number;
+  hasDates: boolean;
+}
+
+export function getScheduleHealth(card: CardType, columnName?: string): ScheduleHealth | null {
+  const progressPct = deriveCardProgress(card, columnName || '');
+
+  if (card.completed) {
+    return {
+      status: 'completed',
+      label: 'Done',
+      color: '#10b981',
+      bg: 'rgba(16,185,129,0.12)',
+      progressPct: 100,
+      timelinePct: 100,
+      hasDates: !!(card.startDate || card.dueDate || card.actualStartDate || card.actualEndDate),
+    };
+  }
+
+  const hasExplicitDates = !!(card.dueDate || card.startDate);
+  if (!hasExplicitDates) {
+    return null;
+  }
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const dueDate = card.dueDate ? new Date(card.dueDate) : null;
+  if (dueDate && isNaN(dueDate.getTime())) return null;
+  if (dueDate) dueDate.setHours(23, 59, 59, 999);
+
+  const startDate = card.startDate
+    ? new Date(card.startDate)
+    : (card.actualStartDate ? new Date(card.actualStartDate) : null);
+  if (startDate && isNaN(startDate.getTime())) return null;
+  if (startDate) startDate.setHours(0, 0, 0, 0);
+
+  // 1. Overdue
+  if (dueDate && today.getTime() > dueDate.getTime()) {
+    const daysOverdue = Math.max(1, Math.round((today.getTime() - dueDate.getTime()) / 86400000));
+    return {
+      status: 'overdue',
+      label: `${daysOverdue}d overdue`,
+      color: '#ef4444',
+      bg: 'rgba(239,68,68,0.12)',
+      progressPct,
+      timelinePct: 100,
+      hasDates: true,
+    };
+  }
+
+  // Calculate timelinePct if both start and due dates exist
+  let timelinePct: number | undefined;
+  if (startDate && dueDate && dueDate.getTime() > startDate.getTime()) {
+    const totalDuration = dueDate.getTime() - startDate.getTime();
+    const elapsed = today.getTime() - startDate.getTime();
+    timelinePct = Math.max(0, Math.min(100, Math.round((elapsed / totalDuration) * 100)));
+  }
+
+  // 2. Due soon (within 3 calendar days)
+  if (dueDate) {
+    const msUntilDue = dueDate.getTime() - today.getTime();
+    const daysUntilDue = Math.ceil(msUntilDue / 86400000);
+    if (daysUntilDue <= 3 && daysUntilDue >= 0) {
+      let label = `Due in ${daysUntilDue}d`;
+      if (daysUntilDue === 0) label = 'Due today';
+      else if (daysUntilDue === 1) label = 'Due tomorrow';
+
+      return {
+        status: 'due-soon',
+        label,
+        color: '#f59e0b',
+        bg: 'rgba(245,158,11,0.12)',
+        progressPct,
+        timelinePct,
+        hasDates: true,
+      };
+    }
+  }
+
+  // 3. Pace check (Behind schedule)
+  if (startDate && dueDate && dueDate.getTime() > startDate.getTime()) {
+    const totalDuration = dueDate.getTime() - startDate.getTime();
+    const elapsed = today.getTime() - startDate.getTime();
+    if (elapsed > 0) {
+      const expectedPct = Math.min(100, Math.round((elapsed / totalDuration) * 100));
+      if (progressPct < expectedPct - 20) {
+        return {
+          status: 'behind',
+          label: 'Behind pace',
+          color: '#f59e0b',
+          bg: 'rgba(245,158,11,0.12)',
+          progressPct,
+          timelinePct,
+          hasDates: true,
+        };
+      }
+    }
+  }
+
+  // 4. On track
+  return {
+    status: 'on-track',
+    label: 'On track',
+    color: '#10b981',
+    bg: 'rgba(16,185,129,0.12)',
+    progressPct,
+    timelinePct,
+    hasDates: true,
+  };
+}
+
 
 
 

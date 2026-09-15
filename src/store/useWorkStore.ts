@@ -18,8 +18,9 @@ interface WorkState {
   loadBoardsFromCloud: (userEmail: string) => Promise<void>;
   syncBoardToCloud: (boardId: string) => Promise<void>;
 
-  // Board actions
+  // Board & Roadmap actions
   createBoard: (name: string, color: string, createdBy?: string, creatorName?: string) => Promise<Board>;
+  createRoadmap: (name: string, color: string, createdBy?: string, creatorName?: string, description?: string, templatePhases?: string[]) => Promise<Board>;
   deleteBoard: (boardId: string) => void;
   renameBoard: (boardId: string, name: string) => void;
   updateBoardColor: (boardId: string, color: string) => void;
@@ -397,6 +398,7 @@ export const useWorkStore = create<WorkState>()(
           id: uid(),
           name,
           color,
+          type: 'board',
           createdBy: creatorEmail,
           members: creatorMember ? [creatorMember] : [],
           columns: [
@@ -414,6 +416,70 @@ export const useWorkStore = create<WorkState>()(
         }));
         await supabaseService.syncBoard(board);
         return board;
+      },
+
+      createRoadmap: async (name, color, createdBy, creatorName, description, templatePhases) => {
+        const creatorEmail = createdBy ? createdBy.toLowerCase().trim() : '';
+        const creatorMember: Member | null = creatorEmail
+          ? {
+              id: uid(),
+              name: creatorName && creatorName.trim() ? creatorName.trim() : creatorEmail.split('@')[0],
+              email: creatorEmail,
+              color: AVATAR_COLORS[0]
+            }
+          : null;
+
+        const now = new Date();
+        const todayIso = now.toISOString().split('T')[0];
+
+        const phaseNames = templatePhases && templatePhases.length > 0
+          ? templatePhases
+          : ['Planning', 'Making the UI', 'Making the frontend', 'Making the backend', 'QA & Launch'];
+
+        const defaultCards: Card[] = phaseNames.map((phaseTitle, idx) => {
+          const start = new Date(now);
+          start.setDate(start.getDate() + (idx * 6));
+          const due = new Date(start);
+          due.setDate(due.getDate() + 8);
+
+          return {
+            id: uid(),
+            title: phaseTitle,
+            description: '',
+            comments: [],
+            attachments: [],
+            labels: ['roadmap'],
+            assignees: creatorMember ? [creatorMember.id] : [],
+            dueDate: due.toISOString().split('T')[0],
+            startDate: start.toISOString().split('T')[0],
+            actualStartDate: idx === 0 ? todayIso : null,
+            actualEndDate: null,
+            progress: idx === 0 ? 20 : 0,
+            completed: false,
+            completedAt: null,
+            createdAt: new Date().toISOString(),
+          };
+        });
+
+        const roadmap: Board = {
+          id: uid(),
+          name,
+          color: color || '#6366f1',
+          type: 'roadmap',
+          description: description || '',
+          createdBy: creatorEmail,
+          members: creatorMember ? [creatorMember] : [],
+          columns: [
+            { id: uid(), name: 'Project Deliverables', cards: defaultCards }
+          ],
+        };
+
+        set(s => ({
+          boards: [...s.boards.filter(b => b.id !== roadmap.id), roadmap],
+          activeBoardId: roadmap.id
+        }));
+        await supabaseService.syncBoard(roadmap);
+        return roadmap;
       },
 
       syncCurrentUserProfile: (user) => {
@@ -876,15 +942,34 @@ export const useWorkStore = create<WorkState>()(
             const sourceCard = fromCol.cards[cardIdx];
             const toCol = board.columns.find(c => c.id === toColId);
 
-            const isDoneTarget = toCol?.name.trim().toLowerCase() === 'done';
-            const isDoneSource = fromCol.name.trim().toLowerCase() === 'done';
+            const isDoneTarget = /done|complete|finished|closed/i.test(toCol?.name || '');
+            const isDoneSource = /done|complete|finished|closed/i.test(fromCol.name || '');
+            const isProgressTarget = /progress|active|doing|started|wip/i.test(toCol?.name || '');
             const isMovingColumns = fromColId !== toColId;
             let updatedCard = sourceCard;
             if (isMovingColumns) {
-              if (isDoneTarget && !sourceCard.completed) {
-                updatedCard = { ...sourceCard, completed: true, completedAt: new Date().toISOString() };
+              const todayIso = new Date().toISOString().split('T')[0];
+              if (isDoneTarget) {
+                updatedCard = {
+                  ...sourceCard,
+                  completed: true,
+                  completedAt: sourceCard.completedAt || new Date().toISOString(),
+                  actualEndDate: sourceCard.actualEndDate || todayIso,
+                };
               } else if (!isDoneTarget && isDoneSource && sourceCard.completed) {
-                updatedCard = { ...sourceCard, completed: false, completedAt: null };
+                updatedCard = {
+                  ...sourceCard,
+                  completed: false,
+                  completedAt: null,
+                  actualEndDate: null,
+                };
+              } else if (isProgressTarget) {
+                if (!sourceCard.actualStartDate) {
+                  updatedCard = {
+                    ...sourceCard,
+                    actualStartDate: todayIso,
+                  };
+                }
               }
             }
 
@@ -978,9 +1063,29 @@ export const useWorkStore = create<WorkState>()(
           const card = (currentBoard.inboxCards || []).find(c => c.id === cardId);
           if (!card) return s;
 
-          const updatedCard: Card = { ...card, isInbox: false };
           const toCol = currentBoard.columns.find(c => c.id === toColId);
           if (!toCol) return s;
+
+          const isDoneTarget = /done|complete|finished|closed/i.test(toCol.name || '');
+          const isProgressTarget = /progress|active|doing|started|wip/i.test(toCol.name || '');
+          const todayIso = new Date().toISOString().split('T')[0];
+
+          let updatedCard: Card = { ...card, isInbox: false };
+          if (isDoneTarget) {
+            updatedCard = {
+              ...updatedCard,
+              completed: true,
+              completedAt: updatedCard.completedAt || new Date().toISOString(),
+              actualEndDate: updatedCard.actualEndDate || todayIso,
+            };
+          } else if (isProgressTarget) {
+            if (!updatedCard.actualStartDate) {
+              updatedCard = {
+                ...updatedCard,
+                actualStartDate: todayIso,
+              };
+            }
+          }
 
           const updatedBoards = updateBoards(s.boards, s.activeBoardId, b => {
             const remainingInbox = (b.inboxCards || []).filter(c => c.id !== cardId);
