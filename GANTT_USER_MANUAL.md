@@ -175,27 +175,44 @@ Toggle between zoom levels:
 - Drag horizontally on the timeline canvas to pan smoothly.
 
 ### 4. Display Modes
-- Click **Target vs Actual: ON** to toggle between the comparative dual-track display and a simplified single-bar view.
+- Click **Plan vs Actual (Dual)** to toggle between the comparative dual-track display and a simplified single-bar view.
 
 ---
 
-## 📥 9. Exporting Roadmap Data to Microsoft Excel
+## 📥 9. Exporting the Gantt Chart & Roadmap Data to CSV
 
-You can generate comprehensive audit reports with a single click:
+You can generate comprehensive offline reports and spreadsheet Gantt charts with a single click:
 
-1. In the top-right of the Roadmap toolbar, click the **Export** button.
-2. Worklane generates a clean, pre-formatted `.csv` file formatted with a **UTF-8 Byte Order Mark (`\uFEFF`)** so dates and symbols open perfectly in Microsoft Excel, Google Sheets, or Apple Numbers.
+1. In the top-right of the Roadmap toolbar, click the **Export Gantt CSV** button.
+2. Worklane generates a pre-formatted `.csv` file with a **UTF-8 Byte Order Mark (`\uFEFF`)** so dates, symbols, and text open cleanly in Microsoft Excel, Google Sheets, or Apple Numbers.
 
-### What is Included in the Export:
-- Task Title, Phase/Sprint, and Workflow Status
-- Assigned Team Members
-- Target Start & Target Due Dates
-- Actual Start & Actual/Projected End Dates
-- Progress % (0–100)
-- Net Schedule Variance in Days (`+3`, `-1`, `0`)
-- Health Status (`Ahead of Schedule`, `On Track`, `Delayed`)
-- Milestone Flag (`Yes` / `No`)
-- Detailed Work Suspensions summary log with reasons
+### What is Included in the CSV Export:
+
+#### 1. Task Metadata Columns (Left Pane):
+- **Task Name**: Deliverable title (with `↳ Work Done` sub-row indicator in Dual mode).
+- **Phase / Group & Sprint**: Package breakdown and sprint assignment.
+- **Assignee**: Responsible team members.
+- **Track**: Identifies whether the row represents the **Planned Goal** or **Work Done**.
+- **Start Date & Due Date**: Baseline schedule commitment.
+- **Actual / Projected End**: Anticipated or confirmed completion date.
+- **Done %**: Progress percentage (0–100%).
+- **Schedule Health**: Plain-language variance (e.g. `On schedule`, `3d late`, `2d ahead`).
+- **Status**: Operational status (`In Progress`, `Completed`, `Overdue`).
+- **Milestone**: Milestone indicator (`Yes` / `No`).
+- **Worked Days**: Total count of confirmed active working days.
+- **Work Suspensions**: Itemized log of approved stoppages and inactive days.
+
+#### 2. Visual Gantt Chart Grid (Timeline Columns):
+Across the top header, a calendar column is generated for every day across the project's schedule, with current date tagged as `[TODAY]`:
+- **`■ Plan`**: Fills cells across the agreed planned baseline duration.
+- **`■ Done`**: Fills cells across confirmed worked and accomplished days.
+- **`■ Done (Late)`**: Marks days completed after the agreed deadline.
+- **`⏸ Paused`**: Marks unworked inactive days or approved work stoppages.
+- **`░ Delayed`**: Marks projected delay extension days beyond the due date.
+- **`░ Projected`**: Marks upcoming scheduled days before the due date.
+- **`◆ Milestone`**: Marks zero-duration checkpoint deliverables.
+
+An explicit **Gantt Timeline Legend** is automatically appended at the bottom of the CSV for easy offline reference.
 
 ---
 

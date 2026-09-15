@@ -886,73 +886,259 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
     setQuickTaskIsMilestone(false);
   };
 
-  // Export Roadmap as CSV (formatted for clean Microsoft Excel display)
+  // Export Roadmap & Gantt Chart Timeline as CSV (formatted for clean Microsoft Excel display)
   const handleExportCSV = () => {
-    const headers = [
-      'Title',
-      'Group / Column',
+    // 1. Calculate the calendar timeline columns spanning across all scheduled tasks
+    let minTime = today.getTime();
+    let maxTime = today.getTime();
+
+    if (allTasks.length > 0) {
+      allTasks.forEach(t => {
+        minTime = Math.min(minTime, t.targetStartDate.getTime(), t.actualStartDate.getTime());
+        maxTime = Math.max(maxTime, t.targetEndDate.getTime(), t.actualOrProjectedEndDate.getTime());
+      });
+      minTime = Math.min(minTime, today.getTime());
+      maxTime = Math.max(maxTime, today.getTime());
+    } else {
+      minTime = viewStart.getTime();
+      maxTime = viewEnd.getTime();
+    }
+
+    const timelineStart = new Date(minTime);
+    timelineStart.setHours(0, 0, 0, 0);
+    timelineStart.setDate(timelineStart.getDate() - 2); // 2 days buffer on left
+
+    const timelineEnd = new Date(maxTime);
+    timelineEnd.setHours(23, 59, 59, 999);
+    timelineEnd.setDate(timelineEnd.getDate() + 3); // 3 days buffer on right
+
+    // Generate daily date columns (up to 120 days to keep spreadsheet fast and responsive)
+    const exportDates: Date[] = [];
+    const cur = new Date(timelineStart);
+    const maxColumns = 120;
+    while (cur <= timelineEnd && exportDates.length < maxColumns) {
+      exportDates.push(new Date(cur));
+      cur.setDate(cur.getDate() + 1);
+    }
+
+    const baseHeaders = [
+      'Task Name',
+      'Phase / Group',
       'Sprint',
       'Assignee',
-      'Actual Start Date',
-      'Target Start Date',
-      'Target Due Date',
-      'Actual / Projected Date',
-      'Progress %',
-      'Worked Days Count',
-      'Worked Today',
-      'Variance (Days)',
-      'Variance Status',
+      'Track',
+      'Start Date',
+      'Due Date',
+      'Actual / Projected End',
+      'Done %',
+      'Schedule Health',
       'Status',
       'Milestone',
+      'Worked Days',
       'Work Suspensions'
     ];
-    const rows = allTasks.map(t => {
-      // Variance label
+
+    const dateHeaders = exportDates.map(d => {
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      const dayName = d.toLocaleDateString('en-US', { weekday: 'short' });
+      const isToday = d.toDateString() === today.toDateString();
+      return isToday ? `"${yyyy}-${mm}-${dd} (${dayName}) [TODAY]"` : `"${yyyy}-${mm}-${dd} (${dayName})"`;
+    });
+
+    const headers = [...baseHeaders, ...dateHeaders];
+
+    const rows: string[][] = [];
+
+    allTasks.forEach(t => {
+      const progressPct = t.card.progress ?? (t.card.completed ? 100 : deriveCardProgress(t.card, t.columnName));
       const vDays = t.varianceDays;
-      const varianceStr = vDays > 0 ? `+${vDays}` : `${vDays}`;
-      const varianceStatus = t.card.completed
-        ? (vDays > 0 ? 'Completed Late' : vDays < 0 ? 'Completed Early' : 'Completed On Time')
-        : (vDays > 0 ? 'Delayed' : vDays < 0 ? 'Ahead of Schedule' : 'On Track');
-      // Format work suspensions as readable text
+      const varianceStr = vDays > 0 ? `${vDays}d late` : vDays < 0 ? `${Math.abs(vDays)}d ahead` : 'On schedule';
+
       const suspensionItems = (t.card.workSuspensions || []).map(s =>
         `${s.from} to ${s.to}${s.reason ? ` (${s.reason})` : ''}`
       );
-      const manualSuspended = computeSuspendedDays(t.card, t.actualStartDate, today);
-      const autoSuspended = Math.max(0, t.suspendedDays - manualSuspended);
-      if (autoSuspended > 0) {
-        suspensionItems.push(`${autoSuspended} auto-unworked days`);
+      if (t.suspendedDays > (t.card.workSuspensions?.length || 0)) {
+        suspensionItems.push(`${t.suspendedDays} paused days`);
       }
-      const suspensions = suspensionItems.join('; ');
-      return [
-        `"${(t.card.title || '').replace(/"/g, '""')}"`,
-        `"${(t.columnName || '').replace(/"/g, '""')}"`,
-        `"${(t.sprint ? t.sprint.name : 'Backlog').replace(/"/g, '""')}"`,
-        `"${(t.card.assignees || []).map(id => board.members?.find(m => m.id === id)?.name || id).join(', ').replace(/"/g, '""')}"`,
-        formatDateForExport(t.card.actualStartDate || t.actualStartDate),
-        formatDateForExport(t.card.startDate || t.targetStartDate),
-        formatDateForExport(t.card.dueDate || t.targetEndDate),
-        formatDateForExport(t.actualOrProjectedEndDate),
-        t.card.progress ?? (t.card.completed ? 100 : deriveCardProgress(t.card, t.columnName)),
-        t.workedDaysCount,
-        t.card.completed ? 'N/A (Done)' : (t.isWorkedToday ? 'Yes' : 'No'),
-        varianceStr,
-        varianceStatus,
-        t.card.completed ? 'Completed' : (t.targetEndDate < today ? 'Overdue' : 'In Progress'),
-        t.card.isMilestone ? 'Yes' : 'No',
-        `"${suspensions.replace(/"/g, '""')}"`
-      ];
+      const suspensionsStr = suspensionItems.join('; ') || 'None';
+
+      const targetStartDay = new Date(t.targetStartDate);
+      targetStartDay.setHours(0, 0, 0, 0);
+      const targetEndDay = new Date(t.targetEndDate);
+      targetEndDay.setHours(23, 59, 59, 999);
+
+      const actualStartDay = new Date(t.actualStartDate);
+      actualStartDay.setHours(0, 0, 0, 0);
+      const actualEndDay = new Date(t.actualOrProjectedEndDate);
+      actualEndDay.setHours(23, 59, 59, 999);
+
+      // Determine effective filled work cap for this card
+      const fillCapMs = t.card.completed
+        ? actualEndDay.getTime()
+        : (t.isWorkedToday
+            ? today.getTime() + 24 * 3600 * 1000
+            : (t.lastWorkedDate ? t.lastWorkedDate.getTime() + 24 * 3600 * 1000 : actualStartDay.getTime()));
+
+      if (showProjectionComparison) {
+        // --- ROW 1: Planned Goal ---
+        const planRowMeta = [
+          `"${(t.card.title || '').replace(/"/g, '""')}"`,
+          `"${(t.columnName || '').replace(/"/g, '""')}"`,
+          `"${(t.sprint ? t.sprint.name : 'Backlog').replace(/"/g, '""')}"`,
+          `"${(t.card.assignees || []).map(id => board.members?.find(m => m.id === id)?.name || id).join(', ').replace(/"/g, '""')}"`,
+          '"Planned Goal"',
+          formatDateForExport(t.card.startDate || t.targetStartDate),
+          formatDateForExport(t.card.dueDate || t.targetEndDate),
+          formatDateForExport(t.actualOrProjectedEndDate),
+          `"${progressPct}%"`,
+          `"${varianceStr}"`,
+          `"${t.card.completed ? 'Completed' : (t.targetEndDate < today ? 'Overdue' : 'In Progress')}"`,
+          `"${t.card.isMilestone ? 'Yes' : 'No'}"`,
+          String(t.workedDaysCount),
+          `"${suspensionsStr.replace(/"/g, '""')}"`
+        ];
+
+        const planCells = exportDates.map(d => {
+          const dTime = d.getTime();
+          if (t.card.isMilestone) {
+            return d.toDateString() === t.targetEndDate.toDateString() ? '"◆ Milestone"' : '""';
+          }
+          if (dTime >= targetStartDay.getTime() && dTime <= targetEndDay.getTime()) {
+            return '"■ Plan"';
+          }
+          return '""';
+        });
+
+        rows.push([...planRowMeta, ...planCells]);
+
+        // --- ROW 2: Work Done ---
+        const actualRowMeta = [
+          `"  ↳ ${(t.card.title || '').replace(/"/g, '""')}"`,
+          `"${(t.columnName || '').replace(/"/g, '""')}"`,
+          `"${(t.sprint ? t.sprint.name : 'Backlog').replace(/"/g, '""')}"`,
+          `"${(t.card.assignees || []).map(id => board.members?.find(m => m.id === id)?.name || id).join(', ').replace(/"/g, '""')}"`,
+          '"Work Done"',
+          formatDateForExport(t.card.actualStartDate || t.actualStartDate),
+          formatDateForExport(t.card.dueDate || t.targetEndDate),
+          formatDateForExport(t.actualOrProjectedEndDate),
+          `"${progressPct}%"`,
+          `"${varianceStr}"`,
+          `"${t.card.completed ? 'Completed' : (t.targetEndDate < today ? 'Overdue' : 'In Progress')}"`,
+          `"${t.card.isMilestone ? 'Yes' : 'No'}"`,
+          String(t.workedDaysCount),
+          `"${suspensionsStr.replace(/"/g, '""')}"`
+        ];
+
+        const actualCells = exportDates.map(d => {
+          const dTime = d.getTime();
+          if (dTime < actualStartDay.getTime() || dTime > actualEndDay.getTime()) {
+            return '""';
+          }
+
+          if (t.card.isMilestone) {
+            return d.toDateString() === t.actualOrProjectedEndDate.toDateString() ? '"◆ Done"' : '""';
+          }
+
+          const yyyy = d.getFullYear();
+          const mm = String(d.getMonth() + 1).padStart(2, '0');
+          const dd = String(d.getDate()).padStart(2, '0');
+          const dateStr = `${yyyy}-${mm}-${dd}`;
+
+          const isSuspended = (t.card.workSuspensions || []).some(s => dateStr >= s.from && dateStr <= s.to);
+          if (isSuspended) {
+            return '"⏸ Paused"';
+          }
+
+          if (t.card.completed) {
+            return dTime > targetEndDay.getTime() ? '"■ Done (Late)"' : '"■ Done"';
+          }
+
+          if (dTime > targetEndDay.getTime()) {
+            return '"░ Delayed"';
+          }
+
+          if (dTime <= today.getTime()) {
+            if (dTime <= fillCapMs) {
+              return '"■ Done"';
+            } else {
+              return '"⏸ Paused"';
+            }
+          }
+
+          return '"░ Projected"';
+        });
+
+        rows.push([...actualRowMeta, ...actualCells]);
+      } else {
+        // --- Single Unified Row ---
+        const singleRowMeta = [
+          `"${(t.card.title || '').replace(/"/g, '""')}"`,
+          `"${(t.columnName || '').replace(/"/g, '""')}"`,
+          `"${(t.sprint ? t.sprint.name : 'Backlog').replace(/"/g, '""')}"`,
+          `"${(t.card.assignees || []).map(id => board.members?.find(m => m.id === id)?.name || id).join(', ').replace(/"/g, '""')}"`,
+          '"Timeline"',
+          formatDateForExport(t.card.startDate || t.targetStartDate),
+          formatDateForExport(t.card.dueDate || t.targetEndDate),
+          formatDateForExport(t.actualOrProjectedEndDate),
+          `"${progressPct}%"`,
+          `"${varianceStr}"`,
+          `"${t.card.completed ? 'Completed' : (t.targetEndDate < today ? 'Overdue' : 'In Progress')}"`,
+          `"${t.card.isMilestone ? 'Yes' : 'No'}"`,
+          String(t.workedDaysCount),
+          `"${suspensionsStr.replace(/"/g, '""')}"`
+        ];
+
+        const singleCells = exportDates.map(d => {
+          const dTime = d.getTime();
+          if (t.card.isMilestone) {
+            return d.toDateString() === t.actualOrProjectedEndDate.toDateString() ? '"◆ Milestone"' : '""';
+          }
+          if (dTime >= actualStartDay.getTime() && dTime <= actualEndDay.getTime()) {
+            if (t.card.completed) return '"■ Completed"';
+            if (dTime > targetEndDay.getTime()) return '"░ Delayed"';
+            if (dTime <= today.getTime() && dTime <= fillCapMs) return '"■ Done"';
+            return '"■ Plan"';
+          }
+          return '""';
+        });
+
+        rows.push([...singleRowMeta, ...singleCells]);
+      }
     });
 
-    const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+    // Append visual legend for Excel users
+    const legendRows: string[][] = [
+      [],
+      ['"=== GANTT CHART TIMELINE LEGEND ==="'],
+      ['"Marker"', '"Meaning"'],
+      ['"[TODAY]"', '"Today reference column marker"'],
+      ['"■ Plan"', '"Planned Goal duration bar"'],
+      ['"■ Done"', '"Confirmed worked / completed days"'],
+      ['"■ Done (Late)"', '"Work completed after the agreed deadline"'],
+      ['"⏸ Paused"', '"Work paused or suspended (unworked day or approved stoppage)"'],
+      ['"░ Delayed"', '"Projected schedule delay extension beyond the due date"'],
+      ['"░ Projected"', '"Scheduled upcoming work days before the due date"'],
+      ['"◆ Milestone"', '"Milestone checkpoint deliverable"']
+    ];
+
+    const allCsvLines = [
+      headers.join(','),
+      ...rows.map(r => r.join(',')),
+      ...legendRows.map(r => r.join(','))
+    ];
+
+    const csvContent = allCsvLines.join('\n');
     // Prepend UTF-8 BOM so Microsoft Excel automatically recognizes character encoding and dates
     const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `${board.name.toLowerCase().replace(/\s+/g, '-')}-roadmap-report.csv`;
+    link.download = `${board.name.toLowerCase().replace(/\s+/g, '-')}-gantt-roadmap.csv`;
     link.click();
     URL.revokeObjectURL(url);
-    showToast('Roadmap CSV exported successfully', 'success');
+    showToast('Gantt chart and Roadmap exported to CSV successfully', 'success');
   };
 
   // Pixel sizing per interval
@@ -1088,9 +1274,9 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
             type="button"
             className="btn btn-secondary roadmap-btn-export"
             onClick={handleExportCSV}
-            title="Export Roadmap report as CSV"
+            title="Export complete Gantt chart timeline and task data as CSV for Microsoft Excel"
           >
-            <span>Export</span>
+            <span>Export Gantt CSV</span>
           </motion.button>
         </div>
       </div>
