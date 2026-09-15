@@ -36,9 +36,9 @@ The Roadmap view is organized into two synchronized panes that scroll together:
 ┌──────────────────────────────────────────────┬────────────────────────────────────────────────────────┐
 │ LEFT PANE: Tabular Deliverables Table        │ RIGHT PANE: Interactive Gantt Canvas                  │
 ├──────────────────────────────────────────────┼────────────────────────────────────────────────────────┤
-│ [✓] Task Title         Progress  Target  Var │   Mon 14     Tue 15     Wed 16     Thu 17   │ TODAY   │
-│  ☐  Foundation Layout    45%     Sep 20  +2d │  [■■■ Target Baseline ■■■]                  │    │    │
-│                                              │  [████ Accomplished ░░░░░]                  │    │    │
+│ [✓] Task Name          Done    Due     Status │   Mon 14     Tue 15     Wed 16     Thu 17   │ TODAY   │
+│  ☐  Foundation Layout   45%   Sep 20   2d late│  [■■■ Planned Goal ■■■]                     │    │    │
+│                                              │  [████ Work Done ░░░░░]                     │    │    │
 └──────────────────────────────────────────────┴──────────────────────────────────────────────┴────▲────┘
                                                                                                    │
                                                                                            Today Guideline
@@ -46,18 +46,18 @@ The Roadmap view is organized into two synchronized panes that scroll together:
 
 ### 1. Left Pane: Work Breakdown Structure (Table)
 - **Status Toggle (`☐` / `☑`)**: Quickly mark a task complete without opening the card.
-- **Milestone Diamond (`◆`)**: Indicates zero-duration checkpoint deliverables.
-- **Task Title**: Click any title to open the full task editor modal.
+- **Milestone Diamond (`◆`)**: Indicates key checkpoint deliverables.
+- **Task Name**: Click any title to open the full task editor modal.
 - **Assignee Avatars**: Shows who is responsible for the task.
-- **Progress %**: Reflects current task completion percentage.
-- **Target Date**: Planned contractual deadline.
-- **Actual / Projected Date**: Calculated date of completion.
-- **Variance Badge**: Color-coded indicator showing if the task is **Ahead**, **On Track**, or **Delayed**.
+- **Done (%)**: Reflects current task completion percentage.
+- **Due Date**: Planned contractual deadline.
+- **Status**: Plain-language schedule health (e.g. **On schedule**, **3d late**, or **2d ahead**).
 
 ### 2. Right Pane: Visual Timeline Canvas
 - **Calendar Headers**: Divided into Days, Weeks, or Months.
-- **Today Guideline**: An accented vertical line that marks the exact current calendar day.
+- **Today Guideline**: A blue vertical line that marks the exact current calendar day.
 - **Dual-Track Gantt Bars**: Contrasts your initial plan against real-world progress.
+- **10-Second Explainer Guide (`(?) How it works`)**: Click anytime in the legend bar for an instant visual summary.
 
 ---
 
@@ -103,12 +103,12 @@ Your task will now render on the Gantt timeline with a solid **green baseline ba
 Worklane features an intelligent **Dual-Track Engine** that distinguishes between what was planned and what has actually happened.
 
 ### Understanding the Dual Bars:
-- **Top Track (Green)**: The **Target Baseline**. This bar stays fixed as a reference point for your original commitment.
-- **Bottom Track (Orange)**: The **Actual Accomplishment**. This bar tracks the real elapsed time spent working on the deliverable.
+- **Top Track (Green)**: The **Planned Goal**. This bar stays fixed as a reference point for your original commitment.
+- **Bottom Track (Orange)**: The **Work Done**. This bar tracks the real elapsed time spent working on the deliverable.
 
 ### The Automated Work Tracking & Line Advancement Rule:
 The orange accomplishment line **only moves on days confirmed as worked**:
-- **If work is NOT marked for today**: The orange line **DOES NOT MOVE**. It remains held at the date of the last recorded work or activity, displaying a `Held` tag so you know progress is paused.
+- **If work is NOT marked for today**: The orange line **DOES NOT MOVE**. It remains held at the date of the last recorded work or activity, displaying a `Paused` tag so you know progress is temporarily on hold.
 - **Option A (Manual Daily Check-in)**: Open the task modal and click **`Mark Worked Today`**. The button turns green (**`✓ Worked Today`**) and the orange bar immediately advances to today.
 - **Option B (Automatic Activity Detection)**: Adding comments, uploading attachments, or updating the task automatically registers today as worked—zero manual effort needed!
 
@@ -146,9 +146,9 @@ $$\text{Variance (Days)} = \text{Actual / Projected End} - \text{Target Due Date
 
 | Badge | Meaning | Status Action |
 | :---: | :--- | :--- |
-| <span style="color:#10b981; font-weight:bold;">-2d Ahead</span> | The task is progressing faster than the planned baseline schedule. | Excellent performance. Ahead of schedule. |
-| <span style="color:#64748b; font-weight:bold;">On Track</span> | The task is progressing exactly on schedule. | On target. No corrective action needed. |
-| <span style="color:#ef4444; font-weight:bold;">+3d Delayed</span> | The task is lagging 3 days behind the target deadline after netting pauses. | Needs attention or resource reallocation. |
+| <span style="color:#10b981; font-weight:bold;">2d ahead</span> | The task is progressing faster than the planned baseline schedule. | Excellent performance. Ahead of schedule. |
+| <span style="color:#3b82f6; font-weight:bold;">On schedule</span> | The task is progressing exactly on schedule. | On target. No corrective action needed. |
+| <span style="color:#ef4444; font-weight:bold;">3d late</span> | The task is lagging behind the target deadline after netting pauses. | Needs attention or resource reallocation. |
 
 ---
 

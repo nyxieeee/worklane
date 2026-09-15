@@ -4,7 +4,7 @@ import {
   CheckSquare, Square, Clock, AlertCircle, CheckCircle2,
   ChevronDown, ChevronUp, User, Layers, Plus, Search, Filter,
   Play, Check, Trash2, Edit3, Tag,
-  X, Target, BarChart2, Kanban, Link2
+  X, Target, BarChart2, Kanban, Link2, HelpCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { Board, Card as CardType, Member, Sprint } from '../types';
@@ -275,6 +275,7 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
   const [showProjectionComparison, setShowProjectionComparison] = useState(true);
   const [mobileTab, setMobileTab] = useState<'deliverables' | 'timeline'>('deliverables');
   const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth <= 768);
+  const [showHelpGuide, setShowHelpGuide] = useState(false);
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth <= 768);
@@ -1076,10 +1077,10 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
             type="button"
             className={`btn ${showProjectionComparison ? 'btn-primary' : 'btn-secondary'} roadmap-btn-compare`}
             onClick={() => setShowProjectionComparison(s => !s)}
-            title="Toggle Target Baseline vs Actual / Projected Schedule Comparison"
+            title="Switch between comparing the original plan vs actual work, or showing a clean simple bar"
           >
-            <span className="hide-on-mobile-inline">{showProjectionComparison ? 'Target vs Actual: ON' : 'Single Bar'}</span>
-            <span className="show-on-mobile-inline">{showProjectionComparison ? 'Target/Actual' : 'Single'}</span>
+            <span className="hide-on-mobile-inline">{showProjectionComparison ? 'Plan vs Actual (Dual)' : 'Simple View'}</span>
+            <span className="show-on-mobile-inline">{showProjectionComparison ? 'Dual' : 'Simple'}</span>
           </motion.button>
 
           <motion.button
@@ -1223,19 +1224,114 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
             </motion.button>
           </div>
 
-          {/* Visual Legend matching Excel S-curve reference */}
+          {/* Visual Legend with Friendly Non-Technical Labels & Help Trigger */}
           <div className="roadmap-legend-container" title="Schedule Tracking Legend">
             <div className="roadmap-legend-item">
               <div className="roadmap-legend-swatch" style={{ backgroundColor: '#10b981' }} />
-              <span>Target (Planned)</span>
+              <span>Planned Goal</span>
             </div>
             <div className="roadmap-legend-item">
               <div className="roadmap-legend-swatch" style={{ backgroundColor: '#f97316' }} />
-              <span>Actual (Accomplished)</span>
+              <span>Work Done</span>
             </div>
+            <button
+              type="button"
+              onClick={() => setShowHelpGuide(s => !s)}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4,
+                fontSize: 10.5,
+                fontWeight: 600,
+                color: showHelpGuide ? 'hsl(var(--primary))' : 'hsl(var(--muted-foreground))',
+                background: showHelpGuide ? 'hsl(var(--primary) / 0.12)' : 'transparent',
+                border: '1px solid hsl(var(--border) / 0.6)',
+                borderRadius: 6,
+                padding: '2px 7px',
+                cursor: 'pointer',
+                marginLeft: 4,
+              }}
+              title="Click for a quick explanation of this chart"
+            >
+              <HelpCircle size={12} />
+              <span>{showHelpGuide ? 'Hide Guide' : 'How it works'}</span>
+            </button>
           </div>
         </div>
       </div>
+
+      {/* Friendly Explainer Guide for Non-Technical Stakeholders */}
+      <AnimatePresence>
+        {showHelpGuide && (
+          <motion.div
+            initial={{ opacity: 0, height: 0, y: -6 }}
+            animate={{ opacity: 1, height: 'auto', y: 0 }}
+            exit={{ opacity: 0, height: 0, y: -6 }}
+            transition={{ duration: 0.2 }}
+            style={{
+              overflow: 'hidden',
+              margin: '6px 16px 10px',
+              padding: '12px 16px',
+              borderRadius: 10,
+              background: 'hsl(var(--card))',
+              border: '1px solid hsl(var(--primary) / 0.35)',
+              boxShadow: '0 4px 14px rgba(0,0,0,0.08)',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+              <span style={{ fontSize: 12, fontWeight: 700, color: 'hsl(var(--foreground))', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <HelpCircle size={14} color="hsl(var(--primary))" />
+                How to read this chart (Quick 10-second guide)
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowHelpGuide(false)}
+                style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'hsl(var(--muted-foreground))', padding: 2 }}
+                title="Close guide"
+              >
+                <X size={13} />
+              </button>
+            </div>
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))',
+              gap: 12,
+            }}>
+              <div style={{ display: 'flex', gap: 9, alignItems: 'flex-start' }}>
+                <div style={{ width: 10, height: 10, borderRadius: 2, backgroundColor: '#10b981', marginTop: 3, flexShrink: 0 }} />
+                <div>
+                  <div style={{ fontSize: 11.5, fontWeight: 700, color: 'hsl(var(--foreground))' }}>Top Green Bar = The Plan</div>
+                  <div style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))' }}>The agreed deadline. Stays fixed so everyone knows what was promised.</div>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: 9, alignItems: 'flex-start' }}>
+                <div style={{ width: 10, height: 10, borderRadius: 2, backgroundColor: '#f97316', marginTop: 3, flexShrink: 0 }} />
+                <div>
+                  <div style={{ fontSize: 11.5, fontWeight: 700, color: 'hsl(var(--foreground))' }}>Bottom Orange Bar = Work Done</div>
+                  <div style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))' }}>Real progress. Automatically pauses if no work or comments happened today.</div>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: 9, alignItems: 'flex-start' }}>
+                <div style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: '#3b82f6', marginTop: 3, flexShrink: 0 }} />
+                <div>
+                  <div style={{ fontSize: 11.5, fontWeight: 700, color: 'hsl(var(--foreground))' }}>Blue Vertical Line = Today</div>
+                  <div style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))' }}>Current day. If the orange bar is behind this line, the task is running late.</div>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: 9, alignItems: 'flex-start' }}>
+                <div style={{ width: 10, height: 10, transform: 'rotate(45deg)', backgroundColor: '#a855f7', marginTop: 3, flexShrink: 0 }} />
+                <div>
+                  <div style={{ fontSize: 11.5, fontWeight: 700, color: 'hsl(var(--foreground))' }}>Purple Diamond = Key Milestone</div>
+                  <div style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))' }}>Major checkpoints (e.g. client sign-off, permits, releases).</div>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Active Phase Highlights Bar (When an active phase exists) */}
       {activeSprint && (
@@ -1298,11 +1394,11 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
         {/* Left Side: Tasks Table */}
         <div className="roadmap-tasks-pane">
           <div className="roadmap-pane-header">
-            <span style={{ flex: 1, paddingLeft: 8 }}>Task & Deliverable</span>
-            <span className="hide-on-mobile-inline" style={{ width: 38, textAlign: 'center' }}>Prog</span>
-            <span className="hide-on-mobile-inline" style={{ width: 68, textAlign: 'center' }}>Target</span>
-            <span className="hide-on-mobile-inline" style={{ width: 95, textAlign: 'right', paddingRight: 8 }}>Actual / Proj</span>
-            <span className="show-on-mobile-inline" style={{ width: 95, textAlign: 'right', paddingRight: 8 }}>Status & Date</span>
+            <span style={{ flex: 1, paddingLeft: 8 }}>Task Name</span>
+            <span className="hide-on-mobile-inline" style={{ width: 38, textAlign: 'center' }}>Done</span>
+            <span className="hide-on-mobile-inline" style={{ width: 68, textAlign: 'center' }}>Due Date</span>
+            <span className="hide-on-mobile-inline" style={{ width: 95, textAlign: 'right', paddingRight: 8 }}>Status</span>
+            <span className="show-on-mobile-inline" style={{ width: 95, textAlign: 'right', paddingRight: 8 }}>Status & Due</span>
           </div>
 
           <div
@@ -1519,12 +1615,12 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
                                 </div>
                                 {t.varianceDays !== 0 && (
                                   <span className={`variance-tag ${t.varianceDays > 0 ? 'delay' : 'early'}`}>
-                                    {t.varianceDays > 0 ? `+${t.varianceDays}d` : `${t.varianceDays}d`}
+                                    {t.varianceDays > 0 ? `${t.varianceDays}d late` : `${Math.abs(t.varianceDays)}d ahead`}
                                   </span>
                                 )}
                                 {t.varianceDays === 0 && (
                                   <span className="variance-tag on-track">
-                                    {t.card.completed ? 'On Time' : 'On Track'}
+                                    {t.card.completed ? 'On Time' : 'On schedule'}
                                   </span>
                                 )}
                               </div>
@@ -1544,10 +1640,10 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
                                     <span style={{ fontSize: 9.5, fontWeight: 600, color: '#10b981' }}>Done</span>
                                   ) : t.varianceDays !== 0 ? (
                                     <span className={`variance-tag ${t.varianceDays > 0 ? 'delay' : 'early'}`} style={{ fontSize: 9, padding: '1px 4px' }}>
-                                      {t.varianceDays > 0 ? `+${t.varianceDays}d` : `${t.varianceDays}d`}
+                                      {t.varianceDays > 0 ? `${t.varianceDays}d late` : `${Math.abs(t.varianceDays)}d ahead`}
                                     </span>
                                   ) : (
-                                    <span style={{ fontSize: 9.5, color: 'hsl(var(--muted-foreground))' }}>On track</span>
+                                    <span style={{ fontSize: 9.5, color: 'hsl(var(--muted-foreground))' }}>On schedule</span>
                                   )}
                                 </div>
                               </div>
@@ -1713,6 +1809,29 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
                                 ? Math.max(0, Math.min(1, (fillRightPct - actualLeftPct) / actualTotalWidthPct))
                                 : 0);
 
+                          const friendlyStatus = t.card.completed
+                            ? 'Completed on time'
+                            : t.varianceDays > 0
+                              ? `Behind schedule by ${t.varianceDays} ${t.varianceDays === 1 ? 'day' : 'days'}`
+                              : t.varianceDays < 0
+                                ? `Ahead of schedule by ${Math.abs(t.varianceDays)} ${Math.abs(t.varianceDays) === 1 ? 'day' : 'days'}`
+                                : 'On schedule';
+
+                          const actualTooltip = [
+                            `📋 Task: ${t.card.title}`,
+                            `📅 Planned Goal: ${formatShortDate(t.targetStartDate)} to ${formatShortDate(t.targetEndDate)}`,
+                            `📊 Work Accomplished: ${progressPct}%`,
+                            `🚦 Status: ${friendlyStatus}`,
+                            !t.card.completed
+                              ? (t.isWorkedToday
+                                  ? '✅ Daily Work: Confirmed for today'
+                                  : `⏸️ Daily Work: Paused today (held at ${formatShortDate(t.lastWorkedDate)})`)
+                              : null,
+                            t.suspendedDays > 0
+                              ? `⏸️ Paused / Suspended: ${t.suspendedDays} ${t.suspendedDays === 1 ? 'day' : 'days'}`
+                              : null,
+                          ].filter(Boolean).join('\n');
+
                           return (
                             <div key={t.card.id} className="roadmap-bar-row">
                               {/* Mobile-only sticky task title pill so user knows which row is which during horizontal scroll */}
@@ -1730,7 +1849,7 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
                                       width: `${targetWidthPct}%`,
                                     }}
                                     onClick={() => onOpenCard(t.card.id)}
-                                    title={`Target (Planned): ${formatShortDate(t.targetStartDate)} → ${formatShortDate(t.targetEndDate)}`}
+                                    title={`Planned Goal: ${formatShortDate(t.targetStartDate)} to ${formatShortDate(t.targetEndDate)}`}
                                   >
                                     <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
                                       {isMilestone && (
@@ -1746,7 +1865,7 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
                                           title="Milestone Deliverable"
                                         />
                                       )}
-                                      Target: {formatShortDate(t.targetEndDate)}
+                                      Goal: {formatShortDate(t.targetEndDate)}
                                     </span>
                                   </div>
 
@@ -1758,7 +1877,7 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
                                       width: `${actualTotalWidthPct}%`,
                                     }}
                                     onClick={() => onOpenCard(t.card.id)}
-                                    title={`Actual Schedule: ${formatShortDate(t.actualStartDate)} → ${formatShortDate(t.actualOrProjectedEndDate)}\nStatus: ${t.card.completed ? 'Completed' : (t.isWorkedToday ? `Worked today (${progressPct}% accomplished)` : `Work not marked for today — orange bar held at ${formatShortDate(t.lastWorkedDate)}`)}`}
+                                    title={actualTooltip}
                                   >
                                     {/* Filled portion: Fills ONLY for task or deliverable done for that day */}
                                     <div
@@ -1779,8 +1898,8 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
                                             <>
                                               <span>{progressPct}%</span>
                                               {!t.isWorkedToday && (
-                                                <span style={{ fontSize: 8.5, opacity: 0.9, backgroundColor: 'rgba(0,0,0,0.35)', padding: '1px 3.5px', borderRadius: 3 }} title="Line held: work not marked for today">
-                                                  Held
+                                                <span style={{ fontSize: 8.5, opacity: 0.9, backgroundColor: 'rgba(0,0,0,0.35)', padding: '1px 3.5px', borderRadius: 3 }} title="Work paused today: mark worked today or add a comment/attachment to advance">
+                                                  Paused
                                                 </span>
                                               )}
                                             </>
@@ -1811,7 +1930,7 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
                                           left: `${Math.max(0, ((targetRightPct - actualLeftPct) / actualTotalWidthPct) * 100)}%`,
                                           right: 0,
                                         }}
-                                        title={`Projected Delay: +${t.varianceDays} days`}
+                                        title={`Behind schedule by ${t.varianceDays} ${t.varianceDays === 1 ? 'day' : 'days'}`}
                                       />
                                     )}
 
@@ -1819,7 +1938,7 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
                                     {doneRatio < 0.6 && (
                                       <span className="roadmap-actual-track-label">
                                         {doneRatio === 0 ? '0% done' : `${progressPct}%`}
-                                        {t.varianceDays > 0 && !t.card.completed && ` (+${t.varianceDays}d)`}
+                                        {t.varianceDays > 0 && !t.card.completed && ` (${t.varianceDays}d late)`}
                                       </span>
                                     )}
 
@@ -1872,6 +1991,7 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
                                         : (section.color || t.columnColor || 'hsl(var(--primary))'),
                                     }}
                                     onClick={() => onOpenCard(t.card.id)}
+                                    title={`${t.card.title}\nDue: ${formatShortDate(t.targetEndDate)}\nStatus: ${t.card.completed ? 'Completed' : `${progressPct}% done (${friendlyStatus})`}`}
                                   >
                                     <div
                                       className="roadmap-bar-progress-fill"
@@ -2224,7 +2344,7 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
 
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                       <div className="form-group">
-                        <label className="field-label">Target Start</label>
+                        <label className="field-label">Start Date</label>
                         <NeumorphicDatePicker
                           value={quickTaskStartDate || null}
                           onChange={val => setQuickTaskStartDate(val ? val.split('T')[0] : '')}
@@ -2232,7 +2352,7 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
                         />
                       </div>
                       <div className="form-group">
-                        <label className="field-label">Target Date (Due)</label>
+                        <label className="field-label">Due Date</label>
                         <NeumorphicDatePicker
                           value={quickTaskDueDate || null}
                           onChange={val => setQuickTaskDueDate(val ? val.split('T')[0] : '')}
