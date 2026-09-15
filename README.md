@@ -84,6 +84,8 @@ Worklane operates with zero-latency optimistic local state persisted in `localSt
   - Automatically subtracts paused periods from total duration to compute true active working days.
   - Computes real-time schedule variance (planned vs. actual elapsed duration).
   - One-click export of roadmap timeline and variance data to CSV.
+  - 📖 *For technical standards & variance formulas, see [`GANTT_SPECIFICATION.md`](GANTT_SPECIFICATION.md).*
+  - 📘 *For step-by-step instructions on using the Roadmap & Gantt features, see [`GANTT_USER_MANUAL.md`](GANTT_USER_MANUAL.md).*
 
 ### 📥 4. Task Backlog & Inbox Drawer
 - **Dockable / Sliding Backlog Drawer**: Triage raw ideas, incoming bug reports, and unstructured notes before promoting them to workflow columns.

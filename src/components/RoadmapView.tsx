@@ -78,6 +78,12 @@ interface TaskWithSchedule {
   varianceDays: number;
   /** Total suspended (paused) calendar days already factored into variance */
   suspendedDays: number;
+  /** Whether work was confirmed today (via check-in or activity) */
+  isWorkedToday: boolean;
+  /** Number of confirmed worked days */
+  workedDaysCount: number;
+  /** Most recent date work occurred */
+  lastWorkedDate: Date | null;
   startDate: Date;
   endDate: Date;
   hasExplicitDates: boolean;
@@ -141,6 +147,110 @@ export function computeSuspendedDays(card: CardType, from: Date, upTo: Date): nu
     }
   }
   return total;
+}
+
+export interface CardWorkStatus {
+  isWorkedToday: boolean;
+  workedDaysCount: number;
+  lastWorkedDate: Date | null;
+  /** Days between actualStartDate and today that had NO work or activity */
+  automatedSuspendedDays: number;
+  workedDatesSet: Set<string>;
+}
+
+/**
+ * Evaluates whether a card has work registered (via Option A: manual check-in or
+ * Option B: card activity detection like comments, attachments, or updates).
+ * Days with zero work or activity are automatically treated as paused/suspended.
+ */
+export function getCardWorkStatus(card: CardType, actualStartDate: Date, today: Date): CardWorkStatus {
+  const workedSet = new Set<string>();
+
+  // 1. Option A: Explicitly logged worked days
+  if (card.workedDays && card.workedDays.length > 0) {
+    for (const d of card.workedDays) {
+      workedSet.add(d);
+    }
+  }
+
+  // 2. Option B: Activity Detection
+  if (card.comments && card.comments.length > 0) {
+    for (const c of card.comments) {
+      if (c.createdAt) workedSet.add(c.createdAt.slice(0, 10));
+    }
+  }
+  if (card.attachments && card.attachments.length > 0) {
+    for (const a of card.attachments) {
+      if (a.addedAt) workedSet.add(a.addedAt.slice(0, 10));
+    }
+  }
+  if (card.completedAt) {
+    workedSet.add(card.completedAt.slice(0, 10));
+  }
+  if (card.createdAt) {
+    const createdStr = card.createdAt.slice(0, 10);
+    const createdDate = new Date(createdStr);
+    createdDate.setHours(0, 0, 0, 0);
+    if (createdDate.getTime() >= actualStartDate.getTime()) {
+      workedSet.add(createdStr);
+    }
+  }
+
+  // Remove dates that fall within explicit manual workSuspensions
+  if (card.workSuspensions && card.workSuspensions.length > 0) {
+    for (const s of card.workSuspensions) {
+      const cur = new Date(s.from);
+      const toDate = new Date(s.to);
+      cur.setHours(0, 0, 0, 0);
+      toDate.setHours(0, 0, 0, 0);
+      while (cur <= toDate) {
+        workedSet.delete(cur.toISOString().slice(0, 10));
+        cur.setDate(cur.getDate() + 1);
+      }
+    }
+  }
+
+  const todayStr = today.toISOString().slice(0, 10);
+  const isWorkedToday = workedSet.has(todayStr);
+
+  // Find latest worked date <= today
+  let lastWorkedDate: Date | null = null;
+  const sortedDates = Array.from(workedSet)
+    .filter(d => d <= todayStr)
+    .sort();
+
+  if (sortedDates.length > 0) {
+    const lastStr = sortedDates[sortedDates.length - 1];
+    const d = new Date(lastStr);
+    d.setHours(23, 59, 59, 999);
+    lastWorkedDate = d;
+  }
+
+  // Total calendar days between actualStartDate and today that had NO work or activity
+  let automatedSuspendedDays = 0;
+  const startDay = new Date(actualStartDate);
+  startDay.setHours(0, 0, 0, 0);
+  const todayDay = new Date(today);
+  todayDay.setHours(0, 0, 0, 0);
+
+  if (todayDay.getTime() >= startDay.getTime() && !card.completed) {
+    const cursor = new Date(startDay);
+    while (cursor <= todayDay) {
+      const dStr = cursor.toISOString().slice(0, 10);
+      if (!workedSet.has(dStr)) {
+        automatedSuspendedDays++;
+      }
+      cursor.setDate(cursor.getDate() + 1);
+    }
+  }
+
+  return {
+    isWorkedToday,
+    workedDaysCount: sortedDates.length,
+    lastWorkedDate,
+    automatedSuspendedDays,
+    workedDatesSet: workedSet,
+  };
 }
 
 export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
@@ -378,8 +488,11 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
         let isProjected = false;
         const progressPct = deriveCardProgress(card, col.name);
 
-        // Total suspended calendar days between actual start and today (excluded from elapsed work time)
-        const suspendedDays = computeSuspendedDays(card, actStart, today);
+        // Evaluate work status (Option A: manual check-in + Option B: activity detection)
+        const workStatus = getCardWorkStatus(card, actStart, today);
+        const manualSuspendedDays = computeSuspendedDays(card, actStart, today);
+        // Total suspended calendar days combines manual pauses and automated inactive days
+        const suspendedDays = Math.max(manualSuspendedDays, workStatus.automatedSuspendedDays);
 
         if (card.completed) {
           if (card.actualEndDate) {
@@ -444,6 +557,9 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
           isProjected,
           varianceDays,
           suspendedDays,
+          isWorkedToday: workStatus.isWorkedToday,
+          workedDaysCount: workStatus.workedDaysCount,
+          lastWorkedDate: workStatus.lastWorkedDate,
           startDate: targetStart,
           endDate: actOrProjEnd,
           hasExplicitDates: hasDueDate || hasStartDate,
@@ -781,6 +897,8 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
       'Target Due Date',
       'Actual / Projected Date',
       'Progress %',
+      'Worked Days Count',
+      'Worked Today',
       'Variance (Days)',
       'Variance Status',
       'Status',
@@ -795,9 +913,15 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
         ? (vDays > 0 ? 'Completed Late' : vDays < 0 ? 'Completed Early' : 'Completed On Time')
         : (vDays > 0 ? 'Delayed' : vDays < 0 ? 'Ahead of Schedule' : 'On Track');
       // Format work suspensions as readable text
-      const suspensions = (t.card.workSuspensions || []).map(s =>
+      const suspensionItems = (t.card.workSuspensions || []).map(s =>
         `${s.from} to ${s.to}${s.reason ? ` (${s.reason})` : ''}`
-      ).join('; ');
+      );
+      const manualSuspended = computeSuspendedDays(t.card, t.actualStartDate, today);
+      const autoSuspended = Math.max(0, t.suspendedDays - manualSuspended);
+      if (autoSuspended > 0) {
+        suspensionItems.push(`${autoSuspended} auto-unworked days`);
+      }
+      const suspensions = suspensionItems.join('; ');
       return [
         `"${(t.card.title || '').replace(/"/g, '""')}"`,
         `"${(t.columnName || '').replace(/"/g, '""')}"`,
@@ -808,6 +932,8 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
         formatDateForExport(t.card.dueDate || t.targetEndDate),
         formatDateForExport(t.actualOrProjectedEndDate),
         t.card.progress ?? (t.card.completed ? 100 : deriveCardProgress(t.card, t.columnName)),
+        t.workedDaysCount,
+        t.card.completed ? 'N/A (Done)' : (t.isWorkedToday ? 'Yes' : 'No'),
         varianceStr,
         varianceStatus,
         t.card.completed ? 'Completed' : (t.targetEndDate < today ? 'Overdue' : 'In Progress'),
@@ -1374,9 +1500,23 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
 
                               {/* Actual / Projected Date with variance (Desktop) */}
                               <div className="hide-on-mobile-flex" style={{ width: 95, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', paddingRight: 8, whiteSpace: 'nowrap' }}>
-                                <span style={{ fontSize: 10.5, fontWeight: 600, color: t.card.completed ? '#10b981' : (t.varianceDays > 0 ? '#ef4444' : 'hsl(var(--foreground))') }}>
-                                  {formatShortDate(t.actualOrProjectedEndDate)}
-                                </span>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                  {!t.card.completed && (
+                                    <span
+                                      title={t.isWorkedToday ? 'Work confirmed for today' : `Work not marked today (line held at ${formatShortDate(t.lastWorkedDate)})`}
+                                      style={{
+                                        width: 6,
+                                        height: 6,
+                                        borderRadius: '50%',
+                                        backgroundColor: t.isWorkedToday ? '#10b981' : '#f59e0b',
+                                        flexShrink: 0,
+                                      }}
+                                    />
+                                  )}
+                                  <span style={{ fontSize: 10.5, fontWeight: 600, color: t.card.completed ? '#10b981' : (t.varianceDays > 0 ? '#ef4444' : 'hsl(var(--foreground))') }}>
+                                    {formatShortDate(t.actualOrProjectedEndDate)}
+                                  </span>
+                                </div>
                                 {t.varianceDays !== 0 && (
                                   <span className={`variance-tag ${t.varianceDays > 0 ? 'delay' : 'early'}`}>
                                     {t.varianceDays > 0 ? `+${t.varianceDays}d` : `${t.varianceDays}d`}
@@ -1550,11 +1690,21 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
                           const actualTotalWidthPct = Math.max(2.0, actualRightPct - actualLeftPct);
                           const actualWidthPct = actualTotalWidthPct;
 
-                          // For the orange fill: cap at TODAY so in-progress bars never appear to
-                          // extend into the future. Completed tasks always show their full bar.
-                          const fillCapMs = t.card.completed
-                            ? actualEndMs
-                            : Math.min(actualEndMs, today.getTime() + 12 * 3600000);
+                          // For the orange fill:
+                          // 1. If completed: full bar to actualEndMs
+                          // 2. If active AND worked today: fills up to today
+                          // 3. If active AND NOT worked today: fills up to lastWorkedDate (does NOT move to today!)
+                          let fillCapMs: number;
+                          if (t.card.completed) {
+                            fillCapMs = actualEndMs;
+                          } else if (t.isWorkedToday) {
+                            fillCapMs = Math.min(actualEndMs, today.getTime() + 12 * 3600000);
+                          } else if (t.lastWorkedDate) {
+                            fillCapMs = Math.min(actualEndMs, Math.max(actualStartMs, t.lastWorkedDate.getTime()));
+                          } else {
+                            // Work has not started or not marked yet
+                            fillCapMs = actualStartMs;
+                          }
                           const fillRightPct = Math.max(actualLeftPct, Math.min(actualRightPct, ((fillCapMs - viewStart.getTime()) / totalViewMs) * 100));
                           // doneRatio within the track width
                           const doneRatio = t.card.completed
@@ -1608,13 +1758,14 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
                                       width: `${actualTotalWidthPct}%`,
                                     }}
                                     onClick={() => onOpenCard(t.card.id)}
-                                    title={`Actual Schedule: ${formatShortDate(t.actualStartDate)} → ${formatShortDate(t.actualOrProjectedEndDate)}\nStatus: ${t.card.completed ? 'Completed' : (doneRatio > 0 ? `${progressPct}% accomplished` : 'Not started (0% done)')}`}
+                                    title={`Actual Schedule: ${formatShortDate(t.actualStartDate)} → ${formatShortDate(t.actualOrProjectedEndDate)}\nStatus: ${t.card.completed ? 'Completed' : (t.isWorkedToday ? `Worked today (${progressPct}% accomplished)` : `Work not marked for today — orange bar held at ${formatShortDate(t.lastWorkedDate)}`)}`}
                                   >
                                     {/* Filled portion: Fills ONLY for task or deliverable done for that day */}
                                     <div
                                       className={`roadmap-actual-filled-bar ${t.card.completed ? 'completed' : ''}`}
                                       style={{
                                         width: `${doneRatio * 100}%`,
+                                        ...((!t.card.completed && !t.isWorkedToday) ? { opacity: 0.85 } : {}),
                                       }}
                                     >
                                       {doneRatio > 0 && (
@@ -1625,7 +1776,14 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
                                               <CheckCircle2 size={10} color="#fff" />
                                             </>
                                           ) : (
-                                            <span>{progressPct}%</span>
+                                            <>
+                                              <span>{progressPct}%</span>
+                                              {!t.isWorkedToday && (
+                                                <span style={{ fontSize: 8.5, opacity: 0.9, backgroundColor: 'rgba(0,0,0,0.35)', padding: '1px 3.5px', borderRadius: 3 }} title="Line held: work not marked for today">
+                                                  Held
+                                                </span>
+                                              )}
+                                            </>
                                           )}
                                           {isMilestone && (
                                             <span

@@ -78,6 +78,8 @@ export interface Card {
   isInbox?: boolean;
   /** Periods when work was paused. Variance calc subtracts these days from elapsed time. */
   workSuspensions?: WorkSuspension[];
+  /** Dates (YYYY-MM-DD) confirmed as worked via manual mark or automatic activity. */
+  workedDays?: string[];
   // due-date alert flags
   [key: string]: unknown;
 }

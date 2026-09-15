@@ -20,7 +20,7 @@ import { supabaseService } from '../services/supabaseService';
 import NeumorphicDatePicker from './ui/NeumorphicDatePicker';
 import { NeumorphicSelect } from './ui/NeumorphicSelect';
 import AvatarBorder from './ui/AvatarBorder';
-import { deriveCardProgress } from './RoadmapView';
+import { deriveCardProgress, getCardWorkStatus } from './RoadmapView';
 
 interface Props {
   cardId: string | null;
@@ -60,6 +60,7 @@ export default function CardModal({ cardId, boardId, onClose }: Props) {
   const toggleCardComplete = useWorkStore(s => s.toggleCardComplete);
   const toggleCardLabel = useWorkStore(s => s.toggleCardLabel);
   const toggleCardAssignee = useWorkStore(s => s.toggleCardAssignee);
+  const toggleCardWorkedDay = useWorkStore(s => s.toggleCardWorkedDay);
   const addAttachment = useWorkStore(s => s.addAttachment);
   const removeAttachment = useWorkStore(s => s.removeAttachment);
   const addComment = useWorkStore(s => s.addComment);
@@ -2358,6 +2359,99 @@ export default function CardModal({ cardId, boardId, onClose }: Props) {
                 />
               </div>
             </div>
+
+            {/* Daily Work Confirmation (Option A: Manual Mark + Option B: Activity Detection) */}
+            {(() => {
+              const now = new Date();
+              const actStart = card.actualStartDate
+                ? new Date(card.actualStartDate)
+                : (card.startDate ? new Date(card.startDate) : new Date(card.createdAt));
+              const workStatus = getCardWorkStatus(card, actStart, now);
+              const isWorkedToday = workStatus.isWorkedToday;
+              const workedCount = workStatus.workedDaysCount;
+
+              return (
+                <div className="form-group" style={{ marginBottom: 16 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                    <label className="field-label" style={{ display: 'flex', alignItems: 'center', gap: 6, margin: 0 }}>
+                      <CalendarCheck size={12} color="hsl(var(--muted-foreground))" />
+                      Daily Work Confirmation
+                      {workedCount > 0 && (
+                        <span style={{
+                          fontSize: 10,
+                          fontWeight: 700,
+                          padding: '1px 6px',
+                          borderRadius: 6,
+                          backgroundColor: 'rgba(16,185,129,0.15)',
+                          color: '#10b981',
+                          marginLeft: 4,
+                        }}>
+                          {workedCount} day{workedCount !== 1 ? 's' : ''} worked
+                        </span>
+                      )}
+                    </label>
+                    <button
+                      type="button"
+                      className={`btn ${isWorkedToday ? 'btn-primary' : 'btn-secondary'}`}
+                      style={{
+                        height: 27,
+                        fontSize: 11,
+                        padding: '3px 10px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 5,
+                        borderRadius: 7,
+                        fontWeight: 600,
+                        backgroundColor: isWorkedToday ? '#10b981' : undefined,
+                        borderColor: isWorkedToday ? '#10b981' : undefined,
+                        color: isWorkedToday ? '#fff' : undefined,
+                      }}
+                      onClick={() => toggleCardWorkedDay(cardId)}
+                      title={isWorkedToday ? 'Click to unmark work for today' : 'Confirm work done today'}
+                    >
+                      {isWorkedToday ? (
+                        <>
+                          <Check size={12} strokeWidth={2.5} />
+                          Worked Today
+                        </>
+                      ) : (
+                        <>
+                          <Plus size={11} />
+                          Mark Worked Today
+                        </>
+                      )}
+                    </button>
+                  </div>
+
+                  <div style={{
+                    padding: '8px 10px',
+                    borderRadius: 8,
+                    background: isWorkedToday ? 'rgba(16,185,129,0.06)' : 'rgba(245,158,11,0.06)',
+                    border: `1px solid ${isWorkedToday ? 'rgba(16,185,129,0.25)' : 'rgba(245,158,11,0.25)'}`,
+                    fontSize: 11,
+                    lineHeight: 1.4,
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
+                      <span style={{
+                        width: 7,
+                        height: 7,
+                        borderRadius: '50%',
+                        backgroundColor: isWorkedToday ? '#10b981' : '#f59e0b',
+                        flexShrink: 0,
+                      }} />
+                      <span style={{ fontWeight: 600, color: isWorkedToday ? '#10b981' : '#f59e0b' }}>
+                        {isWorkedToday
+                          ? 'Today is marked as worked. The Gantt accomplished bar extends to today.'
+                          : 'Work not yet marked for today. The Gantt accomplished line is held at the last active date until marked.'}
+                      </span>
+                    </div>
+                    <p style={{ margin: 0, fontSize: 10.5, color: 'hsl(var(--muted-foreground))' }}>
+                      ⚡ <strong>Automated tracking:</strong> Adding comments, files, or card updates automatically registers the day as worked. Unworked days are automatically treated as pauses in the Gantt schedule.
+                    </p>
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* Work Suspensions (Paused Periods) */}
             <div className="form-group" style={{ marginBottom: 16 }}>

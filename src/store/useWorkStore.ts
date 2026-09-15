@@ -54,6 +54,7 @@ interface WorkState {
   toggleCardComplete: (cardId: string) => void;
   toggleCardLabel: (cardId: string, labelId: string) => void;
   toggleCardAssignee: (cardId: string, memberId: string) => void;
+  toggleCardWorkedDay: (cardId: string, dateStr?: string) => void;
 
   // Inbox actions
   addInboxCard: (title: string, boardId?: string) => Card;
@@ -1173,6 +1174,33 @@ export const useWorkStore = create<WorkState>()(
         if (targetBoard) scheduleBoardSync(targetBoard, 50);
       },
 
+      toggleCardWorkedDay: (cardId, dateStr) => {
+        const targetDate = dateStr || new Date().toISOString().slice(0, 10);
+        let targetBoard: Board | undefined;
+        set(s => {
+          const tb = s.boards.find(b =>
+            b.columns?.some(col => col.cards?.some(c => c.id === cardId)) ||
+            (b.inboxCards || []).some(c => c.id === cardId)
+          ) || s.boards.find(b => b.id === s.activeBoardId);
+
+          if (!tb) return s;
+
+          const updatedBoards = updateBoards(s.boards, tb.id, b =>
+            updateCardInBoard(b, cardId, c => {
+              const current = c.workedDays || [];
+              const exists = current.includes(targetDate);
+              const workedDays = exists
+                ? current.filter(d => d !== targetDate)
+                : [...current, targetDate].sort();
+              return { ...c, workedDays };
+            })
+          );
+          targetBoard = updatedBoards.find(b => b.id === tb.id);
+          return { boards: updatedBoards };
+        });
+        if (targetBoard) scheduleBoardSync(targetBoard, 50);
+      },
+
       // ── Attachment actions ────────────────────────────
       addAttachment: (cardId, att) => {
         let targetBoard: Board | undefined;
@@ -1183,10 +1211,17 @@ export const useWorkStore = create<WorkState>()(
 
           if (!tb) return s;
 
+          const todayStr = new Date().toISOString().slice(0, 10);
           const updatedBoards = updateBoards(s.boards, tb.id, b =>
-            updateCardInBoard(b, cardId, c => ({
-              ...c, attachments: [...(c.attachments || []), att],
-            }))
+            updateCardInBoard(b, cardId, c => {
+              const currentWorked = c.workedDays || [];
+              const workedDays = currentWorked.includes(todayStr) ? currentWorked : [...currentWorked, todayStr].sort();
+              return {
+                ...c,
+                attachments: [...(c.attachments || []), att],
+                workedDays,
+              };
+            })
           );
           targetBoard = updatedBoards.find(b => b.id === tb.id);
           return { boards: updatedBoards };
@@ -1252,11 +1287,18 @@ export const useWorkStore = create<WorkState>()(
           let cardTitle = '';
           let cardAssignees: string[] = [];
 
+          const todayStr = new Date().toISOString().slice(0, 10);
           const resultBoards = updateBoards(s.boards, tb.id, b =>
             updateCardInBoard(b, cardId, c => {
               cardTitle = c.title;
               cardAssignees = c.assignees || [];
-              return { ...c, comments: [...(c.comments || []), comment] };
+              const currentWorked = c.workedDays || [];
+              const workedDays = currentWorked.includes(todayStr) ? currentWorked : [...currentWorked, todayStr].sort();
+              return {
+                ...c,
+                comments: [...(c.comments || []), comment],
+                workedDays,
+              };
             })
           );
 
