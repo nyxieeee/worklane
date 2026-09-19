@@ -1,0 +1,1091 @@
+/* ═══════════════════════════════════════════════════════════════════
+   WORKLANE — MOBILE & RESPONSIVE DESIGN SYSTEM
+   Isolates all mobile overrides (<= 860px, <= 640px, <= 380px)
+   Protects desktop layouts from accidental mobile regressions.
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* Mobile display utility toggles */
+.show-on-mobile {
+  display: none !important;
+}
+
+.hide-on-mobile {
+  display: flex;
+}
+
+.show-on-mobile-inline {
+  display: none !important;
+}
+
+.hide-on-mobile-inline {
+  display: inline;
+}
+
+.show-on-mobile-flex {
+  display: none !important;
+}
+
+.hide-on-mobile-flex {
+  display: flex;
+}
+
+/* Sidebar Backdrop (for Mobile Off-Canvas Drawer) */
+.sidebar-backdrop {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(10, 10, 12, 0.65);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  z-index: 90;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.sidebar-backdrop.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Settings Modal 2-Column Desktop vs Mobile Tab Strip */
+.settings-modal-grid {
+  display: grid;
+  grid-template-columns: 210px 1fr;
+  flex: 1;
+  overflow: hidden;
+}
+.settings-modal-tabs {
+  padding: 12px 8px;
+  border-right: 1px solid hsl(var(--border) / 0.4);
+  background-color: hsl(var(--background));
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* Mobile Quick Bottom Navigation Bar */
+.mobile-bottom-nav {
+  display: none;
+}
+
+/* ── Tablet & Mobile General Overrides (<= 860px) ────────── */
+@media (max-width: 860px) {
+  .hide-on-mobile {
+    display: none !important;
+  }
+  .show-on-mobile {
+    display: flex !important;
+  }
+  .hide-on-mobile-inline {
+    display: none !important;
+  }
+  .show-on-mobile-inline {
+    display: inline !important;
+  }
+  .hide-on-mobile-flex {
+    display: none !important;
+  }
+  .show-on-mobile-flex {
+    display: flex !important;
+  }
+
+  /* Off-canvas Mobile Sidebar Drawer */
+  .sidebar {
+    position: fixed !important;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 280px !important;
+    max-width: 86vw !important;
+    min-width: 0 !important;
+    z-index: 100 !important;
+    transform: translateX(-100%);
+    transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.28s ease !important;
+    box-shadow: 8px 0 30px rgba(0, 0, 0, 0.35) !important;
+    padding-top: max(8px, var(--sat)) !important;
+    padding-bottom: max(12px, var(--sab)) !important;
+  }
+
+  .sidebar.mobile-open {
+    transform: translateX(0) !important;
+  }
+
+  /* CRITICAL: On mobile screens, NEVER show a persistent collapsed sidebar strip! */
+  .sidebar.collapsed {
+    display: none !important;
+    width: 0 !important;
+    min-width: 0 !important;
+    transform: translateX(-100%) !important;
+  }
+  .sidebar.collapsed.mobile-open {
+    display: flex !important;
+    width: 280px !important;
+    min-width: 0 !important;
+    transform: translateX(0) !important;
+  }
+
+  html, body, #root {
+    overflow-x: hidden !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    position: relative !important;
+  }
+
+  .app-layout {
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow-x: hidden !important;
+    perspective: none !important;
+  }
+
+  .app-window {
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow-x: hidden !important;
+  }
+
+  .app-main-content {
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow-x: hidden !important;
+    padding-bottom: calc(58px + var(--sab)); /* Reserve room for mobile bottom bar */
+  }
+
+  /* Topbar Mobile Layout (<= 860px) */
+  .topbar {
+    height: calc(52px + var(--sat));
+    padding-top: max(4px, var(--sat));
+    padding-left: max(12px, var(--sal));
+    padding-right: max(12px, var(--sar));
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+  }
+  .topbar-shortcut-pill {
+    display: none !important;
+  }
+  .topbar-search-trigger {
+    min-width: unset !important;
+    padding: 7px 9px !important;
+  }
+  .topbar-search-trigger span {
+    display: none !important;
+  }
+  .topbar-crumb-root,
+  .topbar-crumb-sep {
+    display: none !important;
+  }
+  .topbar-breadcrumbs {
+    max-width: 150px;
+    overflow: hidden;
+  }
+  .topbar-crumb-active {
+    font-size: 13.5px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* Dashboard Stats Grid 2-columns on mobile */
+  .dashboard-stats-row {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 10px !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+  }
+  .dashboard-stat-card {
+    padding: 12px 14px !important;
+    gap: 2px !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    box-sizing: border-box !important;
+    flex-direction: column !important;
+    align-items: flex-start !important;
+  }
+  .dashboard-stat-icon {
+    width: 34px !important;
+    height: 34px !important;
+  }
+  .dashboard-stat-value {
+    font-size: 18px !important;
+  }
+  .dashboard-stat-label {
+    font-size: 11px !important;
+  }
+  .dashboard-hero {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 12px !important;
+  }
+  .dashboard-hero .btn {
+    width: 100% !important;
+    justify-content: center !important;
+  }
+
+  /* Mobile Bottom Navigation Bar */
+  .mobile-bottom-nav {
+    display: flex !important;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: calc(54px + var(--sab));
+    padding-bottom: var(--sab);
+    background-color: hsl(var(--card));
+    border-top: 1px solid hsl(var(--border) / 0.5);
+    box-shadow: 0 -4px 18px rgba(0, 0, 0, 0.08);
+    align-items: center;
+    justify-content: space-around;
+    z-index: 80;
+    user-select: none;
+    box-sizing: border-box !important;
+    overflow: visible !important;
+  }
+
+  .mobile-nav-tab {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    padding: 6px 12px;
+    border-radius: 10px;
+    border: none;
+    background: transparent;
+    color: hsl(var(--muted-foreground));
+    font-size: 10.5px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    flex: 1;
+    max-width: 72px;
+    text-decoration: none;
+  }
+
+  .mobile-nav-tab.active {
+    color: hsl(var(--primary));
+    background-color: hsl(var(--primary) / 0.1);
+  }
+
+  /* Elevated Neumorphic Center Circular Plus Button */
+  .mobile-nav-fab-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 58px;
+    height: 100%;
+    flex-shrink: 0;
+  }
+
+  .mobile-nav-fab {
+    position: absolute;
+    top: -18px;
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--primary) / 0.88));
+    color: #ffffff;
+    border: 4px solid hsl(var(--card));
+    box-shadow: 0 6px 18px hsl(var(--primary) / 0.45), 0 2px 6px rgba(0, 0, 0, 0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+    z-index: 85;
+    outline: none;
+  }
+
+  .mobile-nav-fab:active {
+    box-shadow: 0 2px 8px hsl(var(--primary) / 0.5), inset 0 2px 4px rgba(0, 0, 0, 0.25);
+  }
+
+  /* Kanban Board Touch Momentum & Snap Scrolling: Column fits screen width with no peeking */
+  .board-area {
+    padding: 12px 14px calc(14px + var(--sab)) 14px;
+    gap: 20px;
+    scroll-snap-type: x mandatory;
+    scroll-padding-left: 14px;
+    scroll-padding-right: 14px;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+  }
+
+  .column {
+    width: calc(100vw - 28px);
+    max-width: calc(100vw - 28px);
+    min-width: calc(100vw - 28px);
+    flex-shrink: 0;
+    scroll-snap-align: start;
+    scroll-snap-stop: always;
+  }
+
+  .add-column-btn {
+    width: calc(100vw - 28px);
+    max-width: calc(100vw - 28px);
+    min-width: calc(100vw - 28px);
+    scroll-snap-align: start;
+    scroll-snap-stop: always;
+  }
+
+  /* Medium tablet exception (641px - 860px): allow multiple visible columns */
+  @media (min-width: 641px) {
+    .column {
+      width: 320px !important;
+      min-width: 280px !important;
+      max-width: 340px !important;
+    }
+    .add-column-btn {
+      width: 260px !important;
+      min-width: 220px !important;
+      max-width: 280px !important;
+    }
+  }
+
+  /* Dashboard View on Mobile */
+  .dashboard-view {
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    padding: 14px 12px calc(72px + var(--sab)) 12px !important;
+    gap: 16px !important;
+    perspective: none !important;
+    box-sizing: border-box !important;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Dashboard Layout Grid: Single column, clamped */
+  .dashboard-layout-grid {
+    display: flex !important;
+    flex-direction: column !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    gap: 16px !important;
+    min-width: 0 !important;
+  }
+
+  /* Boards Grid */
+  .dashboard-boards-grid {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    gap: 12px !important;
+  }
+
+  .dashboard-board-card {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    padding: 14px 12px !important;
+    box-sizing: border-box !important;
+    overflow: hidden !important;
+  }
+
+  .dashboard-widget-card {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    padding: 14px 12px !important;
+    box-sizing: border-box !important;
+    overflow-x: hidden !important;
+  }
+
+  /* Filter pills bar: scrolls internally, never blows out the page width */
+  .dashboard-filter-pills-bar {
+    display: flex !important;
+    align-items: center !important;
+    gap: 4px !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    scrollbar-width: none !important;
+    padding: 4px !important;
+    box-sizing: border-box !important;
+    background-color: hsl(var(--card)) !important;
+    border-radius: 9999px !important;
+    box-shadow: var(--neu-shadow-input) !important;
+  }
+  .dashboard-filter-pills-bar::-webkit-scrollbar {
+    display: none !important;
+  }
+
+  .dashboard-filter-pill {
+    white-space: nowrap !important;
+    flex-shrink: 0 !important;
+    padding: 5px 10px !important;
+    font-size: 11px !important;
+  }
+
+  /* Settings Modal Horizontal Tabs */
+  .settings-modal-grid {
+    display: flex !important;
+    flex-direction: column !important;
+    overflow: hidden !important;
+  }
+  .settings-modal-tabs {
+    flex-direction: row !important;
+    overflow-x: auto !important;
+    border-right: none !important;
+    border-bottom: 1px solid hsl(var(--border) / 0.4) !important;
+    padding: 8px 10px !important;
+    gap: 6px !important;
+    flex-shrink: 0 !important;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  .settings-modal-tabs::-webkit-scrollbar {
+    display: none;
+  }
+  .settings-modal-tabs button {
+    white-space: nowrap !important;
+    flex-shrink: 0 !important;
+    padding: 6px 12px !important;
+    font-size: 12px !important;
+  }
+}
+
+/* ── Standard Mobile Phones (<= 640px) ───────────────────── */
+@media (max-width: 640px) {
+  /* Prevent iOS Auto-Zoom on Form Inputs */
+  .text-input,
+  .select-input,
+  .textarea-input,
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+
+  /* Topbar adjustments for tight widths */
+  .topbar {
+    padding: 0 10px;
+    padding-top: max(4px, var(--sat));
+  }
+  .topbar-breadcrumbs {
+    max-width: 140px;
+    overflow: hidden;
+  }
+  .topbar-crumb-root,
+  .topbar-crumb-sep {
+    display: none;
+  }
+  .topbar-crumb-active {
+    font-size: 13.5px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .topbar-search-trigger {
+    min-width: unset !important;
+    padding: 7px 9px !important;
+  }
+  .topbar-search-trigger span,
+  .topbar-shortcut-pill {
+    display: none !important;
+  }
+
+  /* Modals Mobile Bottom-Sheet Design */
+  .modal-overlay {
+    padding: max(10px, var(--sat)) 8px max(10px, var(--sab)) 8px;
+    align-items: flex-end;
+  }
+
+  .modal {
+    width: 100% !important;
+    max-width: 100% !important;
+    max-height: calc(94dvh - var(--sat) - var(--sab)) !important;
+    border-bottom-left-radius: 6px !important;
+    border-bottom-right-radius: 6px !important;
+  }
+
+  .modal.large-modal {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  .modal-header {
+    padding: 14px 16px;
+  }
+  .modal-body {
+    padding: 14px 16px;
+    gap: 12px;
+  }
+  .modal-footer {
+    padding: 12px 16px;
+  }
+
+  /* Dashboard Stats Grid 2-columns */
+  .dashboard-stats-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 10px !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+  }
+  .dashboard-stat-card {
+    padding: 12px 14px !important;
+    gap: 2px !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    box-sizing: border-box !important;
+    flex-direction: column !important;
+    align-items: flex-start !important;
+  }
+  .dashboard-stat-icon {
+    width: 34px !important;
+    height: 34px !important;
+  }
+  .dashboard-stat-value {
+    font-size: 18px !important;
+  }
+  .dashboard-stat-label {
+    font-size: 11px !important;
+  }
+
+  .dashboard-boards-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 12px !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+  }
+  .dashboard-board-card {
+    padding: 12px 10px !important;
+  }
+
+  /* Calendar Compact Month View */
+  .glass-calendar-grid {
+    gap: 4px !important;
+    grid-auto-rows: 64px !important;
+  }
+  .glass-calendar-day {
+    height: 64px !important;
+    min-height: 64px !important;
+    max-height: 64px !important;
+    padding: 3px 3px !important;
+  }
+
+  /* List View Rows Wrap */
+  .glass-list-row {
+    flex-wrap: wrap !important;
+    padding: 10px 12px !important;
+    gap: 8px !important;
+  }
+
+  /* Toast position above mobile bottom bar */
+  .toast-container {
+    bottom: max(68px, calc(var(--sab) + 60px)) !important;
+    width: calc(100vw - 20px) !important;
+    max-width: 440px !important;
+  }
+  .toast {
+    min-width: unset !important;
+    width: 100% !important;
+    padding: 9px 14px !important;
+    font-size: 12px !important;
+  }
+}
+
+/* ── Flip Phones & Ultra-Narrow Displays (<= 380px down to 280px) ── */
+@media (max-width: 380px) {
+  .board-area {
+    padding: 8px 10px calc(10px + var(--sab)) 10px !important;
+    gap: 16px !important;
+    scroll-padding-left: 10px !important;
+    scroll-padding-right: 10px !important;
+  }
+
+  .column {
+    width: calc(100vw - 20px) !important;
+    min-width: calc(100vw - 20px) !important;
+    max-width: calc(100vw - 20px) !important;
+    flex-shrink: 0 !important;
+    scroll-snap-align: start !important;
+    scroll-snap-stop: always !important;
+  }
+
+  .add-column-btn {
+    width: calc(100vw - 20px) !important;
+    min-width: calc(100vw - 20px) !important;
+    max-width: calc(100vw - 20px) !important;
+    scroll-snap-align: start !important;
+    scroll-snap-stop: always !important;
+  }
+
+  .column-header {
+    padding: 10px 10px !important;
+  }
+
+  .column-cards {
+    padding: 8px 8px 10px 8px !important;
+    gap: 8px !important;
+  }
+
+  .card {
+    padding: 9px 10px !important;
+  }
+
+  .dashboard-view {
+    padding: 10px 8px !important;
+    gap: 14px !important;
+  }
+
+  .dashboard-stats-row {
+    grid-template-columns: 1fr !important;
+    gap: 8px !important;
+  }
+
+  .glass-calendar-grid {
+    gap: 2px !important;
+    grid-auto-rows: 52px !important;
+  }
+  .glass-calendar-day {
+    height: 52px !important;
+    min-height: 52px !important;
+    max-height: 52px !important;
+    padding: 2px 2px !important;
+  }
+
+  .modal-overlay {
+    padding: 0 !important;
+  }
+
+  .modal {
+    border-radius: 0 !important;
+    max-height: 100dvh !important;
+    height: 100dvh !important;
+  }
+}
+
+/* Login Page Right Panel Mobile Sizing */
+@media (max-width: 860px) {
+  .login-right-panel {
+    max-width: 100% !important;
+    border-left: none !important;
+    padding: 28px 20px !important;
+    box-shadow: none !important;
+  }
+}
+
+@media (max-width: 380px) {
+  .login-right-panel {
+    padding: 18px 12px !important;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════
+   ROADMAP / GANTT MOBILE RESPONSIVE OPTIMIZATION
+   ══════════════════════════════════════════════════════════ */
+@media (max-width: 860px) {
+  /* Clean Compact Header */
+  .roadmap-header-subtitle {
+    display: none !important;
+  }
+
+  .roadmap-view-container {
+    padding: 8px 10px !important;
+    gap: 8px !important;
+    height: 100% !important;
+    padding-bottom: calc(72px + var(--sab)) !important; /* Safe clearance for mobile bottom bar */
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    box-sizing: border-box !important;
+  }
+
+  .roadmap-header-bar {
+    gap: 6px !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+
+  .roadmap-header-left {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 6px !important;
+    width: 100% !important;
+  }
+
+  .roadmap-stats-chips {
+    width: 100% !important;
+    overflow-x: auto !important;
+    flex-wrap: nowrap !important;
+    padding-bottom: 2px !important;
+    -webkit-overflow-scrolling: touch !important;
+    scrollbar-width: none !important;
+  }
+
+  .roadmap-stats-chips::-webkit-scrollbar {
+    display: none !important;
+  }
+
+  .roadmap-stat-pill {
+    flex-shrink: 0 !important;
+    font-size: 11px !important;
+    padding: 2.5px 8px !important;
+  }
+
+  /* Mobile Segmented View Switcher Tabs (Anchored high up for immediate clarity) */
+  .roadmap-mobile-view-tabs {
+    display: flex !important;
+    width: 100% !important;
+    background-color: hsl(var(--card)) !important;
+    padding: 3px !important;
+    border-radius: 12px !important;
+    box-shadow: var(--neu-shadow-input) !important;
+    gap: 3px !important;
+    box-sizing: border-box !important;
+    flex-shrink: 0 !important;
+  }
+
+  .mobile-view-tab {
+    flex: 1 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 6px !important;
+    padding: 7px 10px !important;
+    border-radius: 9px !important;
+    border: none !important;
+    background: transparent !important;
+    color: hsl(var(--muted-foreground)) !important;
+    font-size: 12px !important;
+    font-weight: 700 !important;
+    cursor: pointer !important;
+    transition: all 0.15s ease !important;
+  }
+
+  .mobile-view-tab.active {
+    background-color: hsl(var(--primary)) !important;
+    color: hsl(var(--primary-foreground)) !important;
+    box-shadow: var(--neu-shadow-raised-sm) !important;
+  }
+
+  /* Responsive Controls Toolbar */
+  .roadmap-controls-bar {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 8px !important;
+    width: 100% !important;
+  }
+
+  .roadmap-toolbar-row-1 {
+    display: flex !important;
+    gap: 6px !important;
+    width: 100% !important;
+    align-items: center !important;
+    flex-wrap: wrap !important;
+  }
+
+  .roadmap-search-box {
+    flex: 1 1 100% !important;
+    width: 100% !important;
+    height: 34px !important;
+  }
+
+  .roadmap-toolbar-row-2 {
+    display: flex !important;
+    gap: 6px !important;
+    width: 100% !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    flex-wrap: wrap !important;
+  }
+
+  .roadmap-scale-group {
+    flex-shrink: 0 !important;
+  }
+
+  .roadmap-nav-group {
+    flex-shrink: 0 !important;
+    gap: 4px !important;
+  }
+
+  .roadmap-date-label {
+    min-width: 90px !important;
+    font-size: 11.5px !important;
+  }
+
+  .roadmap-toolbar-row-3 {
+    display: flex !important;
+    gap: 5px !important;
+    width: 100% !important;
+    align-items: center !important;
+    overflow: visible !important;
+    padding: 2px !important;
+    box-sizing: border-box !important;
+    scrollbar-width: none !important;
+  }
+
+  .roadmap-toolbar-row-3::-webkit-scrollbar {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+  }
+
+  .roadmap-toolbar-row-3 .btn {
+    flex: 1 1 0px !important;
+    min-width: 0 !important;
+    padding: 6px 4px !important;
+    font-size: 11px !important;
+    font-weight: 600 !important;
+    gap: 3px !important;
+    justify-content: center !important;
+    white-space: nowrap !important;
+    height: 30px !important;
+    border-radius: 9999px !important;
+    box-sizing: border-box !important;
+  }
+
+  .roadmap-toolbar-row-3 .roadmap-btn-compare {
+    flex: 1.3 1 0px !important;
+    font-size: 10.5px !important;
+  }
+
+  .roadmap-toolbar-row-3 .btn svg {
+    width: 12px !important;
+    height: 12px !important;
+    flex-shrink: 0 !important;
+  }
+
+  /* ── Contextual Controls in Deliverables View ── */
+  .roadmap-mobile-mode-deliverables .roadmap-toolbar-row-2 {
+    display: none !important; /* Hides timeline scale, navigation, and legend in Deliverables mode */
+  }
+
+  .roadmap-mobile-mode-deliverables .roadmap-toolbar-row-3 .roadmap-btn-compare {
+    display: none !important; /* Gantt dual-track comparison only applies to Gantt timeline */
+  }
+
+  .roadmap-mobile-mode-deliverables .roadmap-toolbar-row-3 .roadmap-btn-add-task {
+    flex: 1.8 1 0px !important;
+    font-weight: 700 !important;
+  }
+
+  .roadmap-mobile-mode-deliverables .roadmap-toolbar-row-3 .roadmap-btn-phase {
+    flex: 1.1 1 0px !important;
+  }
+
+  .roadmap-mobile-mode-deliverables .roadmap-toolbar-row-3 .roadmap-btn-export {
+    flex: 0.9 1 0px !important;
+  }
+
+  /* ── Contextual Controls in Timeline View ── */
+  .roadmap-mobile-mode-timeline .roadmap-toolbar-row-1 {
+    display: none !important; /* Hides search and grouping dropdowns to give full height to Gantt canvas */
+  }
+
+  .roadmap-mobile-mode-timeline .roadmap-toolbar-row-3 .roadmap-btn-phase,
+  .roadmap-mobile-mode-timeline .roadmap-toolbar-row-3 .roadmap-btn-export {
+    display: none !important;
+  }
+
+  .roadmap-mobile-mode-timeline .roadmap-toolbar-row-3 .roadmap-btn-add-task,
+  .roadmap-mobile-mode-timeline .roadmap-toolbar-row-3 .roadmap-btn-compare {
+    flex: 1 1 0px !important;
+  }
+
+  .roadmap-mobile-mode-timeline .roadmap-toolbar-row-2 {
+    display: flex !important;
+    gap: 6px !important;
+    width: 100% !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+  }
+
+  .roadmap-mobile-mode-timeline .roadmap-scale-group {
+    flex: 0 0 auto !important;
+  }
+
+  .roadmap-mobile-mode-timeline .roadmap-nav-group {
+    flex: 1 1 auto !important;
+    justify-content: flex-end !important;
+    gap: 4px !important;
+  }
+
+  .roadmap-mobile-mode-timeline .roadmap-legend-container {
+    width: 100% !important;
+    justify-content: center !important;
+    padding-top: 2px !important;
+  }
+
+  /* Active Phase / Sprint Banner */
+  .roadmap-active-sprint-banner {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    padding: 8px 10px !important;
+    gap: 6px !important;
+  }
+
+  /* Split Pane Mobile Layout */
+  .roadmap-split-pane {
+    flex: 1 1 auto !important;
+    flex-direction: column !important;
+    width: 100% !important;
+    border-radius: 12px !important;
+    margin-bottom: 8px !important;
+  }
+
+  /* When Deliverables tab is active: allow natural vertical scrolling without nested traps */
+  .roadmap-split-pane.mobile-tab-deliverables {
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+  }
+
+  .roadmap-split-pane.mobile-tab-deliverables .roadmap-tasks-pane {
+    display: flex !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    border-right: none !important;
+    flex: 1 !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  .roadmap-split-pane.mobile-tab-deliverables .roadmap-tasks-list {
+    overflow-y: visible !important;
+    height: auto !important;
+  }
+
+  .roadmap-split-pane.mobile-tab-deliverables .roadmap-canvas-pane {
+    display: none !important;
+  }
+
+  /* When Timeline tab is active */
+  .roadmap-split-pane.mobile-tab-timeline .roadmap-tasks-pane {
+    display: none !important;
+  }
+
+  .roadmap-split-pane.mobile-tab-timeline .roadmap-canvas-pane {
+    display: flex !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    flex: 1 !important;
+    min-height: 480px !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+
+  /* Timeline Header & Canvas in Mobile */
+  .roadmap-timeline-header-track,
+  .roadmap-timeline-header {
+    height: 44px !important;
+  }
+
+  .roadmap-delete-btn {
+    opacity: 0.6 !important;
+  }
+
+  .roadmap-pane-header {
+    height: 36px !important;
+    padding: 0 10px !important;
+    font-size: 10.5px !important;
+  }
+
+  .roadmap-task-row {
+    padding: 0 10px !important;
+    height: 44px !important;
+    gap: 8px !important;
+  }
+
+  .roadmap-task-title {
+    flex: 1 1 0px !important;
+    min-width: 0 !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+    font-size: 12.5px !important;
+    font-weight: 500 !important;
+  }
+
+  .roadmap-task-mobile-meta {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: flex-end !important;
+    justify-content: center !important;
+    min-width: 90px !important;
+    flex-shrink: 0 !important;
+    gap: 2px !important;
+  }
+
+  .roadmap-pane-resizer {
+    display: none !important;
+  }
+
+  .roadmap-col-sched,
+  .roadmap-col-act {
+    display: none !important;
+  }
+
+  .roadmap-col-task {
+    flex: 1 1 0px !important;
+    min-width: 0 !important;
+  }
+
+  .roadmap-empty-col-row {
+    padding: 6px 12px !important;
+    font-size: 11px !important;
+    color: hsl(var(--muted-foreground) / 0.7) !important;
+  }
+
+  /* Sticky task title label in Gantt mode on mobile */
+  .roadmap-split-pane.mobile-tab-timeline .roadmap-mobile-row-label {
+    display: inline-flex !important;
+    align-items: center !important;
+    position: sticky !important;
+    left: 8px !important;
+    top: 6px !important;
+    z-index: 15 !important;
+    max-width: 130px !important;
+    background: hsl(var(--card) / 0.9) !important;
+    backdrop-filter: blur(6px) !important;
+    padding: 2px 7px !important;
+    border-radius: 6px !important;
+    font-size: 10.5px !important;
+    font-weight: 700 !important;
+    color: hsl(var(--foreground)) !important;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.28) !important;
+    border: 1px solid hsl(var(--border) / 0.5) !important;
+    pointer-events: none !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+
+  /* Responsive styling for side-by-side roadmap modals */
+  .roadmap-modal-overlay {
+    padding: 12px !important;
+    align-items: flex-start !important;
+  }
+
+  .roadmap-modal-container {
+    flex-direction: column !important;
+    gap: 14px !important;
+    width: 100% !important;
+  }
+
+  .roadmap-modal-card {
+    width: 100% !important;
+    max-width: 100% !important;
+    max-height: none !important;
+  }
+}
+
