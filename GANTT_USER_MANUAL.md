@@ -1,228 +1,295 @@
 # 📘 Worklane Roadmap & Gantt Chart: Official User Manual
 
-Welcome to the **Worklane Roadmap & Gantt Timeline** user guide. This manual provides complete, step-by-step instructions on how to plan delivery schedules, track task execution, log work suspensions, monitor schedule variances, and export reports for stakeholders.
+Welcome to the **Worklane Roadmap & Gantt Timeline** user manual. This guide provides comprehensive, step-by-step instructions on how to create project roadmaps, import delivery schedules from external documents, plan phases and milestones, track dual-track execution, log work suspensions, monitor live schedule variance, and export reports for stakeholders.
 
 ---
 
 ## 📑 Table of Contents
-1. [Navigating to the Roadmap View](#1-navigating-to-the-roadmap-view)
-2. [Interface Overview: The Dual-Pane Layout](#2-interface-overview-the-dual-pane-layout)
-3. [Managing Phases & Milestones](#3-managing-phases--milestones)
-4. [Scheduling Tasks & Setting Baselines](#4-scheduling-tasks--setting-baselines)
-5. [Tracking Actual Progress & Accomplishments](#5-tracking-actual-progress--accomplishments)
-6. [Logging Work Suspensions & Pauses](#6-logging-work-suspensions--pauses)
-7. [Understanding Schedule Variance & Health](#7-understanding-schedule-variance--health)
-8. [Filtering, Grouping & Time Scale Controls](#8-filtering-grouping--time-scale-controls)
-9. [Exporting Roadmap Data to Microsoft Excel](#9-exporting-roadmap-data-to-microsoft-excel)
-10. [Mobile & Touch Device Tips](#10-mobile--touch-device-tips)
+1. [Accessing & Creating Roadmaps](#1-accessing--creating-roadmaps)
+2. [Document Import & AI Parsing (.pdf, .docx, .md, .txt, .csv)](#2-document-import--ai-parsing)
+3. [Interface Overview: Synchronized Dual-Pane Layout](#3-interface-overview-synchronized-dual-pane-layout)
+4. [Managing Phases, Packages & Milestones](#4-managing-phases-packages--milestones)
+5. [Scheduling Tasks, Dependencies & Setting Baselines](#5-scheduling-tasks-dependencies--setting-baselines)
+6. [Tracking Actual Progress & Accomplishments](#6-tracking-actual-progress--accomplishments)
+7. [Automated & Manual Work Suspensions](#7-automated--manual-work-suspensions)
+8. [Understanding Schedule Variance & Health Metrics](#8-understanding-schedule-variance--health-metrics)
+9. [Filtering, Grouping & Time Scale Controls](#9-filtering-grouping--time-scale-controls)
+10. [Exporting Roadmap Data to Microsoft Excel / CSV](#10-exporting-roadmap-data-to-microsoft-excel--csv)
+11. [Cross-Board Roadmap Linking](#11-cross-board-roadmap-linking)
+12. [Mobile & Touch Device Experience](#12-mobile--touch-device-experience)
 
 ---
 
-## 🚀 1. Navigating to the Roadmap View
+## 🚀 1. Accessing & Creating Roadmaps
 
-You can access the Gantt timeline from any board:
+Worklane supports both **Dedicated Project Roadmaps** (standalone strategic delivery plans) and **Board Roadmap Views** (timeline view of any Kanban board).
 
-1. Look at the **Topbar Navigation** at the top of your workspace.
-2. In the view selector pill, click on **Roadmap** (next to **Board** and **Calendar**).
-3. On mobile devices, tap the **Roadmap** tab either in the top navigation bar or the bottom navigation drawer.
+### Accessing Roadmaps:
+- **Dedicated Project Roadmaps**: In the left sidebar, expand the **Roadmaps** section to view and switch between your standalone roadmaps.
+- **Board Roadmap View**: In any active task board, click **Roadmap** in the topbar view selector pill (located between **Board** and **Calendar**).
+- **Mobile Navigation**: Tap **Roadmap** in the top navigation tab bar or open the mobile drawer.
+
+### Creating a New Project Roadmap:
+1. Click the **`+`** button next to **Roadmaps** in the left sidebar, or click **`+ New Roadmap`** on the executive Dashboard.
+2. In the **Create Project Roadmap** modal:
+   - **Roadmap Name**: Enter a descriptive project title (e.g., *Q3 Infrastructure Overhaul*, *Mobile App v2.0*).
+   - **Description**: Add the scope, high-level objectives, or target milestones.
+   - **Color Theme**: Select an accent theme to visually identify the roadmap in the sidebar and header.
+3. You can either build phases manually or use **Document Import** to auto-generate phases (see Section 2).
+4. Click **Create Roadmap**.
 
 ---
 
-## 🖥️ 2. Interface Overview: The Dual-Pane Layout
+## 📄 2. Document Import & AI Parsing
 
-The Roadmap view is organized into two synchronized panes that scroll together:
+Worklane includes built-in document parsing that converts project scope documents, meeting notes, specifications, or spreadsheets directly into phases and subtasks.
+
+### Supported File Formats:
+- **Markdown (`.md`)** & **Plain Text (`.txt`)**
+- **Spreadsheets (`.csv`)**
+- **Microsoft Word (`.docx`, `.doc`)**
+- **PDF Documents (`.pdf`)**
+
+### How to Import:
+1. In the **Create Project Roadmap** modal, click **`Upload Project Document`** or drag and drop your file into the upload zone.
+2. Worklane automatically extracts headings as **Phases** and bullet items/indented lines as **Subtasks**.
+3. Review the parsed item hierarchy in the live preview list:
+   - Toggle item types between **Phase** and **Subtask** using the dropdown selector.
+   - Add additional phases or subtasks with the input field.
+   - Remove unwanted items with the trash icon.
+4. Click **Create Roadmap** to instantiate the roadmap with all parsed deliverables pre-populated.
+
+---
+
+## 🖥️ 3. Interface Overview: Synchronized Dual-Pane Layout
+
+The Roadmap interface features a two-pane layout with synchronized vertical scrolling:
 
 ```
 ┌──────────────────────────────────────────────┬────────────────────────────────────────────────────────┐
-│ LEFT PANE: Tabular Deliverables Table        │ RIGHT PANE: Interactive Gantt Canvas                  │
+│ LEFT PANE: Tabular Deliverables (WBS)        │ RIGHT PANE: Interactive Gantt Canvas                  │
 ├──────────────────────────────────────────────┼────────────────────────────────────────────────────────┤
-│ [✓] Task Name          Done    Due     Status │   Mon 14     Tue 15     Wed 16     Thu 17   │ TODAY   │
-│  ☐  Foundation Layout   45%   Sep 20   2d late│  [■■■ Planned Goal ■■■]                     │    │    │
+│ [✓] Deliverable Name   Done    Due     Status│   Mon 14     Tue 15     Wed 16     Thu 17   │ TODAY   │
+│  ☐  System Migration    45%   Sep 20   2d late│  [■■■ Planned Goal ■■■]                     │    │    │
 │                                              │  [████ Work Done ░░░░░]                     │    │    │
 └──────────────────────────────────────────────┴──────────────────────────────────────────────┴────▲────┘
-                                                                                                   │
-                                                                                           Today Guideline
+                                                                                                    │
+                                                                                            Today Guideline
 ```
 
 ### 1. Left Pane: Work Breakdown Structure (Table)
-- **Status Toggle (`☐` / `☑`)**: Quickly mark a task complete without opening the card.
-- **Milestone Diamond (`◆`)**: Indicates key checkpoint deliverables.
-- **Task Name**: Click any title to open the full task editor modal.
-- **Assignee Avatars**: Shows who is responsible for the task.
-- **Done (%)**: Reflects current task completion percentage.
-- **Due Date**: Planned contractual deadline.
-- **Status**: Plain-language schedule health (e.g. **On schedule**, **3d late**, or **2d ahead**).
+- **Status Toggle (`☐` / `☑`)**: Mark deliverables completed directly from the table without opening modals.
+- **Milestone Indicator (`◆`)**: Displays a purple diamond for zero-duration deliverables and major checkpoints.
+- **Deliverable Title**: Click any title to open the full task editor modal.
+- **Assignee Avatars**: Displays assigned team members with custom role borders.
+- **Progress Bar (% Done)**: Real-time completion percentage (derived from checklists or slider).
+- **Due Date**: Baseline contractual target deadline.
+- **Schedule Health Badge**: Plain-language status (e.g., `On schedule`, `3d late`, `2d ahead`).
 
 ### 2. Right Pane: Visual Timeline Canvas
-- **Calendar Headers**: Divided into Days, Weeks, or Months.
-- **Today Guideline**: A blue vertical line that marks the exact current calendar day.
-- **Dual-Track Gantt Bars**: Contrasts your initial plan against real-world progress.
-- **10-Second Explainer Guide (`(?) How it works`)**: Click anytime in the legend bar for an instant visual summary.
+- **Calendar Headers**: Divided into Days, Weeks, or Months with weekend highlights.
+- **Today Guideline**: A distinct vertical line marking the current calendar day.
+- **Dual-Track Gantt Bars**: Contrasts planned targets against real-world progress.
+- **Explainer Guide (`(?) How it works`)**: Interactive legend in the toolbar for instant visual reference.
 
 ---
 
-## 🚩 3. Managing Phases & Milestones
+## 🚩 4. Managing Phases, Packages & Milestones
 
-Phases allow you to group tasks into meaningful delivery stages (e.g. Sprints, Construction Stages, Production Batches).
+Phases organize deliverables into sequential stages, sprints, or work packages.
 
-### Creating a New Phase:
-1. In the Roadmap top header, click the **`+ Phase`** button.
+### Adding a Phase:
+1. In the Roadmap toolbar, click the **`+ Phase`** button.
 2. In the **Create Project Phase** dialog:
-   - **Phase / Package Name**: Enter a title (e.g., *Phase 1: Civil Works*, *Sprint 4*, *Pre-Production*).
-   - **Scope & Key Objectives**: Provide a summary of deliverables for this phase.
-   - **Start Date & End Date**: Set the planned time boundary.
-   - **Color Theme**: Choose a color accent to visually brand the phase.
+   - **Phase / Package Name**: Title (e.g., *Phase 1: Architecture*, *Sprint 12*).
+   - **Scope & Objectives**: Summary of key deliverables.
+   - **Start Date & End Date**: Target boundary dates.
+   - **Color Theme**: Select an accent color for the phase header.
 3. Click **Create Phase**.
 
-> **Tip**: The phase creation dialog is protected against accidental dismissal. You must explicitly click **Cancel** or the top-right **✕** button to close it, preventing data loss.
+> **Note**: The phase creation modal is protected against accidental dismissal. Click **Cancel** or **✕** to exit.
 
-### Creating a Milestone Deliverable:
-1. Open any task by clicking its title.
-2. Under the **Schedule** tab, check the **Milestone** checkbox.
-3. Milestones automatically display as a vibrant purple diamond (`◆`) on the timeline rather than a duration bar.
+### Adding Deliverables Directly to a Phase:
+- Click the **`+ Add Task`** button inside any phase section to create a deliverable under that phase.
 
----
-
-## 📅 4. Scheduling Tasks & Setting Baselines
-
-To establish an accurate schedule baseline:
-
-1. Click on a task to open the **Card Modal**.
-2. Switch to the **Schedule** tab.
-3. Set your baseline target:
-   - **Target Start Date**: The day work is scheduled to commence.
-   - **Target Due Date**: The contractual deadline.
-4. Set the initial **Progress %** slider (0% to 100%).
-
-Your task will now render on the Gantt timeline with a solid **green baseline bar** (Top Track).
+### Configuring Milestones:
+1. Open the task in the **Card Modal**.
+2. In the **Schedule** section, check the **Milestone** box.
+3. Milestones render as vibrant purple diamonds (`◆`) at the target date rather than a duration bar.
 
 ---
 
-## ⏱️ 5. Tracking Actual Progress & Accomplishments
+## 📅 5. Scheduling Tasks, Dependencies & Setting Baselines
 
-Worklane features an intelligent **Dual-Track Engine** that distinguishes between what was planned and what has actually happened.
+To maintain an accurate schedule baseline and track blockers:
 
-### Understanding the Dual Bars:
-- **Top Track (Green)**: The **Planned Goal**. This bar stays fixed as a reference point for your original commitment.
-- **Bottom Track (Orange)**: The **Work Done**. This bar tracks the real elapsed time spent working on the deliverable.
+### 1. Baseline Target Dates:
+- **Scheduled Start**: Target date work is slated to begin.
+- **Scheduled End (Due Date)**: Contractual deadline.
+- When set, a solid **green baseline bar** renders on the top track of the Gantt canvas.
+
+### 2. Actual Execution Dates:
+- **Actual Start**: When work physically commenced. Shows variance indicators (e.g., `2d early` or `1d late`).
+- **Actual End**: Date work was completed (or projected completion if ongoing). Shows `On Target`, `+Xd Delay`, or `Xd Early`.
+
+### 3. Progress Tracking (% Done):
+- **Checklist-Derived**: When checklist items exist, progress automatically calculates as:
+  $$\text{Progress} = \left(\frac{\text{Completed Items}}{\text{Total Items}}\right) \times 100\%$$
+- **Manual Progress**: Adjust the progress slider from 0% to 100% when no checklist is present.
+
+### 4. Task Dependencies (Blockers):
+- Open the card and navigate to **Dependencies**.
+- Select prerequisite cards that must be completed before this deliverable can proceed.
+- Dependency relationships display in the task inspector and export reports.
+
+---
+
+## ⏱️ 6. Tracking Actual Progress & Accomplishments
+
+Worklane's **Dual-Track Engine** provides clear separation between agreed baselines and real-world execution.
+
+### The Dual Bars Explained:
+- **Top Track (Green Bar)**: **Planned Goal**. Represents the original baseline commitment and does not shift unless targets are renegotiated.
+- **Bottom Track (Orange Bar)**: **Work Done**. Reflects actual elapsed working days and physical accomplishment.
 
 ### The Automated Work Tracking & Line Advancement Rule:
-The orange accomplishment line **only moves on days confirmed as worked**:
-- **If work is NOT marked for today**: The orange line **DOES NOT MOVE**. It remains held at the date of the last recorded work or activity, displaying a `Paused` tag so you know progress is temporarily on hold.
-- **Option A (Manual Daily Check-in)**: Open the task modal and click **`Mark Worked Today`**. The button turns green (**`✓ Worked Today`**) and the orange bar immediately advances to today.
-- **Option B (Automatic Activity Detection)**: Adding comments, uploading attachments, or updating the task automatically registers today as worked—zero manual effort needed!
+The orange accomplishment bar **advances only on confirmed working days**:
+1. **No Activity on Current Day**: The orange bar remains held at the date of the last recorded activity, displaying a `Paused` tag.
+2. **Manual Check-In**: Open the card and click **`Mark Worked Today`**. The button turns green (**`✓ Worked Today`**) and the orange bar immediately advances to today.
+3. **Automatic Activity Detection**: Adding comments, attaching files, or updating task details automatically records today as a worked day without manual check-in.
+4. **Historical Days Management**: Review or remove recorded worked dates in the card schedule inspector.
 
 ---
 
-## ⏸️ 6. Automated & Manual Work Suspensions
+## ⏸️ 7. Automated & Manual Work Suspensions
 
-Worklane distinguishes between delay caused by true inefficiency versus legitimate work stoppages (weather, client review, holiday shutdowns).
+Worklane separates delays caused by inefficiency from legitimate project pauses (e.g., client review holds, vendor delays, weather halts, holiday shutdowns).
 
-### 1. Automated Work Suspensions (Zero Friction)
-- Any day between your task's start date and today that has **no logged work and no activity** is **automatically treated as a paused day**.
-- These unworked days are automatically excluded from the elapsed working time, ensuring schedule variance calculates true active velocity.
+### 1. Automated Inactive Day Detection:
+- Days between task start and today with **no logged work and no activity** are treated as inactive pauses.
+- These days are excluded from active elapsed working time, preventing false variance penalties.
 
-### 2. Manual Multi-Day Work Suspensions
-For structured pauses with documented reasons (e.g. *Client hold*, *Holiday shutdown*):
+### 2. Manual Multi-Day Suspensions:
+For formal, documented stoppages:
 1. Open the task in the **Card Modal**.
-2. Navigate to the **Schedule** tab.
-3. Scroll to the **Work Suspensions** section and click **`+ Add Pause`**.
-4. Set the **From** and **To** dates, and enter an optional **Reason**.
-5. The pause is permanently logged and reflected in reports.
+2. Scroll to the **Work Suspensions** section.
+3. Click **`+ Add Pause`**.
+4. Set the **From** and **To** dates, and enter a reason (e.g., *Waiting for Client Sign-off*, *Permit Approval Delay*).
+5. Click save.
 
-### How Suspensions Affect the Schedule:
-- The system sums all approved manual pauses and automated unworked days, subtracting them from calendar elapsed time.
-- Your **Schedule Variance** dynamically updates in real-time.
+### Impact on Schedule:
+- The engine calculates total approved suspension days and nets them against calendar elapsed duration:
+  $$\text{Net Elapsed Work} = \text{Calendar Days} - \text{Total Suspended Days}$$
 
 ---
 
-## 📊 7. Understanding Schedule Variance & Health
+## 📊 8. Understanding Schedule Variance & Health Metrics
 
-Worklane automatically calculates your **Schedule Variance ($\text{SV}$)** using the formula:
+Worklane automatically computes **Schedule Variance ($\text{SV}$)** in real time:
 
-$$\text{Variance (Days)} = \text{Actual / Projected End} - \text{Target Due Date} - \text{Approved Suspended Days}$$
+$$\text{Schedule Variance (Days)} = (\text{Actual / Projected End} - \text{Target Due Date}) - \text{Approved Suspended Days}$$
 
-### Variance Badges Explained:
+### Health Badges on Timeline:
 
-| Badge | Meaning | Status Action |
+| Badge | Meaning | Operational Status |
 | :---: | :--- | :--- |
-| <span style="color:#10b981; font-weight:bold;">2d ahead</span> | The task is progressing faster than the planned baseline schedule. | Excellent performance. Ahead of schedule. |
-| <span style="color:#3b82f6; font-weight:bold;">On schedule</span> | The task is progressing exactly on schedule. | On target. No corrective action needed. |
-| <span style="color:#ef4444; font-weight:bold;">3d late</span> | The task is lagging behind the target deadline after netting pauses. | Needs attention or resource reallocation. |
+| <span style="color:#10b981; font-weight:bold;">2d ahead</span> | Accomplishment is trending faster than the target schedule baseline. | Ahead of schedule. Excellent performance. |
+| <span style="color:#3b82f6; font-weight:bold;">On schedule</span> | Deliverable is progressing strictly on target with the baseline plan. | On track. No corrective intervention required. |
+| <span style="color:#ef4444; font-weight:bold;">3d late</span> | Deliverable is lagging behind schedule after deducting approved pauses. | Action required: adjust resources or scope. |
+| <span style="color:#f59e0b; font-weight:bold;">Paused</span> | Work is temporarily suspended; orange accomplishment line is held. | Monitor blockers to resume execution. |
 
 ---
 
-## 🔍 8. Filtering, Grouping & Time Scale Controls
+## 🔍 9. Filtering, Grouping & Time Scale Controls
 
-Customize the view to match your workflow:
+Customize the timeline layout to suit different stakeholder needs:
 
 ### 1. Grouping Modes
 Use the **Group:** selector in the toolbar:
-- **Sprint / Phase**: Organizes tasks under collapsible phase containers.
-- **Workflow Column**: Groups tasks by status (e.g. *To Do*, *In Progress*, *Done*).
-- **Assignee**: Groups deliverables by team member for workload auditing.
-- **None**: Displays a unified flat list of all deliverables.
+- **Sprint / Phase**: Organizes deliverables into collapsible phase containers.
+- **Workflow Column**: Groups deliverables by operational status (*To Do*, *In Progress*, *Review*, *Done*).
+- **Assignee**: Groups deliverables by team member to audit workload distribution.
+- **Label / None**: Flat unified list categorized by custom tags.
 
-### 2. Time Scale Granularity
-Toggle between zoom levels:
-- **Days**: High-precision daily execution tracking.
-- **Weeks**: Ideal for multi-month project overviews.
-- **Months**: High-level executive roadmaps spanning 6 to 12 months.
+### 2. Status Filters
+Filter timeline deliverables with quick-toggle buttons:
+- **All**: Displays all deliverables.
+- **Active**: Shows ongoing and uncompleted items.
+- **Completed**: Filters for finished milestones and deliverables.
+- **Overdue**: Highlights items whose due dates have breached without completion.
 
-### 3. Timeline Navigation
-- Click **Today** to instantly center the timeline on the current date.
-- Use the **`‹`** and **`›`** arrows to shift the viewing window backward or forward.
-- Drag horizontally on the timeline canvas to pan smoothly.
+### 3. Time Scale Granularity
+- **Days**: Granular day-by-day execution tracking.
+- **Weeks**: Mid-range sprint and multi-week overviews.
+- **Months**: High-level quarterly and annual executive roadmaps.
 
-### 4. Display Modes
-- Click **Plan vs Actual (Dual)** to toggle between the comparative dual-track display and a simplified single-bar view.
+### 4. Canvas Navigation
+- **Today**: Instantly centers the timeline canvas on today's guideline.
+- **`‹` / `›` Step Arrows**: Shifts the visible timeline window backward or forward.
+- **Horizontal Pan**: Click and drag across the canvas to pan smoothly across time.
+- **Plan vs Actual Toggle**: Switch between the dual-track view and a single-track view.
 
 ---
 
-## 📥 9. Exporting the Gantt Chart & Roadmap Data to CSV
+## 📥 10. Exporting Roadmap Data to Microsoft Excel / CSV
 
-You can generate comprehensive offline reports and spreadsheet Gantt charts with a single click:
+Generate stakeholder-ready spreadsheet Gantt charts and offline reports with one click:
 
-1. In the top-right of the Roadmap toolbar, click the **Export Gantt CSV** button.
-2. Worklane generates a pre-formatted `.csv` file with a **UTF-8 Byte Order Mark (`\uFEFF`)** so dates, symbols, and text open cleanly in Microsoft Excel, Google Sheets, or Apple Numbers.
+1. Click the **`Export Gantt CSV`** button in the top-right toolbar.
+2. Worklane generates a `.csv` file with a **UTF-8 Byte Order Mark (`\uFEFF`)** ensuring symbols, accents, and dates render correctly in **Microsoft Excel**, **Google Sheets**, and **Apple Numbers**.
 
-### What is Included in the CSV Export:
+### Exported Data Columns:
 
-#### 1. Task Metadata Columns (Left Pane):
+#### Left Pane Metadata:
 - **Task Name**: Deliverable title (with `↳ Work Done` sub-row indicator in Dual mode).
-- **Phase / Group & Sprint**: Package breakdown and sprint assignment.
-- **Assignee**: Responsible team members.
-- **Track**: Identifies whether the row represents the **Planned Goal** or **Work Done**.
-- **Start Date & Due Date**: Baseline schedule commitment.
-- **Actual / Projected End**: Anticipated or confirmed completion date.
+- **Phase / Group & Sprint**: Phase name and sprint identifier.
+- **Assignee**: Team member names.
+- **Track**: `Planned Goal` or `Work Done`.
+- **Start Date & Due Date**: Baseline commitment dates.
+- **Actual / Projected End**: Confirmed or forecasted completion date.
 - **Done %**: Progress percentage (0–100%).
-- **Schedule Health**: Plain-language variance (e.g. `On schedule`, `3d late`, `2d ahead`).
-- **Status**: Operational status (`In Progress`, `Completed`, `Overdue`).
-- **Milestone**: Milestone indicator (`Yes` / `No`).
-- **Worked Days**: Total count of confirmed active working days.
-- **Work Suspensions**: Itemized log of approved stoppages and inactive days.
+- **Schedule Health**: Status string (`On schedule`, `3d late`, `2d ahead`).
+- **Status**: Board column status (`In Progress`, `Completed`, `Overdue`).
+- **Milestone**: `Yes` or `No`.
+- **Worked Days**: Total count of active working days.
+- **Work Suspensions**: Itemized log of approved pauses and reasons.
 
-#### 2. Visual Gantt Chart Grid (Timeline Columns):
-Across the top header, a calendar column is generated for every day across the project's schedule, with current date tagged as `[TODAY]`:
-- **`■ Plan`**: Fills cells across the agreed planned baseline duration.
-- **`■ Done`**: Fills cells across confirmed worked and accomplished days.
-- **`■ Done (Late)`**: Marks days completed after the agreed deadline.
-- **`⏸ Paused`**: Marks unworked inactive days or approved work stoppages.
-- **`░ Delayed`**: Marks projected delay extension days beyond the due date.
-- **`░ Projected`**: Marks upcoming scheduled days before the due date.
-- **`◆ Milestone`**: Marks zero-duration checkpoint deliverables.
+#### Right Pane Calendar Grid (Day Columns):
+Every day across the project schedule is rendered as a column header, with today marked as `[TODAY]`:
+- **`■ Plan`**: Planned baseline duration cell.
+- **`■ Done`**: Confirmed worked and completed day cell.
+- **`■ Done (Late)`**: Day worked after the scheduled deadline.
+- **`⏸ Paused`**: Approved work stoppage or inactive day cell.
+- **`░ Delayed`**: Forecasted extension day cell.
+- **`░ Projected`**: Remaining scheduled day cell.
+- **`◆ Milestone`**: Zero-duration milestone checkpoint.
 
-An explicit **Gantt Timeline Legend** is automatically appended at the bottom of the CSV for easy offline reference.
+A complete **Timeline Legend** is automatically included at the bottom of the exported file.
 
 ---
 
-## 📱 10. Mobile & Touch Device Tips
+## 🔗 11. Cross-Board Roadmap Linking
 
-Worklane is fully optimized for smartphones and touchscreens:
+Tasks across different functional boards can be linked directly to strategic Roadmaps:
+1. Open any task card on any board.
+2. In the **Schedule** section, locate **Linked Project Roadmap**.
+3. Select the target Roadmap from the dropdown list.
+4. The deliverable is linked to the strategic roadmap, enabling unified cross-board governance.
 
-1. **Segmented Mobile Tabs**: At the top of your mobile screen, switch between:
-   - **Deliverables**: A clean tabular checklist of tasks and statuses.
-   - **Gantt Timeline**: The interactive visual bar view.
-2. **Sticky Task Titles**: When scrolling horizontally across weeks or months, a floating title pill stays attached to the left of each row so you never lose track of which task you are viewing.
-3. **Stacked Suspension Rows**: Work suspension date pickers and reason inputs stack vertically, preventing horizontal cut-off on narrow screens.
-4. **Touch Gestures**: Tap any row to open the complete task inspection modal.
+---
+
+## 📱 12. Mobile & Touch Device Experience
+
+Worklane is optimized for smartphones, tablets, and touch screens:
+
+1. **Segmented Mobile Navigation Tabs**:
+   - **Deliverables**: A clean tabular checklist for quick status audits.
+   - **Gantt Timeline**: Interactive horizontal timeline canvas.
+2. **Sticky Task Title Pills**: When scrolling horizontally across weeks or months, task titles stay fixed on screen so context is never lost.
+3. **Stacked Suspension Rows**: Date inputs and pause reasons stack vertically to prevent horizontal truncation on small viewports.
+4. **Touch Interactions**: Tap any deliverable to open the complete inspection modal; swipe horizontally to pan across timeline dates.
+
+---
+
+*For technical specifications, variance algorithms, and mathematical definitions, see [`GANTT_SPECIFICATION.md`](GANTT_SPECIFICATION.md).*  
+*For general workspace and board documentation, see [`README.md`](README.md).*
