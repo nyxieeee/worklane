@@ -3,6 +3,7 @@ import { motion, AnimatePresence, type Variants } from 'framer-motion';
 import Sidebar from './components/Sidebar';
 import Topbar from './components/Topbar';
 import BoardArea from './components/BoardArea';
+import RoadmapView from './components/RoadmapView';
 import CardModal from './components/CardModal';
 import MembersModal from './components/MembersModal';
 import EmailNotifModal from './components/EmailNotifModal';
@@ -29,7 +30,8 @@ import { useThemeStore } from './store/useThemeStore';
 import { useToastStore } from './store/useToastStore';
 import { useSettingsStore } from './store/useSettingsStore';
 import { supabaseService } from './services/supabaseService';
-import { formatDueDate, uid, useIsMobile } from './utils';
+import { formatDueDate, uid, useIsMobile, isRoadmapLike, isKnownRoadmapId, saveKnownRoadmapId } from './utils';
+import { Milestone, Plus } from 'lucide-react';
 import type { MemberRole } from './types';
 
 const CHECK_INTERVAL_MS = 10_000;
@@ -55,6 +57,10 @@ export default function App() {
   const currentUser = useAuthStore(s => s.user);
   const visibleBoards = useMemo(() => getVisibleBoards(currentUser?.email), [getVisibleBoards, currentUser?.email, boards]);
   const currentBoard = useMemo(() => visibleBoards.find(b => b.id === activeBoardId) || visibleBoards[0] || null, [visibleBoards, activeBoardId]);
+  const currentEmail = currentUser?.email?.toLowerCase().trim();
+  const isOwner = !!(currentBoard?.createdBy && currentEmail && currentBoard.createdBy.toLowerCase().trim() === currentEmail);
+  const currentMemberObj = currentBoard?.members?.find(m => m.email && m.email.toLowerCase().trim() === currentEmail);
+  const isObserver = !isOwner && currentMemberObj?.role === 'observer';
   const switchBoard = useWorkStore(s => s.switchBoard);
   const updateCard = useWorkStore(s => s.updateCard);
   const syncCurrentUserProfile = useWorkStore(s => s.syncCurrentUserProfile);
@@ -253,7 +259,8 @@ export default function App() {
       } else if (urlPage === 'board') {
         initialPage = 'board';
       } else if (urlBoard || (urlPage !== 'dashboard' && (savedPage === 'board' || savedPage === 'roadmap' || (!savedPage && initialBoardId)))) {
-        initialPage = savedPage === 'roadmap' ? 'roadmap' : 'board';
+        const isRoadmapId = isKnownRoadmapId(urlBoard || initialBoardId);
+        initialPage = (savedPage === 'roadmap' || isRoadmapId) ? 'roadmap' : 'board';
       }
 
       const validViews: Array<'board' | 'roadmap' | 'calendar'> = ['board', 'roadmap', 'calendar'];
@@ -391,7 +398,8 @@ export default function App() {
     if (activeBoardId && page !== 'dashboard') {
       const active = visibleBoards.find(b => b.id === activeBoardId);
       if (active) {
-        const expectedPage = active.type === 'roadmap' ? 'roadmap' : 'board';
+        const isRoadmap = isRoadmapLike(active);
+        const expectedPage = isRoadmap ? 'roadmap' : 'board';
         if (page !== expectedPage) {
           setPage(expectedPage);
         }
@@ -447,7 +455,10 @@ export default function App() {
     setShowBoardSelector(false);
     const storeBoards = useWorkStore.getState().boards;
     const targetBoard = visibleBoards.find(b => b.id === boardId) || storeBoards.find(b => b.id === boardId);
-    const isRoadmap = targetBoard ? targetBoard.type === 'roadmap' : view === 'roadmap';
+    const isRoadmap = isRoadmapLike(targetBoard) || view === 'roadmap' || isKnownRoadmapId(boardId);
+    if (isRoadmap) {
+      saveKnownRoadmapId(boardId);
+    }
     const targetPage = isRoadmap ? 'roadmap' : 'board';
     setPage(targetPage);
     let resolvedView = view;
@@ -741,9 +752,10 @@ function saveAlertedSet(key: string, setObj: Set<string>) {
                   />
                 )}
               </motion.div>
-            ) : (
+            ) : page === 'roadmap' ? (
+              /* ── DEDICATED ROADMAP FEATURE PAGE ── */
               <motion.div
-                key={`page-${page}`}
+                key="page-roadmap"
                 variants={isMobile ? pageMobileVariants : page3DVariants}
                 initial="initial"
                 animate="animate"
@@ -751,7 +763,52 @@ function saveAlertedSet(key: string, setObj: Set<string>) {
                 style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden', maxWidth: '100%' }}
               >
                 <Topbar
-                  page={page}
+                  page="roadmap"
+                  onOpenSearch={() => setShowSearch(true)}
+                  onOpenSettings={handleOpenSettings}
+                  onToggleNotif={() => setNotifOpen(o => !o)}
+                  notifOpen={notifOpen}
+                  onToggleMobileMenu={() => setMobileMenuOpen(o => !o)}
+                  onOpenBoardSelector={() => setShowBoardSelector(true)}
+                />
+
+                {currentBoard && currentBoard.type === 'roadmap' ? (
+                  <RoadmapView
+                    board={currentBoard}
+                    onOpenCard={cardId => handleOpenCard(cardId)}
+                    isObserver={isObserver}
+                  />
+                ) : (
+                  <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+                    <div style={{ textAlign: 'center', maxWidth: 420, padding: 36, borderRadius: 'var(--radius)', boxShadow: 'var(--neu-shadow-raised)', backgroundColor: 'hsl(var(--card))' }}>
+                      <div style={{ width: 52, height: 52, borderRadius: 14, backgroundColor: 'hsl(var(--card))', color: 'hsl(var(--primary))', boxShadow: 'var(--neu-shadow-raised-sm)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
+                        <Milestone size={26} />
+                      </div>
+                      <h2 style={{ fontSize: 18, fontWeight: 700, color: 'hsl(var(--foreground))', marginBottom: 6 }}>
+                        No Project Roadmap Selected
+                      </h2>
+                      <p style={{ fontSize: 13, color: 'hsl(var(--muted-foreground))', lineHeight: 1.5, marginBottom: 20 }}>
+                        Select a roadmap from the sidebar or create a new roadmap to schedule deliverables and view S-Curve analytics.
+                      </p>
+                      <button className="btn btn-primary" onClick={() => setShowCreateRoadmap(true)}>
+                        <Plus size={15} /> Create Roadmap
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </motion.div>
+            ) : (
+              /* ── DEDICATED KANBAN BOARD PAGE ── */
+              <motion.div
+                key="page-board"
+                variants={isMobile ? pageMobileVariants : page3DVariants}
+                initial="initial"
+                animate="animate"
+                exit="exit"
+                style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden', maxWidth: '100%' }}
+              >
+                <Topbar
+                  page="board"
                   onOpenSearch={() => setShowSearch(true)}
                   onOpenInbox={() => setShowInbox(s => !s)}
                   onManageMembers={() => setShowMembers(true)}

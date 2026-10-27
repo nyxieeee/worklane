@@ -2304,7 +2304,7 @@ function CardModalInner({ cardId, result, onClose }: InnerProps) {
                   <NeumorphicDatePicker
                     value={card.startDate || null}
                     onChange={newStart => {
-                      updateCard(cardId, { startDate: newStart });
+                      updateCard(cardId, { startDate: newStart ? newStart : null });
                     }}
                     placeholder="Scheduled start..."
                     align="left"
@@ -2313,9 +2313,9 @@ function CardModalInner({ cardId, result, onClose }: InnerProps) {
                 <div className="form-group" style={{ minWidth: 0, margin: 0 }}>
                   <label className="field-label" style={{ margin: '0 0 4px 0' }}>Scheduled End</label>
                   <NeumorphicDatePicker
-                    value={card.dueDate}
+                    value={card.dueDate || null}
                     onChange={newDue => {
-                      updateCard(cardId, { dueDate: newDue });
+                      updateCard(cardId, { dueDate: newDue ? newDue : null });
                     }}
                     placeholder="Scheduled end..."
                     align="right"
@@ -2349,7 +2349,7 @@ function CardModalInner({ cardId, result, onClose }: InnerProps) {
                     <NeumorphicDatePicker
                       value={card.actualStartDate || null}
                       onChange={newActualStart => {
-                        updateCard(cardId, { actualStartDate: newActualStart });
+                        updateCard(cardId, { actualStartDate: newActualStart ? newActualStart : null });
                       }}
                       placeholder="Actual start..."
                       align="left"
@@ -2409,9 +2409,9 @@ function CardModalInner({ cardId, result, onClose }: InnerProps) {
                       })()}
                     </div>
                     <NeumorphicDatePicker
-                      value={card.actualEndDate || (card.completed ? (card.completedAt || null) : null)}
+                      value={card.actualEndDate || null}
                       onChange={newActual => {
-                        updateCard(cardId, { actualEndDate: newActual });
+                        updateCard(cardId, { actualEndDate: newActual ? newActual : null });
                       }}
                       placeholder="Actual end..."
                       align="right"
@@ -2487,7 +2487,7 @@ function CardModalInner({ cardId, result, onClose }: InnerProps) {
                         onClose();
                         switchBoard(linkedRoadmap.id);
                         try {
-                          localStorage.setItem('worklane_current_page_v1', 'board');
+                          localStorage.setItem('worklane_current_page_v1', 'roadmap');
                           localStorage.setItem('worklane_current_board_id_v1', linkedRoadmap.id);
                           localStorage.setItem('worklane_current_view_mode_v1', 'roadmap');
                           window.dispatchEvent(new Event('storage'));
@@ -2499,7 +2499,7 @@ function CardModalInner({ cardId, result, onClose }: InnerProps) {
                     </motion.button>
                   </div>
                 ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, width: '100%', minWidth: 0, maxWidth: '100%' }}>
                     <NeumorphicSelect
                       value={card.linkedRoadmapId || ''}
                       options={[
@@ -2517,15 +2517,37 @@ function CardModalInner({ cardId, result, onClose }: InnerProps) {
                         }
                       }}
                       size="sm"
+                      style={{ width: '100%' }}
                     />
                     <button
                       type="button"
                       className="btn btn-secondary"
-                      style={{ fontSize: 11, padding: '5px 8px', justifyContent: 'center', gap: 5, borderRadius: 7 }}
+                      style={{
+                        width: '100%',
+                        maxWidth: '100%',
+                        boxSizing: 'border-box',
+                        fontSize: 11,
+                        padding: '6px 10px',
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                        gap: 6,
+                        borderRadius: 7,
+                        overflow: 'hidden',
+                        minWidth: 0,
+                      }}
                       onClick={() => setShowCreateRoadmapModal(true)}
+                      title={`Create Roadmap for "${card.title}"`}
                     >
-                      <Plus size={12} />
-                      <span>Create Roadmap for "{card.title}"</span>
+                      <Plus size={12} style={{ flexShrink: 0 }} />
+                      <span style={{
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                        minWidth: 0,
+                        display: 'block',
+                      }}>
+                        Create Roadmap for "{card.title}"
+                      </span>
                     </button>
                   </div>
                 )}

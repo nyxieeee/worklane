@@ -3,7 +3,7 @@ import {
   ChevronLeft, ChevronRight,
   CheckSquare, Square,
   ChevronDown, ChevronUp, Plus,
-  X, Trash2, Layers,
+  X, Trash2, Layers, TrendingUp, Users, UserPlus, Calendar, FileText, Check,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { Board, Card as CardType, Member, Sprint, WorkSuspension } from '../types';
@@ -14,6 +14,9 @@ import { useToastStore } from '../store/useToastStore';
 import { useAuthStore } from '../store/useAuthStore';
 import { useConfirmStore } from '../store/useConfirmStore';
 import AvatarBorder from './ui/AvatarBorder';
+import RoadmapSCurve from './RoadmapSCurve';
+import RoadmapSituationerModal from './RoadmapSituationerModal';
+import RoadmapAssigneePicker from './RoadmapAssigneePicker';
 import NeumorphicDatePicker from './ui/NeumorphicDatePicker';
 import { NeumorphicSelect, SelectOption } from './ui/NeumorphicSelect';
 
@@ -257,6 +260,25 @@ export function getCardWorkStatus(card: CardType, actualStartDate: Date, today: 
 }
 
 export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
+  const allBoards = useWorkStore(s => s.boards);
+  const toggleCardAssignee = useWorkStore(s => s.toggleCardAssignee);
+  const [showSCurve, setShowSCurve] = useState(false);
+  const [showSituationer, setShowSituationer] = useState(false);
+  const [quickTaskAssignees, setQuickTaskAssignees] = useState<string[]>([]);
+
+  // Workspace users available to assign on roadmap features
+  const availableUsers: Member[] = useMemo(() => {
+    const map = new Map<string, Member>();
+    (board.members || []).forEach(m => {
+      if (m.id) map.set(m.id, m);
+    });
+    allBoards.forEach(b => {
+      (b.members || []).forEach(m => {
+        if (m.id && !map.has(m.id)) map.set(m.id, m);
+      });
+    });
+    return Array.from(map.values());
+  }, [board.members, allBoards]);
   const addColumn = useWorkStore(s => s.addColumn);
   const renameColumn = useWorkStore(s => s.renameColumn);
   const deleteColumn = useWorkStore(s => s.deleteColumn);
@@ -283,6 +305,22 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
   const [mobileTab, setMobileTab] = useState<'deliverables' | 'timeline'>('deliverables');
   const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth <= 768);
   const [showHelpGuide, setShowHelpGuide] = useState(false);
+
+  // Inline editing of allotted days for a deliverable/sub-item
+  const [editingDurationCardId, setEditingDurationCardId] = useState<string | null>(null);
+  const [tempDurationDays, setTempDurationDays] = useState<number>(1);
+
+  const handleSaveCardDuration = (cardId: string, startDate: Date | string | null | undefined, days: number) => {
+    const validDays = Math.max(1, Math.min(365, days || 1));
+    const baseStart = startDate ? new Date(startDate) : new Date();
+    const newEnd = new Date(baseStart.getTime());
+    newEnd.setDate(newEnd.getDate() + (validDays - 1));
+    const startIso = baseStart.toISOString().split('T')[0];
+    const endIso = newEnd.toISOString().split('T')[0];
+    updateCard(cardId, { startDate: startIso, dueDate: endIso });
+    setEditingDurationCardId(null);
+    showToast(`Task duration set to ${validDays} day${validDays > 1 ? 's' : ''}`, 'success');
+  };
 
 
   useEffect(() => {
@@ -389,20 +427,32 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
     };
   }, [board, scale, zoomLevel]);
 
+  const isSyncingScroll = useRef<'left' | 'right' | null>(null);
+
   // Sync scrolling between left task list and right timeline canvas
   const handleTaskListScroll = (e: React.UIEvent<HTMLDivElement>) => {
-    if (taskListRef.current && timelineContainerRef.current) {
+    if (isSyncingScroll.current === 'right') return;
+    isSyncingScroll.current = 'left';
+    if (timelineContainerRef.current) {
       timelineContainerRef.current.scrollTop = e.currentTarget.scrollTop;
     }
+    requestAnimationFrame(() => {
+      if (isSyncingScroll.current === 'left') isSyncingScroll.current = null;
+    });
   };
 
   const handleTimelineScroll = (e: React.UIEvent<HTMLDivElement>) => {
-    if (taskListRef.current) {
-      taskListRef.current.scrollTop = e.currentTarget.scrollTop;
-    }
     if (timelineHeaderRef.current) {
       timelineHeaderRef.current.scrollLeft = e.currentTarget.scrollLeft;
     }
+    if (isSyncingScroll.current === 'left') return;
+    isSyncingScroll.current = 'right';
+    if (taskListRef.current) {
+      taskListRef.current.scrollTop = e.currentTarget.scrollTop;
+    }
+    requestAnimationFrame(() => {
+      if (isSyncingScroll.current === 'right') isSyncingScroll.current = null;
+    });
   };
 
   const handleHeaderWheel = (e: React.WheelEvent<HTMLDivElement>) => {
@@ -677,6 +727,7 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
   // Filter tasks based on Search query & Status Filter
   const filteredTasks = useMemo(() => {
     return allTasks.filter(item => {
+
       // Search
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
@@ -1037,7 +1088,7 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
         actualStartDate: quickTaskActualStartDate || null,
         actualEndDate: quickTaskActualEndDate || null,
         sprintId: quickTaskSprintId || null,
-        assignees: quickTaskAssignee ? [quickTaskAssignee] : [],
+        assignees: quickTaskAssignees.length > 0 ? quickTaskAssignees : (quickTaskAssignee ? [quickTaskAssignee] : []),
         isMilestone: quickTaskIsMilestone,
       });
       showToast(`Added "${quickTaskTitle.trim()}"`, 'success');
@@ -1050,6 +1101,7 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
     setQuickTaskActualStartDate('');
     setQuickTaskActualEndDate('');
     setQuickTaskAssignee('');
+    setQuickTaskAssignees([]);
     setQuickTaskIsMilestone(false);
   };
 
@@ -1406,8 +1458,37 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
               <p style={{ margin: '1px 0 0', fontSize: 11, color: 'hsl(var(--muted-foreground))' }}>
                 {board.description || 'Track deliverables, scheduled milestones, and actual start/completion dates.'}
               </p>
+              {(board.startDate || board.endDate) && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4, flexWrap: 'wrap' }}>
+                  <span style={{
+                    fontSize: 10.5,
+                    fontWeight: 700,
+                    padding: '2px 8px',
+                    borderRadius: 6,
+                    background: 'hsl(var(--card))',
+                    border: '1px solid hsl(var(--border) / 0.8)',
+                    boxShadow: 'var(--neu-shadow-raised-sm)',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 5,
+                    color: 'hsl(var(--foreground))',
+                  }}>
+                    <Calendar size={11} color="hsl(var(--primary))" />
+                    <span>Project Schedule:</span>
+                    <span style={{ color: 'hsl(var(--primary))', fontWeight: 800 }}>
+                      {board.startDate ? formatShortDate(new Date(board.startDate)) : 'Start'} – {board.endDate ? formatShortDate(new Date(board.endDate)) : 'End'}
+                    </span>
+                    {board.startDate && board.endDate && (
+                      <span style={{ color: 'hsl(var(--muted-foreground))', fontSize: 10, marginLeft: 2 }}>
+                        ({Math.max(1, Math.round((new Date(board.endDate).getTime() - new Date(board.startDate).getTime()) / 86400000) + 1)} days)
+                      </span>
+                    )}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
+          
         </div>
       )}
 
@@ -1469,6 +1550,49 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
             </div>
           )}
 
+                    <motion.button
+            whileTap={{ scale: 0.95 }}
+            type="button"
+            className={`btn ${showSCurve ? 'btn-primary' : 'btn-secondary'}`}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              boxShadow: showSCurve ? 'var(--neu-shadow-pressed)' : undefined,
+            }}
+            onClick={() => setShowSCurve(s => !s)}
+            title="Toggle S-Curve Cumulative Progress Analysis"
+          >
+            <TrendingUp size={13} />
+            <span>S-Curve Analysis</span>
+            <span style={{
+              fontSize: 9.5,
+              fontWeight: 700,
+              padding: '1px 5px',
+              borderRadius: 3,
+              background: showSCurve ? 'rgba(255,255,255,0.25)' : 'hsl(var(--primary) / 0.15)',
+              color: showSCurve ? '#fff' : 'hsl(var(--primary))',
+            }}>
+              {showSCurve ? 'Close' : 'View'}
+            </span>
+          </motion.button>
+
+          <motion.button
+            whileTap={{ scale: 0.95 }}
+            type="button"
+            className="btn btn-secondary"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+            }}
+            onClick={() => setShowSituationer(true)}
+            title="Generate Executive Situationer Report (SITREP)"
+          >
+            <FileText size={13} color="hsl(var(--primary))" />
+            <span>Situationer Report</span>
+          </motion.button>
+
           <motion.button whileTap={{ scale: 0.95 }} type="button"
             className="btn btn-secondary"
             onClick={handleExportCSV}
@@ -1476,6 +1600,27 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
           >Export CSV</motion.button>
         </div>
       </div>
+
+      
+
+      {/* S-Curve Analysis Section */}
+      <AnimatePresence>
+        {showSCurve && (
+          <motion.div
+            initial={{ opacity: 0, height: 0, overflow: 'hidden' }}
+            animate={{ opacity: 1, height: 'auto', overflow: 'visible' }}
+            exit={{ opacity: 0, height: 0, overflow: 'hidden' }}
+            transition={{ duration: 0.22, ease: 'easeInOut' }}
+          >
+            <RoadmapSCurve
+              board={board}
+              tasks={allTasks}
+              onOpenCard={onOpenCard}
+              onClose={() => setShowSCurve(false)}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Mobile Segmented View Switcher */}
       <div className="roadmap-mobile-view-tabs" role="tablist" aria-label="Roadmap View Options">
@@ -1761,18 +1906,16 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
                                     {t.card.title}
                                   </span>
 
-                                  {assignees.length > 0 && (
-                                    <div className="roadmap-task-assignees">
-                                      {assignees.slice(0, 2).map((m: any) => (
-                                        <AvatarBorder key={m.id} size={18} title={m.name}>
-                                          {m.avatarUrl
-                                            ? <img src={m.avatarUrl} alt={m.name} style={{ width: 18, height: 18, borderRadius: '50%' }} />
-                                            : <div style={{ width: 18, height: 18, borderRadius: '50%', backgroundColor: m.color, color: '#fff', fontSize: 8, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{avatarInitials(m.name)}</div>
-                                          }
-                                        </AvatarBorder>
-                                      ))}
-                                    </div>
-                                  )}
+                                  <RoadmapAssigneePicker
+                                    card={t.card}
+                                    members={availableUsers}
+                                    onToggleAssignee={(mId) => {
+                                      toggleCardAssignee(t.card.id, mId);
+                                      const m = availableUsers.find(mem => mem.id === mId);
+                                      showToast(`Updated user assignment${m ? ` for ${m.name}` : ''}`, 'info');
+                                    }}
+                                    isObserver={isObserver}
+                                  />
                                 </div>
 
                                 {/* 2. Schedule Column (S) */}
@@ -1781,8 +1924,59 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
                                   title={`Scheduled baseline plan: ${formatShortDate(t.targetStartDate)} to ${formatShortDate(t.targetEndDate)} (${plannedDays} days)`}
                                 >
                                   <span className="roadmap-track-badge sched" title="Schedule / Planned (S)">S</span>
-                                  <span className="roadmap-date-range">{formatDateRange(t.targetStartDate, t.targetEndDate)}</span>
-                                  <span className="roadmap-duration-label">({plannedDays}d)</span>
+                                  {editingDurationCardId === t.card.id ? (
+                                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }} onClick={e => e.stopPropagation()}>
+                                      <input
+                                        type="number"
+                                        min={1}
+                                        max={365}
+                                        autoFocus
+                                        value={tempDurationDays}
+                                        onChange={e => setTempDurationDays(parseInt(e.target.value, 10) || 1)}
+                                        onKeyDown={e => {
+                                          if (e.key === 'Enter') handleSaveCardDuration(t.card.id, t.targetStartDate, tempDurationDays);
+                                          if (e.key === 'Escape') setEditingDurationCardId(null);
+                                        }}
+                                        style={{
+                                          width: 44,
+                                          height: 20,
+                                          fontSize: 10.5,
+                                          fontWeight: 700,
+                                          textAlign: 'center',
+                                          padding: '1px 2px',
+                                          borderRadius: 4,
+                                          border: '1px solid hsl(var(--primary))',
+                                          background: 'hsl(var(--card))',
+                                          color: 'hsl(var(--foreground))',
+                                        }}
+                                      />
+                                      <span style={{ fontSize: 10, color: 'hsl(var(--muted-foreground))' }}>d</span>
+                                      <button
+                                        type="button"
+                                        className="icon-btn"
+                                        style={{ width: 18, height: 18, padding: 0 }}
+                                        onClick={() => handleSaveCardDuration(t.card.id, t.targetStartDate, tempDurationDays)}
+                                      >
+                                        <Check size={11} color="#10b981" />
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <div
+                                      style={{ display: 'inline-flex', alignItems: 'center', gap: 4, cursor: isObserver ? 'default' : 'pointer' }}
+                                      onClick={e => {
+                                        if (isObserver) return;
+                                        e.stopPropagation();
+                                        setEditingDurationCardId(t.card.id);
+                                        setTempDurationDays(plannedDays);
+                                      }}
+                                      title={isObserver ? undefined : 'Click to change allotted days for this task'}
+                                    >
+                                      <span className="roadmap-date-range">{formatDateRange(t.targetStartDate, t.targetEndDate)}</span>
+                                      <span className="roadmap-duration-label" style={{ borderBottom: isObserver ? 'none' : '1px dashed hsl(var(--primary))' }}>
+                                        ({plannedDays}d)
+                                      </span>
+                                    </div>
+                                  )}
                                 </div>
 
                                 {/* 3. Actual Column (A) */}
@@ -2591,6 +2785,16 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
               )}
             </div>
           </div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showSituationer && (
+          <RoadmapSituationerModal
+            board={board}
+            tasks={allTasks}
+            onClose={() => setShowSituationer(false)}
+          />
         )}
       </AnimatePresence>
     </div>

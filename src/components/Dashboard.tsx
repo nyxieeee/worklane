@@ -10,7 +10,7 @@ import { useNotifStore } from '../store/useNotifStore';
 import { useToastStore } from '../store/useToastStore';
 import { useConfirmStore } from '../store/useConfirmStore';
 import { useSettingsStore } from '../store/useSettingsStore';
-import { formatDueDate, avatarInitials, useIsMobile } from '../utils';
+import { formatDueDate, avatarInitials, useIsMobile, isRoadmapLike } from '../utils';
 import { LABELS, type Card, type Board } from '../types';
 import Tilt3D from './ui/Tilt3D';
 import BoardColorPicker from './ui/BoardColorPicker';
@@ -1006,7 +1006,7 @@ export default function Dashboard({ onSelectBoard, onCreateBoard, onCreateRoadma
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxHeight: 380, overflowY: 'auto', padding: '4px 2px' }}>
                 {tasksByBoard.map(({ board, tasks: boardTasks }) => {
-                  const isRoadmap = board.type === 'roadmap';
+                  const isRoadmap = isRoadmapLike(board);
 
                   return (
                     <div

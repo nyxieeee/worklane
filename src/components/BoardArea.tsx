@@ -9,7 +9,6 @@ import { useWorkStore } from '../store/useWorkStore';
 import { useToastStore } from '../store/useToastStore';
 import { useAuthStore } from '../store/useAuthStore';
 import Column from './Column';
-import RoadmapView from './RoadmapView';
 import { InboxDrawer } from './InboxDrawer';
 import { formatDueDate, avatarInitials, useIsMobile } from '../utils';
 import { LABELS, type Member, type Card, type Column as ColumnType } from '../types';
@@ -42,6 +41,7 @@ interface Props {
   onOpenCard: (cardId: string) => void;
   onAddColumn: () => void;
   onCreateBoard: () => void;
+  onManageMembers?: () => void;
   showInbox?: boolean;
   onToggleInbox?: () => void;
 }
@@ -66,6 +66,7 @@ export default function BoardArea({
   onOpenCard,
   onAddColumn,
   onCreateBoard,
+  onManageMembers,
   showInbox: controlledShowInbox,
   onToggleInbox: controlledToggleInbox,
 }: Props) {
@@ -297,23 +298,7 @@ export default function BoardArea({
       )}
 
       <AnimatePresence mode="wait">
-        {board.type === 'roadmap' && viewMode !== 'calendar' && (
-          <motion.div
-            key="roadmap-view"
-            variants={isMobile ? viewMobileVariants : view3DVariants}
-            initial="initial"
-            animate="animate"
-            exit="exit"
-            style={{ width: '100%', height: '100%', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
-          >
-            <RoadmapView
-              board={board}
-              onOpenCard={onOpenCard}
-              isObserver={isObserver}
-            />
-          </motion.div>
-        )}
-
+        
         {viewMode === 'calendar' && (
           <motion.div
             key="calendar-view"

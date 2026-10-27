@@ -471,6 +471,36 @@ export function getScheduleHealth(card: CardType, columnName?: string): Schedule
   };
 }
 
+/** Persistent tracking of known roadmap IDs across sessions and cloud loads */
+export function isKnownRoadmapId(boardId?: string | null): boolean {
+  if (!boardId) return false;
+  try {
+    const raw = localStorage.getItem('worklane_known_roadmaps');
+    if (!raw) return false;
+    const list = JSON.parse(raw);
+    return Array.isArray(list) && list.includes(boardId);
+  } catch {
+    return false;
+  }
+}
 
+export function saveKnownRoadmapId(boardId?: string | null): void {
+  if (!boardId) return;
+  try {
+    const raw = localStorage.getItem('worklane_known_roadmaps');
+    const list = raw ? JSON.parse(raw) : [];
+    if (Array.isArray(list) && !list.includes(boardId)) {
+      list.push(boardId);
+      localStorage.setItem('worklane_known_roadmaps', JSON.stringify(list));
+    }
+  } catch {}
+}
 
-
+export function isRoadmapLike(board?: { id?: string; type?: string; columns?: Array<{ name: string; cards?: any[] }> } | null): boolean {
+  if (!board) return false;
+  if (board.type === 'roadmap') return true;
+  if (board.id && isKnownRoadmapId(board.id)) return true;
+  if (board.columns?.some(c => /^(Phase\s*\d+|Project\s*Deliverables?|Milestone)/i.test(c.name))) return true;
+  if (board.columns?.some(c => (c.cards || []).some(card => (card.labels || []).includes('roadmap')))) return true;
+  return false;
+}

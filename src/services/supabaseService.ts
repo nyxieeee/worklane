@@ -1,6 +1,6 @@
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import type { Board, Column, Card, Comment, Attachment, Member, MemberRole, Notification, Sprint } from '../types';
-import { uid, sortMembersWithOwnerFirst } from '../utils';
+import { uid, sortMembersWithOwnerFirst, isKnownRoadmapId, saveKnownRoadmapId, isRoadmapLike } from '../utils';
 
 // Active WebSocket channel reference for instant peer broadcasting
 let activeRealtimeChannel: any = null;
@@ -229,7 +229,7 @@ export const supabaseService = {
             }));
 
           let desc = card.description || '';
-          let startDate: string | null = card.created_at ? card.created_at.split('T')[0] : null;
+          let startDate: string | null = null;
           let actualStartDate: string | null = null;
           let actualEndDate: string | null = null;
           let sprintId: string | null = null;
@@ -239,15 +239,16 @@ export const supabaseService = {
           let workSuspensions: any[] = [];
           let workedDays: string[] = [];
           let linkedRoadmapId: string | null = null;
+          let cost: number | undefined = undefined;
 
           // Parse embedded roadmap metadata from card description
           const rMatch = desc.match(/<!--worklane_roadmap:([\s\S]*?)-->/);
           if (rMatch) {
             try {
               const meta = JSON.parse(rMatch[1]);
-              if (meta.startDate !== undefined) startDate = meta.startDate;
-              if (meta.actualStartDate !== undefined) actualStartDate = meta.actualStartDate;
-              if (meta.actualEndDate !== undefined) actualEndDate = meta.actualEndDate;
+              if (meta.startDate !== undefined) startDate = meta.startDate || null;
+              if (meta.actualStartDate !== undefined) actualStartDate = meta.actualStartDate || null;
+              if (meta.actualEndDate !== undefined) actualEndDate = meta.actualEndDate || null;
               if (meta.sprintId !== undefined) sprintId = meta.sprintId;
               if (meta.isMilestone !== undefined) isMilestone = !!meta.isMilestone;
               if (meta.progress !== undefined) progress = meta.progress;
@@ -255,6 +256,7 @@ export const supabaseService = {
               if (meta.workSuspensions !== undefined) workSuspensions = meta.workSuspensions;
               if (meta.workedDays !== undefined) workedDays = meta.workedDays;
               if (meta.linkedRoadmapId !== undefined) linkedRoadmapId = meta.linkedRoadmapId;
+              if (meta.cost !== undefined) cost = typeof meta.cost === 'number' ? meta.cost : parseFloat(meta.cost);
               desc = desc.replace(rMatch[0], '').trimEnd();
             } catch {}
           }
@@ -289,6 +291,7 @@ export const supabaseService = {
             workSuspensions,
             workedDays,
             linkedRoadmapId,
+            cost,
             coverAttachmentId: card.cover_attachment_id,
             createdAt: card.created_at,
             isInbox: !!card.is_inbox,
@@ -302,13 +305,19 @@ export const supabaseService = {
         let bColumns: Column[] = allCols
           .filter((c: any) => c.board_id === b.id)
           .map((col: any) => {
+            let colBudget: number | undefined = undefined;
+            const bgMatch = col.name ? col.name.match(/<!--worklane_col_budget:([\d.]+?)-->/) : null;
+            if (bgMatch) colBudget = parseFloat(bgMatch[1]);
+            const cleanColName = (col.name || '').replace(/<!--worklane_[\s\S]*?-->/g, '').trim();
+
             const colCards: Card[] = allCards
               .filter((card: any) => card.column_id === col.id && !card.is_inbox)
               .map(mapDbCardToCard);
 
             return {
               id: col.id,
-              name: col.name,
+              name: cleanColName,
+              budget: colBudget,
               cards: colCards,
             };
           });
@@ -347,6 +356,10 @@ export const supabaseService = {
         // Assemble Board Meta (type, description) from embedded backup or board columns
         let bType: 'board' | 'roadmap' = (b.type === 'roadmap') ? 'roadmap' : 'board';
         let bDescription: string = b.description || '';
+        let bStartDate: string | null = null;
+        let bEndDate: string | null = null;
+        let bTotalBudget: number | undefined = undefined;
+        let bCurrency: string = "₱";
 
         for (const card of allCards) {
           if (card.board_id === b.id && card.description) {
@@ -356,6 +369,10 @@ export const supabaseService = {
                 const parsedMeta = JSON.parse(mMatch[1]);
                 if (parsedMeta.type) bType = parsedMeta.type;
                 if (parsedMeta.description) bDescription = parsedMeta.description;
+                if (parsedMeta.startDate) bStartDate = parsedMeta.startDate;
+                if (parsedMeta.endDate) bEndDate = parsedMeta.endDate;
+                if (parsedMeta.totalBudget) bTotalBudget = parseFloat(parsedMeta.totalBudget);
+                if (parsedMeta.currency) bCurrency = parsedMeta.currency;
                 break;
               } catch {}
             }
@@ -378,6 +395,10 @@ export const supabaseService = {
           color: b.color,
           type: bType,
           description: bDescription,
+          startDate: bStartDate,
+          endDate: bEndDate,
+          totalBudget: bTotalBudget,
+          currency: bCurrency,
           createdBy: b.created_by,
           members: bMembers,
           columns: bColumns,
@@ -400,6 +421,10 @@ export const supabaseService = {
     if (!isSupabaseConfigured() || !board?.id) return false;
 
     try {
+      if (board.type === 'roadmap' || isKnownRoadmapId(board.id)) {
+        saveKnownRoadmapId(board.id);
+      }
+
       // 1. Upsert Board
       const { error: bErr } = await supabase.from('boards').upsert({
         id: board.id,
@@ -433,12 +458,23 @@ export const supabaseService = {
       // 3. Upsert Columns
       const currentColIds = (board.columns || []).map(c => c.id).filter(Boolean);
       if (board.columns?.length > 0) {
-        const colRows = board.columns.map((c, idx) => ({
-          id: c.id,
-          board_id: board.id,
-          name: c.name,
-          position: idx,
-        }));
+        const isRoadmap = board.type === 'roadmap' || isKnownRoadmapId(board.id);
+        const colRows = board.columns.map((c, idx) => {
+          let cleanName = (c.name || '').replace(/<!--worklane_[\s\S]*?-->/g, '').trim();
+          if (c.budget !== undefined && c.budget !== null) {
+            cleanName = `${cleanName}\n<!--worklane_col_budget:${c.budget}-->`;
+          }
+          if (idx === 0 && isRoadmap) {
+            const boardMeta = { type: 'roadmap', description: board.description || '', startDate: board.startDate || null, endDate: board.endDate || null, totalBudget: board.totalBudget || null, currency: board.currency || "₱" };
+            cleanName = `${cleanName}\n<!--worklane_board_meta:${JSON.stringify(boardMeta)}-->`;
+          }
+          return {
+            id: c.id,
+            board_id: board.id,
+            name: cleanName,
+            position: idx,
+          };
+        });
         await supabase.from('columns').upsert(colRows, { onConflict: 'id' });
       }
       if (currentColIds.length > 0) {
@@ -474,7 +510,7 @@ export const supabaseService = {
             (item.card.dependencies && item.card.dependencies.length > 0) ||
             (item.card.workSuspensions && item.card.workSuspensions.length > 0) ||
             (item.card.workedDays && item.card.workedDays.length > 0) ||
-            item.card.linkedRoadmapId
+            item.card.linkedRoadmapId || (item.card.cost !== undefined && item.card.cost !== null)
           );
 
           let encodedDescription = item.card.description || '';
@@ -497,12 +533,14 @@ export const supabaseService = {
             if (item.card.workSuspensions?.length) rMeta.workSuspensions = item.card.workSuspensions;
             if (item.card.workedDays?.length) rMeta.workedDays = item.card.workedDays;
             if (item.card.linkedRoadmapId) rMeta.linkedRoadmapId = item.card.linkedRoadmapId;
+            if (item.card.cost !== undefined && item.card.cost !== null) rMeta.cost = item.card.cost;
             encodedDescription = `${encodedDescription}\n<!--worklane_roadmap:${JSON.stringify(rMeta)}-->`.trim();
           }
 
           // If this is the first card, embed board metadata tag as bulletproof backup
           if (index === 0) {
-            const boardMeta = { type: board.type || 'board', description: board.description || '' };
+            const isRoadmap = board.type === 'roadmap' || isKnownRoadmapId(board.id);
+            const boardMeta = { type: isRoadmap ? 'roadmap' : (board.type || 'board'), description: board.description || '', startDate: board.startDate || null, endDate: board.endDate || null };
             encodedDescription = `${encodedDescription}\n<!--worklane_board_meta:${JSON.stringify(boardMeta)}-->`.trim();
           }
 
@@ -1050,7 +1088,7 @@ export const supabaseService = {
           }));
 
         let desc = card.description || '';
-        let startDate: string | null = card.created_at ? card.created_at.split('T')[0] : null;
+        let startDate: string | null = null;
         let actualStartDate: string | null = null;
         let actualEndDate: string | null = null;
         let sprintId: string | null = null;
@@ -1066,9 +1104,9 @@ export const supabaseService = {
         if (rMatch) {
           try {
             const meta = JSON.parse(rMatch[1]);
-            if (meta.startDate !== undefined) startDate = meta.startDate;
-            if (meta.actualStartDate !== undefined) actualStartDate = meta.actualStartDate;
-            if (meta.actualEndDate !== undefined) actualEndDate = meta.actualEndDate;
+            if (meta.startDate !== undefined) startDate = meta.startDate || null;
+            if (meta.actualStartDate !== undefined) actualStartDate = meta.actualStartDate || null;
+            if (meta.actualEndDate !== undefined) actualEndDate = meta.actualEndDate || null;
             if (meta.sprintId !== undefined) sprintId = meta.sprintId;
             if (meta.isMilestone !== undefined) isMilestone = !!meta.isMilestone;
             if (meta.progress !== undefined) progress = meta.progress;
@@ -1157,10 +1195,54 @@ export const supabaseService = {
         }
       }
 
+      let bType: 'board' | 'roadmap' = (b.type === 'roadmap' || isKnownRoadmapId(b.id)) ? 'roadmap' : 'board';
+      let bDescription: string = b.description || '';
+
+      // Check embedded column tags
+      bColumns.forEach(c => {
+        const mMatch = c.name.match(/<!--worklane_board_meta:([\s\S]*?)-->/);
+        if (mMatch) {
+          try {
+            const parsed = JSON.parse(mMatch[1]);
+            if (parsed.type) bType = parsed.type;
+            if (parsed.description) bDescription = parsed.description;
+          } catch {}
+          c.name = c.name.replace(mMatch[0], '').trim();
+        }
+      });
+
+      for (const card of allCards) {
+        if (card.description) {
+          const mMatch = card.description.match(/<!--worklane_board_meta:([\s\S]*?)-->/);
+          if (mMatch) {
+            try {
+              const parsedMeta = JSON.parse(mMatch[1]);
+              if (parsedMeta.type) bType = parsedMeta.type;
+              if (parsedMeta.description) bDescription = parsedMeta.description;
+              break;
+            } catch {}
+          }
+        }
+      }
+
+      if (bType !== 'roadmap') {
+        const hasPhaseCol = bColumns.some(c => /^(Phase\s*\d+|Project\s*Deliverables?|Milestone)/i.test(c.name));
+        const hasRoadmapCard = allCards.some((c: any) => (allLabels.filter((l: any) => l.card_id === c.id).some((l: any) => l.label_id === 'roadmap')));
+        if (hasPhaseCol || hasRoadmapCard || isKnownRoadmapId(b.id)) {
+          bType = 'roadmap';
+        }
+      }
+
+      if (bType === 'roadmap') {
+        saveKnownRoadmapId(b.id);
+      }
+
       return {
         id: b.id,
         name: b.name,
         color: b.color || '#6366f1',
+        type: bType,
+        description: bDescription,
         createdBy: b.created_by,
         members: bMembers,
         columns: bColumns,

@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import type { Board, Column, Card, Member, MemberRole, Attachment, Comment, Sprint } from '../types';
 import { AVATAR_COLORS, LABELS } from '../types';
-import { uid, avatarInitials, sortMembersWithOwnerFirst } from '../utils';
+import { uid, avatarInitials, sortMembersWithOwnerFirst, isRoadmapLike, saveKnownRoadmapId } from '../utils';
 import { useEmailStore } from './useEmailStore';
 import { useAuthStore } from './useAuthStore';
 import { useNotifStore } from './useNotifStore';
@@ -20,11 +20,13 @@ interface WorkState {
 
   // Board & Roadmap actions
   createBoard: (name: string, color: string, createdBy?: string, creatorName?: string) => Promise<Board>;
-  createRoadmap: (name: string, color: string, createdBy?: string, creatorName?: string, description?: string, templatePhases?: Array<string | { name: string; type?: 'phase' | 'subtask' }>) => Promise<Board>;
+  createRoadmap: (name: string, color: string, createdBy?: string, creatorName?: string, description?: string, templatePhases?: Array<string | { name: string; type?: 'phase' | 'subtask' }>, overallStartDate?: string | null, overallEndDate?: string | null, phaseDaysMap?: Record<string, number>, subtaskDaysMap?: Record<string, number>) => Promise<Board>;
   deleteBoard: (boardId: string) => void;
   deleteBoards: (boardIds: string[]) => void;
   renameBoard: (boardId: string, name: string) => void;
   updateBoardColor: (boardId: string, color: string) => void;
+  updateBoardBudget: (boardId: string, totalBudget?: number, currency?: string) => void;
+  updateColumnBudget: (colId: string, budget?: number) => void;
   leaveBoard: (boardId: string, userEmail: string) => void;
   switchBoard: (boardId: string) => void;
   joinBoardFromCloud: (boardId: string, role: MemberRole, user: { name?: string; email: string; avatarUrl?: string }) => Promise<Board | null>;
@@ -286,7 +288,9 @@ export const useWorkStore = create<WorkState>()(
                     }
                     return memberObj;
                   });
-                  const bType = cb.type || (cb.columns?.some(c => c.name === 'Project Deliverables') ? 'roadmap' : 'board');
+                  const isRoadmap = isRoadmapLike(cb);
+                  const bType = isRoadmap ? 'roadmap' : (cb.type || 'board');
+                  if (isRoadmap) saveKnownRoadmapId(cb.id);
                   return { ...cb, type: bType, members: cleanMembers };
                 }
 
@@ -328,7 +332,9 @@ export const useWorkStore = create<WorkState>()(
                   cb.createdBy
                 );
 
-                const bType = memBoard.type || cb.type || (cb.columns?.some(c => c.name === 'Project Deliverables') ? 'roadmap' : 'board');
+                const isRoadmap = isRoadmapLike(memBoard) || isRoadmapLike(cb);
+                const bType = isRoadmap ? 'roadmap' : (cb.type || 'board');
+                if (isRoadmap) saveKnownRoadmapId(cb.id);
                 const bDesc = memBoard.description || cb.description || '';
 
                 if (hasPendingSync || isActivelySyncing || isRecentLocalEdit) {
@@ -370,10 +376,8 @@ export const useWorkStore = create<WorkState>()(
 
               // Ensure any roadmap board (including existing boards like Inky) has type: 'roadmap'
               const normalizedBoards = finalBoards.map(b => {
-                if (b.type === 'roadmap') return b;
-                const isRoadmap = b.columns?.some(c => c.name === 'Project Deliverables') ||
-                  (b.columns || []).some(col => (col.cards || []).some(card => (card.labels || []).includes('roadmap')));
-                if (isRoadmap) {
+                if (isRoadmapLike(b)) {
+                  saveKnownRoadmapId(b.id);
                   return { ...b, type: 'roadmap' as const };
                 }
                 return b;
@@ -445,7 +449,7 @@ export const useWorkStore = create<WorkState>()(
         return board;
       },
 
-      createRoadmap: async (name, color, createdBy, creatorName, description, templatePhases) => {
+      createRoadmap: async (name, color, createdBy, creatorName, description, templatePhases, overallStartDate, overallEndDate, phaseDaysMap, subtaskDaysMap) => {
         const authUser = useAuthStore.getState().user;
         const creatorEmail = (createdBy || authUser?.email || '').toLowerCase().trim();
         const resolvedName = creatorName || authUser?.name || (creatorEmail ? creatorEmail.split('@')[0] : 'Owner');
@@ -463,12 +467,17 @@ export const useWorkStore = create<WorkState>()(
         const todayIso = now.toISOString().split('T')[0];
 
         const rawPhases = templatePhases ?? [];
+        interface SubtaskEntry {
+          name: string;
+          days: number;
+        }
         interface PhaseGroup {
           phaseName: string;
-          subtasks: string[];
+          subtasks: SubtaskEntry[];
         }
         const phaseGroups: PhaseGroup[] = [];
         let currentGroup: PhaseGroup | null = null;
+        let itemIndex = 0;
 
         rawPhases.forEach(item => {
           if (typeof item === 'string') {
@@ -476,44 +485,109 @@ export const useWorkStore = create<WorkState>()(
               currentGroup = { phaseName: item, subtasks: [] };
               phaseGroups.push(currentGroup);
             } else {
-              currentGroup.subtasks.push(item);
+              const d = (subtaskDaysMap && subtaskDaysMap[`${item}_${itemIndex}`]) || (subtaskDaysMap && subtaskDaysMap[item]) || 3;
+              currentGroup.subtasks.push({ name: item, days: d });
             }
           } else if (item && typeof item === 'object') {
             if (item.type === 'phase') {
               currentGroup = { phaseName: item.name, subtasks: [] };
               phaseGroups.push(currentGroup);
             } else {
-              // subtask
               if (!currentGroup) {
                 currentGroup = { phaseName: 'Phase 1: Planning', subtasks: [] };
                 phaseGroups.push(currentGroup);
               }
-              currentGroup.subtasks.push(item.name);
+              const d = (item as any).days || (subtaskDaysMap && subtaskDaysMap[`${item.name}_${itemIndex}`]) || (subtaskDaysMap && subtaskDaysMap[item.name]) || 3;
+              currentGroup.subtasks.push({ name: item.name, days: d });
             }
           }
+          itemIndex++;
         });
 
+        // Parse project timeline boundaries
+        let projStart = overallStartDate ? new Date(overallStartDate) : new Date(now);
+        if (isNaN(projStart.getTime())) projStart = new Date(now);
+        projStart.setHours(0, 0, 0, 0);
+
+        let projEnd = overallEndDate ? new Date(overallEndDate) : null;
+        if (projEnd && isNaN(projEnd.getTime())) projEnd = null;
+        if (projEnd) projEnd.setHours(23, 59, 59, 999);
+
+        // Ensure phaseGroups has at least default phases if empty
+        const effectivePhaseGroups = phaseGroups.length > 0 ? phaseGroups : [
+          { phaseName: 'Phase 1: Planning', subtasks: [] },
+          { phaseName: 'Phase 2: Execution', subtasks: [] },
+          { phaseName: 'Phase 3: Launch', subtasks: [] },
+        ];
+
+        // Total days between start and end if provided
+        const overallTotalDays = projEnd && projEnd.getTime() > projStart.getTime()
+          ? Math.max(1, Math.round((projEnd.getTime() - projStart.getTime()) / 86400000) + 1)
+          : null;
+
+        // Default days per phase: if overall duration is set, divide evenly, else 7 days
+        const defaultPhaseDays = overallTotalDays
+          ? Math.max(1, Math.floor(overallTotalDays / Math.max(1, effectivePhaseGroups.length)))
+          : 7;
+
+        let currentPhaseCursor = new Date(projStart);
+        const generatedSprints: Sprint[] = [];
         let cardOffsetCounter = 0;
-        const columns: Column[] = phaseGroups.map((group, gIdx) => {
-          const cards: Card[] = group.subtasks.map((subtaskTitle) => {
+
+        let columns: Column[] = effectivePhaseGroups.map((group, gIdx) => {
+          const colId = uid();
+          const phaseDurationDays = Math.max(1, (phaseDaysMap && phaseDaysMap[group.phaseName]) || defaultPhaseDays);
+
+          const phaseStart = new Date(currentPhaseCursor);
+          const phaseEnd = new Date(phaseStart);
+          phaseEnd.setDate(phaseEnd.getDate() + phaseDurationDays - 1);
+          phaseEnd.setHours(23, 59, 59, 999);
+
+          // Advance cursor for sequential phases
+          currentPhaseCursor = new Date(phaseEnd);
+          currentPhaseCursor.setDate(currentPhaseCursor.getDate() + 1);
+          currentPhaseCursor.setHours(0, 0, 0, 0);
+
+          const pStartIso = phaseStart.toISOString().split('T')[0];
+          const pEndIso = phaseEnd.toISOString().split('T')[0];
+
+          generatedSprints.push({
+            id: colId,
+            name: group.phaseName,
+            startDate: pStartIso,
+            endDate: pEndIso,
+            status: gIdx === 0 ? 'active' : 'planned',
+            color: ['#6366f1', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899'][gIdx % 6],
+          });
+
+          let currentSubtaskCursor = new Date(phaseStart);
+
+          const cards: Card[] = group.subtasks.map((stInfo, sIdx) => {
             const totalIdx = cardOffsetCounter++;
-            const start = new Date(now);
-            start.setDate(start.getDate() + (totalIdx * 4));
-            const due = new Date(start);
-            due.setDate(due.getDate() + 7);
+            const subtaskDuration = Math.max(1, stInfo.days || Math.max(1, Math.floor(phaseDurationDays / Math.max(1, group.subtasks.length))));
+
+            const tStart = new Date(currentSubtaskCursor);
+            const tDue = new Date(tStart);
+            tDue.setDate(tDue.getDate() + subtaskDuration - 1);
+            tDue.setHours(23, 59, 59, 999);
+
+            currentSubtaskCursor = new Date(tDue);
+            currentSubtaskCursor.setDate(currentSubtaskCursor.getDate() + 1);
+            currentSubtaskCursor.setHours(0, 0, 0, 0);
 
             return {
               id: uid(),
-              title: subtaskTitle,
+              title: stInfo.name,
               description: '',
               comments: [],
               attachments: [],
               labels: ['roadmap'],
               assignees: creatorMember ? [creatorMember.id] : [],
-              dueDate: due.toISOString().split('T')[0],
-              startDate: start.toISOString().split('T')[0],
+              dueDate: tDue.toISOString().split('T')[0],
+              startDate: tStart.toISOString().split('T')[0],
               actualStartDate: totalIdx === 0 ? todayIso : null,
               actualEndDate: null,
+              sprintId: colId,
               progress: totalIdx === 0 ? 20 : 0,
               completed: false,
               completedAt: null,
@@ -522,11 +596,16 @@ export const useWorkStore = create<WorkState>()(
           });
 
           return {
-            id: uid(),
+            id: colId,
             name: group.phaseName,
-            cards
+            cards,
           };
         });
+
+        const finalRoadmapStart = overallStartDate || (columns[0]?.cards[0]?.startDate) || todayIso;
+        const lastCol = columns[columns.length - 1];
+        const lastCard = lastCol?.cards[lastCol.cards.length - 1];
+        const finalRoadmapEnd = overallEndDate || lastCard?.dueDate || (generatedSprints[generatedSprints.length - 1]?.endDate) || null;
 
         const roadmap: Board = {
           id: uid(),
@@ -534,10 +613,15 @@ export const useWorkStore = create<WorkState>()(
           color: color || '#6366f1',
           type: 'roadmap',
           description: description || '',
+          startDate: finalRoadmapStart,
+          endDate: finalRoadmapEnd,
           createdBy: creatorEmail,
           members: creatorMember ? [creatorMember] : [],
           columns,
+          sprints: generatedSprints,
         };
+
+        saveKnownRoadmapId(roadmap.id);
 
         set(s => ({
           boards: [...s.boards.filter(b => b.id !== roadmap.id), roadmap],
@@ -634,7 +718,8 @@ export const useWorkStore = create<WorkState>()(
         if (!userEmail) return boards;
         const email = userEmail.toLowerCase().trim();
         return boards.map(b => {
-          if (!b.type && (b.columns?.some(c => c.name === 'Project Deliverables') || (b.columns || []).some(col => (col.cards || []).some(card => (card.labels || []).includes('roadmap'))))) {
+          if (isRoadmapLike(b)) {
+            saveKnownRoadmapId(b.id);
             return { ...b, type: 'roadmap' as const };
           }
           return b;
@@ -709,6 +794,33 @@ export const useWorkStore = create<WorkState>()(
             supabaseService.updateBoard(boardId, { color });
           }
         }
+      },
+
+      updateBoardBudget: (boardId, totalBudget, currency) => {
+        let targetBoard: Board | undefined;
+        set(s => {
+          const updatedBoards = updateBoards(s.boards, boardId, b => ({
+            ...b,
+            totalBudget: totalBudget !== undefined ? totalBudget : b.totalBudget,
+            currency: currency !== undefined ? currency : (b.currency || '₱'),
+          }));
+          targetBoard = updatedBoards.find(b => b.id === boardId);
+          return { boards: updatedBoards };
+        });
+        if (targetBoard) scheduleBoardSync(targetBoard, 50);
+      },
+
+      updateColumnBudget: (colId, budget) => {
+        let targetBoard: Board | undefined;
+        set(s => {
+          if (!s.activeBoardId) return s;
+          const updatedBoards = updateBoards(s.boards, s.activeBoardId, b =>
+            updateColumns(b, colId, c => ({ ...c, budget }))
+          );
+          targetBoard = updatedBoards.find(b => b.id === s.activeBoardId);
+          return { boards: updatedBoards };
+        });
+        if (targetBoard) scheduleBoardSync(targetBoard, 50);
       },
 
       leaveBoard: (boardId, userEmail) => {

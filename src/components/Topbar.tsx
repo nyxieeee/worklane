@@ -228,20 +228,20 @@ export default function Topbar({
           whileTap={{ scale: 0.96 }}
           className="topbar-search-trigger"
           onClick={onOpenSearch}
-          title={page === 'board' && board ? `Search in ${board.name}` : 'Search all boards'}
+          title={(page === 'board' || page === 'roadmap') && board ? `Search in ${board.name}` : 'Search all boards'}
           style={isMobile ? { minWidth: 34, width: 34, height: 34, padding: 0, justifyContent: 'center' } : undefined}
         >
           <Search size={15} />
           {!isMobile && (
             <>
-              <span>{page === 'board' && board ? `Search in ${board.name}...` : 'Search all boards...'}</span>
+              <span>{(page === 'board' || page === 'roadmap') && board ? `Search in ${board.name}...` : 'Search all boards...'}</span>
               <kbd className="topbar-shortcut-pill">⌘K</kbd>
             </>
           )}
         </motion.button>
 
         {/* Member avatar stack (Board context only) */}
-        {page === 'board' && board && members.length > 0 && (
+        {(page === 'board' || page === 'roadmap') && board && members.length > 0 && (
           <div
             className="card-assignees hide-on-mobile"
             onClick={onManageMembers}
@@ -285,7 +285,7 @@ export default function Topbar({
           </div>
         )}
 
-        {page === 'board' && onManageEmail && (
+        {(page === 'board' || page === 'roadmap') && onManageEmail && (
           <motion.button
             whileTap={{ scale: 0.92 }}
             className="icon-btn hide-on-mobile"

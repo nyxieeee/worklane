@@ -12,7 +12,7 @@ import { useSettingsStore } from '../store/useSettingsStore';
 import { useThemeStore } from '../store/useThemeStore';
 import { useToastStore } from '../store/useToastStore';
 import { useConfirmStore } from '../store/useConfirmStore';
-import { avatarInitials, sortMembersWithOwnerFirst, getTeamBadgeInfo, useIsMobile } from '../utils';
+import { avatarInitials, sortMembersWithOwnerFirst, getTeamBadgeInfo, useIsMobile, isRoadmapLike } from '../utils';
 import AvatarBorder from './ui/AvatarBorder';
 import BoardColorPicker from './ui/BoardColorPicker';
 import sidebarImg from '../assets/sidebar.png';

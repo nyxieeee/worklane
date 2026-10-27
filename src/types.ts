@@ -70,6 +70,7 @@ export interface Card {
   sprintId?: string | null;
   isMilestone?: boolean;
   progress?: number; // 0 to 100 percentage
+  cost?: number; // Budget / contract value for cost-weighted S-Curve & SITREP
   dependencies?: string[]; // card IDs this card depends on
   completed: boolean;
   completedAt: string | null;
@@ -90,6 +91,7 @@ export interface Column {
   id: string;
   name: string;
   cards: Card[];
+  budget?: number; // Phase contract value / budget
 }
 
 export interface Board {
@@ -98,6 +100,10 @@ export interface Board {
   color: string;
   type?: 'board' | 'roadmap';
   description?: string;
+  startDate?: string | null; // Overall roadmap start date (YYYY-MM-DD)
+  endDate?: string | null;   // Overall roadmap end date (YYYY-MM-DD)
+  totalBudget?: number;      // Total Contract Price / Budget (BAC)
+  currency?: string;         // e.g. "₱", "$", "€"
   createdBy?: string; // email of the user who created this board
   members: Member[];
   columns: Column[];
