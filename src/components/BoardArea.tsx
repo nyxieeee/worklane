@@ -10,7 +10,7 @@ import { useToastStore } from '../store/useToastStore';
 import { useAuthStore } from '../store/useAuthStore';
 import Column from './Column';
 import { InboxDrawer } from './InboxDrawer';
-import { formatDueDate, avatarInitials, useIsMobile } from '../utils';
+import { formatDueDate, avatarInitials, useIsMobile, isRoadmapLike } from '../utils';
 import { LABELS, type Member, type Card, type Column as ColumnType } from '../types';
 import { sortColumnsByWorkflow } from '../store/useWorkStore';
 
@@ -77,6 +77,7 @@ export default function BoardArea({
   const renameColumn       = useWorkStore(s => s.renameColumn);
   const toggleCardComplete = useWorkStore(s => s.toggleCardComplete);
   const showToast          = useToastStore(s => s.showToast);
+  const setBoardType       = useWorkStore(s => s.setBoardType);
   const currentUser        = useAuthStore(s => s.user);
   const isMobile           = useIsMobile(860);
 
@@ -134,12 +135,16 @@ export default function BoardArea({
   // Standard task boards cannot be in 'roadmap' view; roadmaps cannot be in 'board' view.
   useEffect(() => {
     if (!board || !onSelectView) return;
-    if (board.type === 'roadmap' && viewMode === 'board') {
+    const isRoadmap = isRoadmapLike(board);
+    if (isRoadmap && viewMode === 'board') {
       onSelectView('roadmap');
-    } else if (board.type !== 'roadmap' && viewMode === 'roadmap') {
+      if (board.type !== 'roadmap') {
+        setBoardType(board.id, 'roadmap');
+      }
+    } else if (!isRoadmap && viewMode === 'roadmap') {
       onSelectView('board');
     }
-  }, [board?.id, board?.type, viewMode, onSelectView]);
+  }, [board?.id, board?.type, board?.name, viewMode, onSelectView, setBoardType]);
 
   if (!board) {
     return (

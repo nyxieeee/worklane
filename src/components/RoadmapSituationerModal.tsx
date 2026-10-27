@@ -33,7 +33,67 @@ export default function RoadmapSituationerModal({ board, tasks, onClose }: Props
   const updateBoardBudget = useWorkStore(s => s.updateBoardBudget);
   const updateColumnBudget = useWorkStore(s => s.updateColumnBudget);
   const updateCard = useWorkStore(s => s.updateCard);
+  const addComment = useWorkStore(s => s.addComment);
   const showToast = useToastStore(s => s.showToast);
+
+  // Quick Evaluator state
+  const [evaluatingCardId, setEvaluatingCardId] = useState<string | null>(null);
+  const [evalNarrative, setEvalNarrative] = useState<string>('');
+  const [evalProgress, setEvalProgress] = useState<number>(0);
+
+  const calcElapsedDaysProgress = (task: TaskWithScheduleForSCurve) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const start = new Date(task.targetStartDate);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(task.targetEndDate);
+    end.setHours(23, 59, 59, 999);
+
+    if (today < start) return 0;
+    if (today >= end) return 100;
+    const totalDuration = Math.max(1, Math.round((end.getTime() - start.getTime()) / 86400000) + 1);
+    const elapsedDays = Math.max(1, Math.round((today.getTime() - start.getTime()) / 86400000) + 1);
+    return Math.min(100, Math.round((elapsedDays / totalDuration) * 100));
+  };
+
+  const calcProjectElapsedProgress = () => {
+    if (tasks.length === 0) return 0;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    let minStart = Infinity;
+    let maxEnd = -Infinity;
+    tasks.forEach(t => {
+      if (t.targetStartDate) minStart = Math.min(minStart, t.targetStartDate.getTime());
+      if (t.targetEndDate) maxEnd = Math.max(maxEnd, t.targetEndDate.getTime());
+    });
+    if (minStart === Infinity || maxEnd === -Infinity) return 0;
+    if (today.getTime() <= minStart) return 0;
+    if (today.getTime() >= maxEnd) return 100;
+    return Math.min(100, Math.round(((today.getTime() - minStart) / (maxEnd - minStart)) * 100));
+  };
+
+  const handleSaveProgress = (cardId: string, progressPct: number, narrativeLog?: string) => {
+    const validPct = Math.max(0, Math.min(100, Math.round(progressPct)));
+    const isCompleted = validPct >= 100;
+    const todayIso = new Date().toISOString().split('T')[0];
+    const existingTask = tasks.find(t => t.card.id === cardId);
+
+    updateCard(cardId, {
+      progress: validPct,
+      completed: isCompleted,
+      completedAt: isCompleted ? new Date().toISOString() : null,
+      actualEndDate: isCompleted ? todayIso : null,
+      actualStartDate: validPct > 0 ? (existingTask?.card.actualStartDate || todayIso) : null,
+    });
+
+    if (narrativeLog && narrativeLog.trim()) {
+      addComment(cardId, `📋 [Daily Site Accomplishment - ${validPct}%]:\n${narrativeLog.trim()}`);
+    }
+
+    setEvaluatingCardId(null);
+    setEvalNarrative('');
+    showToast(`Physical accomplishment verified at ${validPct}%`, 'success');
+  };
 
   // Active Tab: 'overview' | 'gantt' | 'budget' | 'notes' | 'full'
   const [activeTab, setActiveTab] = useState<TabType>('overview');
@@ -1613,13 +1673,13 @@ export default function RoadmapSituationerModal({ board, tasks, onClose }: Props
                             const progPct = st.task.card.completed ? 100 : (st.task.card.progress || 0);
 
                             return (
-                              <tr
-                                key={st.task.card.id}
-                                style={{
-                                  borderBottom: '1px solid hsl(var(--border) / 0.2)',
-                                  background: 'transparent',
-                                }}
-                              >
+                              <React.Fragment key={st.task.card.id}>
+                                <tr
+                                  style={{
+                                    borderBottom: '1px solid hsl(var(--border) / 0.2)',
+                                    background: 'transparent',
+                                  }}
+                                >
                                 <td style={{ padding: '7px 8px 7px 32px' }}>
                                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                                     <span style={{ fontSize: 10.5, fontWeight: 700, color: 'hsl(var(--muted-foreground))' }}>
@@ -1696,9 +1756,17 @@ export default function RoadmapSituationerModal({ board, tasks, onClose }: Props
 
                                 {!isDetailedView ? (
                                   <>
-                                    {/* Simple View: Progress Bar */}
+                                    {/* Simple View: Progress Bar (Clickable to Verify) */}
                                     <td style={{ padding: '7px 8px', textAlign: 'center' }}>
-                                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'center' }}>
+                                      <div
+                                        style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'center', cursor: 'pointer' }}
+                                        onClick={() => {
+                                          setEvaluatingCardId(evaluatingCardId === st.task.card.id ? null : st.task.card.id);
+                                          setEvalProgress(progPct);
+                                          setEvalNarrative('');
+                                        }}
+                                        title="Click to evaluate physical accomplishment, use quick stages, or log technician report"
+                                      >
                                         <div style={{ width: 60, height: 6, borderRadius: 3, background: 'hsl(var(--border) / 0.3)', overflow: 'hidden' }}>
                                           <div style={{
                                             width: `${progPct}%`,
@@ -1706,7 +1774,7 @@ export default function RoadmapSituationerModal({ board, tasks, onClose }: Props
                                             background: progPct === 100 ? '#10b981' : '#f59e0b',
                                           }} />
                                         </div>
-                                        <span style={{ fontSize: 10, color: 'hsl(var(--muted-foreground))' }}>
+                                        <span style={{ fontSize: 10, fontWeight: 700, color: 'hsl(var(--foreground))', borderBottom: '1px dashed hsl(var(--primary))' }}>
                                           {progPct}%
                                         </span>
                                       </div>
@@ -1738,7 +1806,17 @@ export default function RoadmapSituationerModal({ board, tasks, onClose }: Props
                                       {Math.round(st.plannedFrac * 100)}%
                                     </td>
                                     <td style={{ padding: '7px 8px', textAlign: 'right', fontSize: 10.5, color: '#f59e0b' }}>
-                                      {Math.round(st.actualFrac * 100)}%
+                                      <span
+                                        style={{ cursor: 'pointer', borderBottom: '1px dashed #f59e0b', fontWeight: 700 }}
+                                        onClick={() => {
+                                          setEvaluatingCardId(evaluatingCardId === st.task.card.id ? null : st.task.card.id);
+                                          setEvalProgress(progPct);
+                                          setEvalNarrative('');
+                                        }}
+                                        title="Click to verify actual accomplishment or use stage presets"
+                                      >
+                                        {Math.round(st.actualFrac * 100)}%
+                                      </span>
                                     </td>
                                     <td style={{ padding: '7px 8px', textAlign: 'right', fontSize: 10.5, color: '#10b981' }}>
                                       {st.plannedValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -1758,6 +1836,182 @@ export default function RoadmapSituationerModal({ board, tasks, onClose }: Props
                                   </>
                                 )}
                               </tr>
+
+                               {/* Physical Accomplishment & Daily Narrative Evaluator Drawer */}
+                               {evaluatingCardId === st.task.card.id && (
+                                 <tr key={`${st.task.card.id}_eval`} style={{ background: 'hsl(var(--secondary) / 0.55)', borderBottom: '1px solid hsl(var(--primary) / 0.4)' }}>
+                                   <td colSpan={isDetailedView ? 8 : 6} style={{ padding: '12px 16px' }}>
+                                     <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
+                                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+                                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                           <span style={{ fontSize: 11.5, fontWeight: 700, color: 'hsl(var(--foreground))' }}>
+                                             Verify Physical Accomplishment: <span style={{ color: 'hsl(var(--primary))' }}>{st.title}</span>
+                                           </span>
+                                           <span style={{ fontSize: 10.5, color: 'hsl(var(--muted-foreground))' }}>
+                                             ({currency} {st.cost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })})
+                                           </span>
+                                         </div>
+                                         <button type="button" className="icon-btn" onClick={() => setEvaluatingCardId(null)} style={{ width: 22, height: 22, padding: 0 }}>
+                                           <X size={12} />
+                                         </button>
+                                       </div>
+
+                                       {/* 1. Quick Presets */}
+                                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                                         <span style={{ fontSize: 10.5, fontWeight: 700, color: 'hsl(var(--muted-foreground))' }}>Method / Stage Presets:</span>
+                                         
+                                         <button
+                                           type="button"
+                                           className="btn btn-secondary"
+                                           style={{ height: 24, padding: '0 8px', fontSize: 10.5, borderRadius: 4 }}
+                                           onClick={() => setEvalProgress(15)}
+                                           title="Materials delivered / staged on site (Stage 1)"
+                                         >
+                                           📦 15% Staged
+                                         </button>
+
+                                         <button
+                                           type="button"
+                                           className="btn btn-secondary"
+                                           style={{ height: 24, padding: '0 8px', fontSize: 10.5, borderRadius: 4 }}
+                                           onClick={() => setEvalProgress(50)}
+                                           title="Rough-in / In-progress (50/50 Rule)"
+                                         >
+                                           ⚡ 50% In-Progress
+                                         </button>
+
+                                         <button
+                                           type="button"
+                                           className="btn btn-secondary"
+                                           style={{ height: 24, padding: '0 8px', fontSize: 10.5, borderRadius: 4 }}
+                                           onClick={() => setEvalProgress(80)}
+                                           title="Mounted / Pulled / Substantially complete"
+                                         >
+                                           🔧 80% Mounted
+                                         </button>
+
+                                         <button
+                                           type="button"
+                                           className="btn btn-secondary"
+                                           style={{ height: 24, padding: '0 8px', fontSize: 10.5, borderRadius: 4, background: 'rgba(16,185,129,0.15)', color: '#10b981' }}
+                                           onClick={() => setEvalProgress(100)}
+                                           title="Fully completed, tested & accepted"
+                                         >
+                                           ✓ 100% Complete
+                                         </button>
+
+                                         <div style={{ width: 1, height: 16, background: 'hsl(var(--border))', margin: '0 2px' }} />
+
+                                         {/* Auto by Days Button */}
+                                         <button
+                                           type="button"
+                                           className="btn btn-secondary"
+                                           style={{ height: 24, padding: '0 8px', fontSize: 10.5, borderRadius: 4, background: 'rgba(59,130,246,0.15)', color: '#3b82f6' }}
+                                           onClick={() => {
+                                             const p = calcElapsedDaysProgress(st.task);
+                                             setEvalProgress(p);
+                                             showToast(`Calculated ${p}% from elapsed days`, 'info');
+                                           }}
+                                           title="Auto-calculate progress based on elapsed scheduled days"
+                                         >
+                                           ⏱ Auto by Days ({calcElapsedDaysProgress(st.task)}%)
+                                         </button>
+
+                                         {/* General Requirements Proration */}
+                                         {/general|mobiliz|permit|safety|temporary|supervis/i.test(st.title + phase.name) && (
+                                           <button
+                                             type="button"
+                                             className="btn btn-secondary"
+                                             style={{ height: 24, padding: '0 8px', fontSize: 10.5, borderRadius: 4, background: 'rgba(168,85,247,0.15)', color: '#a855f7' }}
+                                             onClick={() => {
+                                               const p = calcProjectElapsedProgress();
+                                               setEvalProgress(p);
+                                               showToast(`Prorated ${p}% from overall project duration`, 'info');
+                                             }}
+                                             title="Prorate General Requirements based on overall project time elapsed"
+                                           >
+                                             📊 Prorate Project ({calcProjectElapsedProgress()}%)
+                                           </button>
+                                         )}
+                                       </div>
+
+                                       {/* 2. Numeric Input + Resulting EV Calculation */}
+                                       <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', padding: '4px 0' }}>
+                                         <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                                           <span style={{ fontSize: 11, fontWeight: 700 }}>Evaluated Progress:</span>
+                                           <input
+                                             type="number"
+                                             min={0}
+                                             max={100}
+                                             value={evalProgress}
+                                             onChange={e => setEvalProgress(Math.max(0, Math.min(100, parseInt(e.target.value, 10) || 0)))}
+                                             style={{
+                                               width: 52,
+                                               height: 24,
+                                               fontSize: 11,
+                                               fontWeight: 700,
+                                               textAlign: 'center',
+                                               borderRadius: 4,
+                                               border: '1px solid hsl(var(--primary))',
+                                               background: 'hsl(var(--card))',
+                                               color: 'hsl(var(--foreground))'
+                                             }}
+                                           />
+                                           <span style={{ fontSize: 11, fontWeight: 700 }}>%</span>
+                                         </div>
+
+                                         <div style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))' }}>
+                                           Resulting Earned Value (EV): <strong style={{ color: '#10b981', fontSize: 12 }}>{currency} {((st.cost * evalProgress) / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+                                         </div>
+                                       </div>
+
+                                       {/* 3. Technician Narrative Log input */}
+                                       <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                                         <label style={{ fontSize: 10.5, fontWeight: 600, color: 'hsl(var(--muted-foreground))' }}>
+                                           Technician Daily Report / Site Narrative Log (Optional - saved to task audit trail):
+                                         </label>
+                                         <textarea
+                                           rows={2}
+                                           value={evalNarrative}
+                                           onChange={e => setEvalNarrative(e.target.value)}
+                                           placeholder="Paste technician daily narrative here (e.g., 'Pulled wires along hallway, 2 technicians on site, rain halted work at 3pm...')..."
+                                           style={{
+                                             fontSize: 11,
+                                             padding: '5px 8px',
+                                             borderRadius: 4,
+                                             border: '1px solid hsl(var(--border))',
+                                             background: 'hsl(var(--card))',
+                                             color: 'hsl(var(--foreground))',
+                                             resize: 'vertical'
+                                           }}
+                                         />
+                                       </div>
+
+                                       {/* 4. Action Buttons */}
+                                       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                                         <button
+                                           type="button"
+                                           className="btn btn-secondary"
+                                           style={{ height: 26, fontSize: 11, padding: '0 12px' }}
+                                           onClick={() => setEvaluatingCardId(null)}
+                                         >
+                                           Cancel
+                                         </button>
+                                         <button
+                                           type="button"
+                                           className="btn btn-primary"
+                                           style={{ height: 26, fontSize: 11, padding: '0 14px', display: 'flex', alignItems: 'center', gap: 5 }}
+                                           onClick={() => handleSaveProgress(st.task.card.id, evalProgress, evalNarrative)}
+                                         >
+                                           <Check size={12} />
+                                           <span>Apply & Verify Accomplishment ({evalProgress}%)</span>
+                                         </button>
+                                       </div>
+                                     </div>
+                                   </td>
+                                 </tr>
+                               )}
+                              </React.Fragment>
                             );
                           })}
                         </React.Fragment>

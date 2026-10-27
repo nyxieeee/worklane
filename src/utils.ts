@@ -496,9 +496,10 @@ export function saveKnownRoadmapId(boardId?: string | null): void {
   } catch {}
 }
 
-export function isRoadmapLike(board?: { id?: string; type?: string; columns?: Array<{ name: string; cards?: any[] }> } | null): boolean {
+export function isRoadmapLike(board?: { id?: string; name?: string; type?: string; columns?: Array<{ name: string; cards?: any[] }> } | null): boolean {
   if (!board) return false;
   if (board.type === 'roadmap') return true;
+  if (board.name && /roadmap/i.test(board.name)) return true;
   if (board.id && isKnownRoadmapId(board.id)) return true;
   if (board.columns?.some(c => /^(Phase\s*\d+|Project\s*Deliverables?|Milestone)/i.test(c.name))) return true;
   if (board.columns?.some(c => (c.cards || []).some(card => (card.labels || []).includes('roadmap')))) return true;

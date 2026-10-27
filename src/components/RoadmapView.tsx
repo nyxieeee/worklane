@@ -306,9 +306,35 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
   const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth <= 768);
   const [showHelpGuide, setShowHelpGuide] = useState(false);
 
-  // Inline editing of allotted days for a deliverable/sub-item
+  // Inline date picker & duration editing for a deliverable/sub-item
+  const [editingProgressCardId, setEditingProgressCardId] = useState<string | null>(null);
+  const [tempProgressInput, setTempProgressInput] = useState<number>(0);
+
+  const handleSaveCardProgress = (cardId: string, pct: number) => {
+    const validPct = Math.max(0, Math.min(100, Math.round(pct)));
+    const isCompleted = validPct >= 100;
+    const todayIso = new Date().toISOString().split('T')[0];
+    updateCard(cardId, {
+      progress: validPct,
+      completed: isCompleted,
+      completedAt: isCompleted ? new Date().toISOString() : null,
+      actualEndDate: isCompleted ? todayIso : null,
+      actualStartDate: validPct > 0 ? todayIso : null,
+    });
+    setEditingProgressCardId(null);
+    showToast(`Task progress verified at ${validPct}%`, 'success');
+  };
+
   const [editingDurationCardId, setEditingDurationCardId] = useState<string | null>(null);
   const [tempDurationDays, setTempDurationDays] = useState<number>(1);
+  const [tempCardStartDate, setTempCardStartDate] = useState<string>('');
+  const [tempCardDueDate, setTempCardDueDate] = useState<string>('');
+
+  const handleSaveCardDates = (cardId: string, startDateStr: string, dueDateStr: string) => {
+    updateCard(cardId, { startDate: startDateStr || null, dueDate: dueDateStr || null });
+    setEditingDurationCardId(null);
+    showToast('Updated task schedule dates', 'success');
+  };
 
   const handleSaveCardDuration = (cardId: string, startDate: Date | string | null | undefined, days: number) => {
     const validDays = Math.max(1, Math.min(365, days || 1));
@@ -1798,6 +1824,37 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
                     </div>
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      {section.sprint && (
+                        <span
+                          className="roadmap-date-range"
+                          style={{
+                            fontSize: 10.5,
+                            padding: '2px 7px',
+                            borderRadius: 5,
+                            background: 'hsl(var(--secondary) / 0.7)',
+                            border: '1px solid hsl(var(--border) / 0.5)',
+                            cursor: isObserver ? 'default' : 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 4
+                          }}
+                          title={isObserver ? undefined : 'Click to pick phase start & end dates'}
+                          onClick={e => {
+                            if (isObserver) return;
+                            e.stopPropagation();
+                            setEditingSprint(section.sprint!);
+                            setSprintName(section.sprint!.name);
+                            setSprintGoal(section.sprint!.goal || '');
+                            setSprintStartDate(section.sprint!.startDate);
+                            setSprintEndDate(section.sprint!.endDate);
+                            setSprintColor(section.sprint!.color || '#6366f1');
+                            setShowSprintModal(true);
+                          }}
+                        >
+                          <Calendar size={11} color="hsl(var(--primary))" />
+                          <span>{formatDateRange(section.sprint.startDate, section.sprint.endDate)}</span>
+                        </span>
+                      )}
                       {tasks.length > 0 && (
                         <span style={{ fontSize: 10.5, color: 'hsl(var(--muted-foreground))' }}>
                           {sectionCompleted}/{tasks.length}
@@ -1906,6 +1963,92 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
                                     {t.card.title}
                                   </span>
 
+                                  {/* Quick Stage Accomplishment Pill */}
+                                  <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }} onClick={e => e.stopPropagation()}>
+                                    <span
+                                      style={{
+                                        fontSize: 10,
+                                        fontWeight: 700,
+                                        padding: '1px 5px',
+                                        borderRadius: 4,
+                                        background: progressPct === 100 ? 'rgba(16,185,129,0.15)' : progressPct > 0 ? 'rgba(245,158,11,0.15)' : 'hsl(var(--secondary) / 0.6)',
+                                        color: progressPct === 100 ? '#10b981' : progressPct > 0 ? '#f59e0b' : 'hsl(var(--muted-foreground))',
+                                        cursor: isObserver ? 'default' : 'pointer',
+                                        flexShrink: 0,
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: 2,
+                                        border: '1px solid hsl(var(--border) / 0.4)'
+                                      }}
+                                      onClick={() => {
+                                        if (isObserver) return;
+                                        setEditingProgressCardId(editingProgressCardId === t.card.id ? null : t.card.id);
+                                        setTempProgressInput(progressPct);
+                                      }}
+                                      title={isObserver ? undefined : 'Click to evaluate accomplishment or pick quick stage'}
+                                    >
+                                      {progressPct}%
+                                    </span>
+
+                                    {editingProgressCardId === t.card.id && (
+                                      <div
+                                        style={{
+                                          position: 'absolute',
+                                          top: '100%',
+                                          left: 0,
+                                          marginTop: 4,
+                                          zIndex: 40,
+                                          padding: '8px 10px',
+                                          borderRadius: 6,
+                                          background: 'hsl(var(--card))',
+                                          border: '1px solid hsl(var(--primary))',
+                                          boxShadow: 'var(--neu-shadow-raised)',
+                                          display: 'flex',
+                                          flexDirection: 'column',
+                                          gap: 6,
+                                          minWidth: 260
+                                        }}
+                                      >
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                          <span style={{ fontSize: 10.5, fontWeight: 700, color: 'hsl(var(--foreground))' }}>Quick Evaluation</span>
+                                          <button type="button" className="icon-btn" style={{ width: 16, height: 16, padding: 0 }} onClick={() => setEditingProgressCardId(null)}>
+                                            <X size={11} />
+                                          </button>
+                                        </div>
+
+                                        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                                          <button type="button" className="btn btn-secondary" style={{ height: 20, fontSize: 9.5, padding: '0 6px' }} onClick={() => handleSaveCardProgress(t.card.id, 15)}>
+                                            15% Staged
+                                          </button>
+                                          <button type="button" className="btn btn-secondary" style={{ height: 20, fontSize: 9.5, padding: '0 6px' }} onClick={() => handleSaveCardProgress(t.card.id, 50)}>
+                                            50% Started
+                                          </button>
+                                          <button type="button" className="btn btn-secondary" style={{ height: 20, fontSize: 9.5, padding: '0 6px' }} onClick={() => handleSaveCardProgress(t.card.id, 80)}>
+                                            80% Mounted
+                                          </button>
+                                          <button type="button" className="btn btn-secondary" style={{ height: 20, fontSize: 9.5, padding: '0 6px', color: '#10b981' }} onClick={() => handleSaveCardProgress(t.card.id, 100)}>
+                                            100% Done
+                                          </button>
+                                        </div>
+
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, paddingTop: 2 }}>
+                                          <input
+                                            type="number"
+                                            min={0}
+                                            max={100}
+                                            value={tempProgressInput}
+                                            onChange={e => setTempProgressInput(Math.max(0, Math.min(100, parseInt(e.target.value, 10) || 0)))}
+                                            style={{ width: 44, height: 22, fontSize: 10.5, textAlign: 'center', borderRadius: 4, border: '1px solid hsl(var(--border))' }}
+                                          />
+                                          <span style={{ fontSize: 10 }}>%</span>
+                                          <button type="button" className="btn btn-primary" style={{ height: 22, fontSize: 10, padding: '0 8px' }} onClick={() => handleSaveCardProgress(t.card.id, tempProgressInput)}>
+                                            Save %
+                                          </button>
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+
                                   <RoadmapAssigneePicker
                                     card={t.card}
                                     members={availableUsers}
@@ -1925,39 +2068,116 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
                                 >
                                   <span className="roadmap-track-badge sched" title="Schedule / Planned (S)">S</span>
                                   {editingDurationCardId === t.card.id ? (
-                                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }} onClick={e => e.stopPropagation()}>
+                                    <div
+                                      style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: 4,
+                                        padding: '2px 6px',
+                                        background: 'hsl(var(--card))',
+                                        border: '1px solid hsl(var(--primary))',
+                                        borderRadius: 6,
+                                        boxShadow: 'var(--neu-shadow-raised-sm)',
+                                        zIndex: 30
+                                      }}
+                                      onClick={e => e.stopPropagation()}
+                                    >
+                                      {/* Start Date picker */}
                                       <input
-                                        type="number"
-                                        min={1}
-                                        max={365}
-                                        autoFocus
-                                        value={tempDurationDays}
-                                        onChange={e => setTempDurationDays(parseInt(e.target.value, 10) || 1)}
-                                        onKeyDown={e => {
-                                          if (e.key === 'Enter') handleSaveCardDuration(t.card.id, t.targetStartDate, tempDurationDays);
-                                          if (e.key === 'Escape') setEditingDurationCardId(null);
+                                        type="date"
+                                        value={tempCardStartDate}
+                                        onChange={e => {
+                                          const s = e.target.value;
+                                          setTempCardStartDate(s);
+                                          if (s && tempDurationDays > 0) {
+                                            const d = new Date(s);
+                                            d.setDate(d.getDate() + tempDurationDays - 1);
+                                            setTempCardDueDate(d.toISOString().split('T')[0]);
+                                          }
                                         }}
                                         style={{
-                                          width: 44,
-                                          height: 20,
-                                          fontSize: 10.5,
-                                          fontWeight: 700,
-                                          textAlign: 'center',
-                                          padding: '1px 2px',
+                                          fontSize: 10,
+                                          height: 22,
+                                          padding: '1px 3px',
+                                          border: '1px solid hsl(var(--border))',
                                           borderRadius: 4,
-                                          border: '1px solid hsl(var(--primary))',
-                                          background: 'hsl(var(--card))',
-                                          color: 'hsl(var(--foreground))',
+                                          background: 'hsl(var(--background))',
+                                          color: 'hsl(var(--foreground))'
                                         }}
+                                        title="Pick Subtask Start Date"
                                       />
-                                      <span style={{ fontSize: 10, color: 'hsl(var(--muted-foreground))' }}>d</span>
+                                      <span style={{ fontSize: 9.5, color: 'hsl(var(--muted-foreground))' }}>–</span>
+                                      {/* Due Date picker */}
+                                      <input
+                                        type="date"
+                                        value={tempCardDueDate}
+                                        onChange={e => {
+                                          const due = e.target.value;
+                                          setTempCardDueDate(due);
+                                          if (tempCardStartDate && due) {
+                                            const diff = Math.max(1, Math.round((new Date(due).getTime() - new Date(tempCardStartDate).getTime()) / 86400000) + 1);
+                                            setTempDurationDays(diff);
+                                          }
+                                        }}
+                                        style={{
+                                          fontSize: 10,
+                                          height: 22,
+                                          padding: '1px 3px',
+                                          border: '1px solid hsl(var(--border))',
+                                          borderRadius: 4,
+                                          background: 'hsl(var(--background))',
+                                          color: 'hsl(var(--foreground))'
+                                        }}
+                                        title="Pick Subtask End / Due Date"
+                                      />
+                                      {/* Days */}
+                                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 2 }} title="Duration in days">
+                                        <input
+                                          type="number"
+                                          min={1}
+                                          max={365}
+                                          value={tempDurationDays}
+                                          onChange={e => {
+                                            const days = Math.max(1, parseInt(e.target.value, 10) || 1);
+                                            setTempDurationDays(days);
+                                            if (tempCardStartDate) {
+                                              const d = new Date(tempCardStartDate);
+                                              d.setDate(d.getDate() + days - 1);
+                                              setTempCardDueDate(d.toISOString().split('T')[0]);
+                                            }
+                                          }}
+                                          style={{
+                                            width: 34,
+                                            height: 22,
+                                            fontSize: 10,
+                                            fontWeight: 700,
+                                            textAlign: 'center',
+                                            padding: '1px 2px',
+                                            border: '1px solid hsl(var(--border))',
+                                            borderRadius: 4,
+                                            background: 'hsl(var(--background))',
+                                            color: 'hsl(var(--foreground))'
+                                          }}
+                                        />
+                                        <span style={{ fontSize: 9.5, color: 'hsl(var(--muted-foreground))' }}>d</span>
+                                      </div>
                                       <button
                                         type="button"
                                         className="icon-btn"
-                                        style={{ width: 18, height: 18, padding: 0 }}
-                                        onClick={() => handleSaveCardDuration(t.card.id, t.targetStartDate, tempDurationDays)}
+                                        style={{ width: 20, height: 20, padding: 0 }}
+                                        onClick={() => handleSaveCardDates(t.card.id, tempCardStartDate, tempCardDueDate)}
+                                        title="Save dates"
                                       >
-                                        <Check size={11} color="#10b981" />
+                                        <Check size={12} color="#10b981" />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        className="icon-btn"
+                                        style={{ width: 20, height: 20, padding: 0 }}
+                                        onClick={() => setEditingDurationCardId(null)}
+                                        title="Cancel"
+                                      >
+                                        <X size={12} color="hsl(var(--muted-foreground))" />
                                       </button>
                                     </div>
                                   ) : (
@@ -1967,9 +2187,13 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
                                         if (isObserver) return;
                                         e.stopPropagation();
                                         setEditingDurationCardId(t.card.id);
+                                        const sIso = t.targetStartDate ? t.targetStartDate.toISOString().split('T')[0] : '';
+                                        const eIso = t.targetEndDate ? t.targetEndDate.toISOString().split('T')[0] : '';
+                                        setTempCardStartDate(t.card.startDate || sIso);
+                                        setTempCardDueDate(t.card.dueDate || eIso);
                                         setTempDurationDays(plannedDays);
                                       }}
-                                      title={isObserver ? undefined : 'Click to change allotted days for this task'}
+                                      title={isObserver ? undefined : 'Click to pick dates or change days for this subtask'}
                                     >
                                       <span className="roadmap-date-range">{formatDateRange(t.targetStartDate, t.targetEndDate)}</span>
                                       <span className="roadmap-duration-label" style={{ borderBottom: isObserver ? 'none' : '1px dashed hsl(var(--primary))' }}>

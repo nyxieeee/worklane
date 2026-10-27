@@ -109,8 +109,8 @@ export default function Sidebar({
     return getVisibleBoards(user?.email);
   }, [allBoards, user?.email, getVisibleBoards]);
 
-  const taskBoards = useMemo(() => boards.filter(b => b.type !== 'roadmap'), [boards]);
-  const roadmaps   = useMemo(() => boards.filter(b => b.type === 'roadmap'), [boards]);
+  const taskBoards = useMemo(() => boards.filter(b => !isRoadmapLike(b)), [boards]);
+  const roadmaps   = useMemo(() => boards.filter(b => isRoadmapLike(b)), [boards]);
   const isDark  = useThemeStore(s => s.isDark);
   const toggleTheme = useThemeStore(s => s.toggle);
 
@@ -239,7 +239,7 @@ export default function Sidebar({
               >
                 <ArrowLeft size={16} />
               </motion.button>
-              {activeBoard?.type === 'roadmap' ? (
+              {isRoadmapLike(activeBoard) ? (
                 <motion.button
                   whileTap={{ scale: 0.92 }}
                   className={`icon-btn ${activeView === 'roadmap' ? 'active' : ''}`}
@@ -733,7 +733,7 @@ export default function Sidebar({
                 onClick={handleGoToDashboard}
               >
                 <ArrowLeft size={14} />
-                <span>{activeBoard?.type === 'roadmap' ? 'All Roadmaps' : 'All Boards'}</span>
+                <span>{isRoadmapLike(activeBoard) ? 'All Roadmaps' : 'All Boards'}</span>
               </motion.button>
               {activeBoard && (
                 editingSidebarBoardId === activeBoard.id ? (
@@ -813,7 +813,7 @@ export default function Sidebar({
                           <span style={{ fontWeight: 600, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                             {activeBoard.name}
                           </span>
-                          {activeBoard.type === 'roadmap' && (
+                          {isRoadmapLike(activeBoard) && (
                             <span
                               style={{
                                 fontSize: 9.5,
@@ -881,7 +881,7 @@ export default function Sidebar({
               <div className="sidebar-section-header">
                 <span>Views</span>
               </div>
-              {activeBoard?.type === 'roadmap' ? (
+              {isRoadmapLike(activeBoard) ? (
                 <>
                   <motion.button
                     whileTap={{ scale: 0.97 }}

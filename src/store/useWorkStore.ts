@@ -25,6 +25,7 @@ interface WorkState {
   deleteBoards: (boardIds: string[]) => void;
   renameBoard: (boardId: string, name: string) => void;
   updateBoardColor: (boardId: string, color: string) => void;
+  setBoardType: (boardId: string, type: 'board' | 'roadmap') => void;
   updateBoardBudget: (boardId: string, totalBudget?: number, currency?: string) => void;
   updateColumnBudget: (colId: string, budget?: number) => void;
   leaveBoard: (boardId: string, userEmail: string) => void;
@@ -794,6 +795,19 @@ export const useWorkStore = create<WorkState>()(
             supabaseService.updateBoard(boardId, { color });
           }
         }
+      },
+
+      setBoardType: (boardId, type) => {
+        let targetBoard: Board | undefined;
+        set(s => {
+          const updatedBoards = updateBoards(s.boards, boardId, b => ({
+            ...b,
+            type,
+          }));
+          targetBoard = updatedBoards.find(b => b.id === boardId);
+          return { boards: updatedBoards };
+        });
+        if (targetBoard) scheduleBoardSync(targetBoard, 30);
       },
 
       updateBoardBudget: (boardId, totalBudget, currency) => {
