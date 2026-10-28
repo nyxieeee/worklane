@@ -2,7 +2,7 @@ import React, { useState, useRef, useMemo } from 'react';
 import {
   X, Upload, FileText, Check, AlertTriangle, ArrowRight,
   Sparkles, RefreshCw, Layers, CheckCircle2, Sliders, ShieldAlert,
-  ClipboardPaste, FileUp, Loader2
+  ClipboardPaste, FileUp, Loader2, Calendar, MapPin
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { Board } from '../types';
@@ -35,9 +35,11 @@ export interface TaskAccomplishmentMatch {
 
 export interface ReportAnalysisResult {
   reportDate: string;
+  datesFound: string[];
   rawText: string;
   matches: TaskAccomplishmentMatch[];
   detectedDelays: string[];
+  toolboxTopics: string[];
 }
 
 // Extract raw text from uploaded .txt, .docx, or .pdf file
@@ -79,7 +81,7 @@ const STOP_WORDS = new Set([
   'in', 'for', 'on', 'by', 'about', 'like', 'through', 'over', 'before', 'between',
   'after', 'since', 'without', 'under', 'within', 'along', 'following', 'across',
   'behind', 'beyond', 'plus', 'except', 'but', 'up', 'out', 'around', 'down', 'off',
-  'above', 'near', 'item', 'phase', 'task', 'deliverable', 'project', 'work'
+  'above', 'near', 'item', 'phase', 'task', 'deliverable', 'project', 'work', 'building'
 ]);
 
 function tokenize(text: string): string[] {
@@ -90,11 +92,22 @@ function tokenize(text: string): string[] {
     .filter(w => w.length > 2 && !STOP_WORDS.has(w));
 }
 
+// Extract floor number (e.g. "5th floor" -> 5)
+function extractFloorNum(text: string): number | null {
+  const match = text.match(/\b(\d+)(?:st|nd|rd|th)?\s+floor\b/i);
+  return match ? parseInt(match[1], 10) : null;
+}
+
 // Analyze technician daily narrative text against roadmap tasks
 function analyzeReportNarrative(
   text: string,
   tasks: TaskWithScheduleForSCurve[]
 ): ReportAnalysisResult {
+  // Extract dates (e.g., 10/24/2026)
+  const dateMatches = text.match(/\b\d{1,2}\/\d{1,2}\/\d{4}\b/g) || [];
+  const uniqueDates = Array.from(new Set(dateMatches));
+
+  // Extract lines and sentences
   const lines = text
     .split(/\r?\n/)
     .map(l => l.trim())
@@ -102,7 +115,7 @@ function analyzeReportNarrative(
 
   const sentences: string[] = [];
   lines.forEach(l => {
-    // Split lines into distinct sentences or bullet points
+    // Split bullet points or multiple statements
     const parts = l.split(/(?<=[.!?])\s+|[;•\-–—]\s*/).map(p => p.trim()).filter(p => p.length > 5);
     if (parts.length > 0) sentences.push(...parts);
     else if (l.length > 5) sentences.push(l);
@@ -110,8 +123,19 @@ function analyzeReportNarrative(
 
   const matches: TaskAccomplishmentMatch[] = [];
   const detectedDelays: string[] = [];
+  const toolboxTopics: string[] = [];
 
-  // 1. Scan for work delays & stoppages
+  // 1. Scan for toolbox meeting & safety notes
+  lines.forEach((l, idx) => {
+    if (/TOOLBOX MEETING|SAFETY PRECAUTIONS/i.test(l)) {
+      const nextLine = lines[idx + 1];
+      if (nextLine && !nextLine.toUpperCase().includes('REPORT')) {
+        toolboxTopics.push(nextLine.replace(/^[•\-\*]\s*/, ''));
+      }
+    }
+  });
+
+  // 2. Scan for work delays & stoppages
   const delayRegex = /\b(rain|weather|typhoon|storm|flood|power outage|blackout|brownout|no electricity|halted|suspended|stoppage|standby|denied access|locked|permit delayed|accident|incident|delay)\b/i;
   sentences.forEach(s => {
     if (delayRegex.test(s)) {
@@ -119,10 +143,13 @@ function analyzeReportNarrative(
     }
   });
 
-  // 2. Match each task against narrative sentences
+  // 3. Match each task against narrative sentences
   tasks.forEach(t => {
     const taskTitle = t.card.title || '';
+    const taskFullContext = `${taskTitle} ${t.columnName || ''}`;
     const taskTokens = tokenize(taskTitle);
+    const taskFloor = extractFloorNum(taskFullContext);
+
     if (taskTokens.length === 0) return;
 
     let bestScore = 0;
@@ -131,69 +158,121 @@ function analyzeReportNarrative(
     let detectedPct: number | null = null;
     let confidence: 'high' | 'medium' | 'low' = 'low';
 
+    // Track total pieces mentioned for this scope (e.g. 18 pcs + 15 pcs = 33 pcs)
+    let totalPiecesCount = 0;
+    const pieceSnippets: string[] = [];
+
     sentences.forEach(s => {
       const lowerSentence = s.toLowerCase();
-      let matchedTokenCount = 0;
+      const sentenceFloor = extractFloorNum(s);
 
+      // If task specifically belongs to a floor (e.g. 5th floor)
+      // and sentence is explicitly talking about a different floor (e.g. 3rd floor), skip mismatch!
+      if (taskFloor !== null && sentenceFloor !== null && taskFloor !== sentenceFloor) {
+        return;
+      }
+
+      let matchedTokenCount = 0;
       taskTokens.forEach(token => {
         if (lowerSentence.includes(token)) {
           matchedTokenCount++;
         }
       });
 
+      // Floor boost
+      if (taskFloor !== null && sentenceFloor === taskFloor) {
+        matchedTokenCount += 2;
+      }
+
+      // Check for piece counts (e.g. "Installed 18 pieces of FDAS pipes")
       if (matchedTokenCount > 0) {
-        const score = matchedTokenCount / taskTokens.length;
+        const pieceMatch = s.match(/(\d+)\s*(?:pieces?|pcs?)\s+(?:of\s+)?([a-z0-9\s-]+)/i);
+        if (pieceMatch) {
+          const count = parseInt(pieceMatch[1], 10);
+          totalPiecesCount += count;
+          pieceSnippets.push(`${count} pcs on ${sentenceFloor ? `${sentenceFloor}th floor` : 'site'}`);
+        }
+      }
+
+      if (matchedTokenCount > 0) {
+        const score = matchedTokenCount / Math.max(1, taskTokens.length);
         if (score > bestScore) {
           bestScore = score;
           bestSnippet = s;
 
-          // Check for percentage directly in sentence (e.g. 75%)
-          const pctMatch = s.match(/(\d{1,3})%/);
-          if (pctMatch) {
-            detectedPct = Math.min(100, Math.max(0, parseInt(pctMatch[1], 10)));
-            matchedReason = `Mentioned explicit progress ${detectedPct}%`;
+          // Case A: Negative / Not Started status (e.g. "No installed pipe for additional smoke detector")
+          if (/\b(no installed|not installed|not started|none installed|zero installed|pending start)\b/i.test(s)) {
+            detectedPct = 0;
+            matchedReason = 'Not started (Report states zero installed yet)';
             confidence = 'high';
           }
-          // Check for count/ratio (e.g. "8 of 10", "15/20")
-          else {
+          // Case B: Explicit Percentage in sentence (e.g. "50% finished")
+          else if (s.match(/(\d{1,3})%/)) {
+            const m = s.match(/(\d{1,3})%/);
+            if (m) {
+              detectedPct = Math.min(100, Math.max(0, parseInt(m[1], 10)));
+              matchedReason = `Explicit progress ${detectedPct}% in report`;
+              confidence = 'high';
+            }
+          }
+          // Case C: Ratio (e.g. "8 of 10")
+          else if (s.match(/(\d+)\s*(?:of|out of|\/)\s*(\d+)/i)) {
             const countMatch = s.match(/(\d+)\s*(?:of|out of|\/)\s*(\d+)/i);
             if (countMatch) {
               const num = parseInt(countMatch[1], 10);
               const den = parseInt(countMatch[2], 10);
               if (den > 0 && num <= den) {
                 detectedPct = Math.round((num / den) * 100);
-                matchedReason = `Detected quantity ${num} of ${den} (${detectedPct}%)`;
+                matchedReason = `Installed ${num} of ${den} units (${detectedPct}%)`;
                 confidence = 'high';
               }
             }
           }
-
-          // Stage keywords analysis
-          if (detectedPct === null) {
-            if (/\b(completed?|finished?|done|tested|passed|accepted|turned over|commissioned|certified|100%)\b/i.test(s)) {
-              detectedPct = 100;
-              matchedReason = 'Completed & verified (Stage 4 - 100%)';
-              confidence = 'high';
-            } else if (/\b(terminated?|pulled|mounting|mounted|installed|patched|crimped|labeled|aligned)\b/i.test(s)) {
-              detectedPct = 80;
-              matchedReason = 'Substantially complete / mounted (Stage 3 - 80%)';
-              confidence = 'medium';
-            } else if (/\b(rough-?in|ongoing|in-?progress|laying|piping|conduit|started|halfway)\b/i.test(s)) {
-              detectedPct = 50;
-              matchedReason = 'Rough-in / In-progress (50/50 Rule - 50%)';
-              confidence = 'medium';
-            } else if (/\b(delivered?|staged?|unloaded|mobilized?|on-?site|storing|prep)\b/i.test(s)) {
-              detectedPct = 15;
-              matchedReason = 'Materials staged / delivered (Stage 1 - 15%)';
-              confidence = 'low';
-            }
+          // Case D: Pending status (e.g. "Pipe installation is still pending")
+          else if (/\b(still pending|pending installation|pending pipe|to be installed)\b/i.test(s)) {
+            detectedPct = 40;
+            matchedReason = 'Preparatory / boxes installed; pipe routing pending (40%)';
+            confidence = 'medium';
+          }
+          // Case E: Preparatory drilling completed (e.g. "Completed the preparatory drilling work")
+          else if (/\b(completed the preparatory drilling|finished drilling|holes prepared)\b/i.test(s)) {
+            detectedPct = /drill|hole|passage/i.test(taskTitle) ? 100 : 35;
+            matchedReason = 'Preparatory drilling & hole passages completed';
+            confidence = 'high';
+          }
+          // Case F: Standard technical stage keywords
+          else if (/\b(completed?|finished?|done|tested|passed|accepted|turned over|commissioned|certified)\b/i.test(s)) {
+            detectedPct = 100;
+            matchedReason = 'Completed & verified (Stage 4 - 100%)';
+            confidence = 'high';
+          } else if (/\b(terminated?|pulled|mounting|mounted|installed junction boxes|conduit clamps|pipe supports)\b/i.test(s)) {
+            detectedPct = 75;
+            matchedReason = 'Pipes, junction boxes & clamps installed (Stage 3 - 75%)';
+            confidence = 'medium';
+          } else if (/\b(rough-?in|ongoing|in-?progress|proceeded with|continued the installation|drilled holes|wall drilling)\b/i.test(s)) {
+            detectedPct = 50;
+            matchedReason = 'Rough-in underway / Drilling & routing in progress (50%)';
+            confidence = 'medium';
+          } else if (/\b(delivered?|staged?|unloaded|mobilized?|on-?site|prepared the necessary holes)\b/i.test(s)) {
+            detectedPct = 20;
+            matchedReason = 'Preparatory work & staging (Stage 1 - 20%)';
+            confidence = 'low';
           }
         }
       }
     });
 
-    // If score meets threshold or whole title matched
-    if (bestScore >= 0.35 || bestSnippet.length > 0) {
+    // If pieces were aggregated across multiple days (e.g. 18 pcs + 15 pcs = 33 pcs)
+    if (totalPiecesCount > 0) {
+      if (detectedPct === null || detectedPct < 60) {
+        detectedPct = Math.min(85, Math.max(50, 40 + totalPiecesCount));
+      }
+      matchedReason = `Installed total ${totalPiecesCount} pieces (${pieceSnippets.join(', ')})`;
+      confidence = 'high';
+    }
+
+    // Match qualification threshold
+    if (bestScore >= 0.25 || bestSnippet.length > 0) {
       const curProg = t.card.completed ? 100 : (t.card.progress || 0);
       const finalSuggested = detectedPct !== null ? detectedPct : (curProg > 0 ? Math.min(100, curProg + 25) : 50);
       if (!matchedReason) matchedReason = 'Scope activity identified in report';
@@ -210,16 +289,22 @@ function analyzeReportNarrative(
         snippet: bestSnippet,
         matchedReason,
         taskCost: t.card.cost || 0,
-        selected: finalSuggested > curProg,
+        selected: finalSuggested > curProg || (finalSuggested === 0 && curProg === 0),
       });
     }
   });
 
+  const formattedDate = uniqueDates.length > 1
+    ? `${uniqueDates[0]} – ${uniqueDates[uniqueDates.length - 1]} (${uniqueDates.length} Daily Reports)`
+    : (uniqueDates[0] || new Date().toISOString().split('T')[0]);
+
   return {
-    reportDate: new Date().toISOString().split('T')[0],
+    reportDate: formattedDate,
+    datesFound: uniqueDates,
     rawText: text,
     matches,
     detectedDelays,
+    toolboxTopics,
   };
 }
 
@@ -235,7 +320,7 @@ export default function DailyReportAnalyzerModal({
   const showToast = useToastStore(s => s.showToast);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [activeInputMode, setActiveInputMode] = useState<'upload' | 'paste'>('upload');
+  const [activeInputMode, setActiveInputMode] = useState<'upload' | 'paste'>('paste');
   const [pastedText, setPastedText] = useState('');
   const [uploadedFileName, setUploadedFileName] = useState('');
   const [isParsing, setIsParsing] = useState(false);
@@ -367,8 +452,8 @@ export default function DailyReportAnalyzerModal({
         exit={{ opacity: 0, scale: 0.95, y: 15 }}
         style={{
           width: '92vw',
-          maxWidth: 900,
-          maxHeight: '90vh',
+          maxWidth: 920,
+          maxHeight: '92vh',
           display: 'flex',
           flexDirection: 'column',
           padding: 0,
@@ -381,9 +466,9 @@ export default function DailyReportAnalyzerModal({
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <div
               style={{
-                width: 36,
-                height: 36,
-                borderRadius: 9,
+                width: 38,
+                height: 38,
+                borderRadius: 10,
                 background: 'hsl(var(--primary) / 0.15)',
                 display: 'flex',
                 alignItems: 'center',
@@ -391,17 +476,17 @@ export default function DailyReportAnalyzerModal({
                 color: 'hsl(var(--primary))'
               }}
             >
-              <Sparkles size={18} />
+              <Sparkles size={19} />
             </div>
             <div>
               <h2 style={{ fontSize: 16, fontWeight: 700, margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span>Daily Technician Report & Accomplishment Calculator</span>
-                <span style={{ fontSize: 10.5, fontWeight: 700, padding: '2px 7px', borderRadius: 4, background: 'rgba(59,130,246,0.15)', color: '#3b82f6' }}>
+                <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 4, background: 'rgba(59,130,246,0.15)', color: '#3b82f6' }}>
                   AUTO-EVM
                 </span>
               </h2>
               <p style={{ fontSize: 11.5, color: 'hsl(var(--muted-foreground))', margin: '2px 0 0' }}>
-                Upload a site diary (.txt, .docx, .pdf) or paste narrative logs. The system detects activities, calculates progress %, and computes Earned Value.
+                Upload or paste site reports (e.g., FDAS rough-in, conduit pipes, boxes). Automatically calculates progress %, aggregates pieces, and computes Earned Value.
               </p>
             </div>
           </div>
@@ -417,23 +502,49 @@ export default function DailyReportAnalyzerModal({
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', borderBottom: '1px solid hsl(var(--border) / 0.6)', paddingBottom: 10 }}>
             <button
               type="button"
-              className={`btn ${activeInputMode === 'upload' ? 'btn-primary' : 'btn-secondary'}`}
-              style={{ height: 30, fontSize: 11.5, display: 'flex', alignItems: 'center', gap: 6 }}
-              onClick={() => setActiveInputMode('upload')}
-            >
-              <FileUp size={13} />
-              <span>Upload Document (.txt, .docx, .pdf)</span>
-            </button>
-            <button
-              type="button"
               className={`btn ${activeInputMode === 'paste' ? 'btn-primary' : 'btn-secondary'}`}
               style={{ height: 30, fontSize: 11.5, display: 'flex', alignItems: 'center', gap: 6 }}
               onClick={() => setActiveInputMode('paste')}
             >
               <ClipboardPaste size={13} />
-              <span>Paste Narrative Text</span>
+              <span>Paste Technician Daily Report</span>
+            </button>
+            <button
+              type="button"
+              className={`btn ${activeInputMode === 'upload' ? 'btn-primary' : 'btn-secondary'}`}
+              style={{ height: 30, fontSize: 11.5, display: 'flex', alignItems: 'center', gap: 6 }}
+              onClick={() => setActiveInputMode('upload')}
+            >
+              <FileUp size={13} />
+              <span>Upload Document (.docx, .pdf, .txt)</span>
             </button>
           </div>
+
+          {/* Paste Mode Area */}
+          {activeInputMode === 'paste' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <textarea
+                rows={7}
+                className="text-input"
+                placeholder="Paste technician's daily report here (e.g. Daily reports with DATE, 12:00 PM / 5:00 PM shift accomplishments, installed pieces of pipes, junction boxes, wall drilling, etc.)..."
+                value={pastedText}
+                onChange={e => setPastedText(e.target.value)}
+                style={{ fontSize: 11.5, resize: 'vertical', fontFamily: 'monospace' }}
+              />
+              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  style={{ height: 32, fontSize: 12, display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700 }}
+                  onClick={handleAnalyzePastedText}
+                  disabled={isParsing || !pastedText.trim()}
+                >
+                  {isParsing ? <Loader2 size={13} className="spin" /> : <Sparkles size={13} />}
+                  <span>Analyze Report & Calculate Values</span>
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Upload Mode Area */}
           {activeInputMode === 'upload' && (
@@ -441,7 +552,7 @@ export default function DailyReportAnalyzerModal({
               style={{
                 border: '2px dashed hsl(var(--primary) / 0.4)',
                 borderRadius: 10,
-                padding: '24px 20px',
+                padding: '28px 20px',
                 textAlign: 'center',
                 background: 'hsl(var(--secondary) / 0.25)',
                 cursor: 'pointer',
@@ -475,29 +586,16 @@ export default function DailyReportAnalyzerModal({
             </div>
           )}
 
-          {/* Paste Mode Area */}
-          {activeInputMode === 'paste' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <textarea
-                rows={5}
-                className="text-input"
-                placeholder="Paste technician's daily report or site WhatsApp/Viber log here...&#10;&#10;Example:&#10;Oct 28: 4 technicians on site. Pulled 150m Cat6 cabling across 2nd floor rooms 201-206. Rough-in EMT conduits 50% finished. Terminated 8 of 10 faceplates. Rain halted work at 3:30pm."
-                value={pastedText}
-                onChange={e => setPastedText(e.target.value)}
-                style={{ fontSize: 12, resize: 'vertical' }}
-              />
-              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                <button
-                  type="button"
-                  className="btn btn-primary"
-                  style={{ height: 30, fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}
-                  onClick={handleAnalyzePastedText}
-                  disabled={isParsing || !pastedText.trim()}
-                >
-                  {isParsing ? <Loader2 size={13} className="spin" /> : <Sparkles size={13} />}
-                  <span>Analyze & Calculate Accomplishment</span>
-                </button>
-              </div>
+          {/* Analysis Header Badge */}
+          {analysisResult && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderRadius: 6, background: 'hsl(var(--secondary) / 0.5)', fontSize: 11.5 }}>
+              <Calendar size={13} color="hsl(var(--primary))" />
+              <span><strong>Reporting Period:</strong> {analysisResult.reportDate}</span>
+              {analysisResult.toolboxTopics.length > 0 && (
+                <span style={{ marginLeft: 12, color: 'hsl(var(--muted-foreground))' }}>
+                  • Safety briefing conducted
+                </span>
+              )}
             </div>
           )}
 
@@ -559,7 +657,7 @@ export default function DailyReportAnalyzerModal({
                     <tr style={{ background: 'hsl(var(--secondary) / 0.5)', borderBottom: '1px solid hsl(var(--border))' }}>
                       <th style={{ width: 36, padding: '8px 10px', textAlign: 'center' }}>✓</th>
                       <th style={{ padding: '8px 10px' }}>Deliverable / Scope</th>
-                      <th style={{ padding: '8px 10px' }}>Narrative Evidence in Report</th>
+                      <th style={{ padding: '8px 10px' }}>Evidence Extracted from Technician Report</th>
                       <th style={{ width: 140, padding: '8px 10px', textAlign: 'center' }}>Current → New %</th>
                       <th style={{ width: 120, padding: '8px 10px', textAlign: 'right' }}>Earned Value</th>
                     </tr>
@@ -640,7 +738,7 @@ export default function DailyReportAnalyzerModal({
 
                               {/* Quick stage override buttons */}
                               <div style={{ display: 'flex', gap: 2 }}>
-                                {[15, 50, 80, 100].map(stage => (
+                                {[15, 50, 75, 100].map(stage => (
                                   <button
                                     key={stage}
                                     type="button"
