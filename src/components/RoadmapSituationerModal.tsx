@@ -3,7 +3,7 @@ import {
   X, Printer, DollarSign, AlertTriangle, CheckCircle2,
   Clock, TrendingUp, Calendar, Layers, FileText, Check, Plus, Edit2,
   ChevronDown, ChevronRight, BarChart2, Calculator, Eye, SlidersHorizontal,
-  FileCheck, ShieldAlert
+  FileCheck, ShieldAlert, Sparkles
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { Board } from '../types';
@@ -11,6 +11,7 @@ import type { TaskWithScheduleForSCurve } from './RoadmapSCurve';
 import { formatDueDate } from '../utils';
 import { useWorkStore } from '../store/useWorkStore';
 import { useToastStore } from '../store/useToastStore';
+import DailyReportAnalyzerModal from './DailyReportAnalyzerModal';
 
 interface Props {
   board: Board;
@@ -35,6 +36,9 @@ export default function RoadmapSituationerModal({ board, tasks, onClose }: Props
   const updateCard = useWorkStore(s => s.updateCard);
   const addComment = useWorkStore(s => s.addComment);
   const showToast = useToastStore(s => s.showToast);
+
+  // Daily Report Analyzer Modal state
+  const [showDailyReportModal, setShowDailyReportModal] = useState(false);
 
   // Quick Evaluator state
   const [evaluatingCardId, setEvaluatingCardId] = useState<string | null>(null);
@@ -757,6 +761,27 @@ export default function RoadmapSituationerModal({ board, tasks, onClose }: Props
                 </button>
               ))}
             </div>
+
+            {/* Auto-Calculate via Daily Report Upload */}
+            <button
+              type="button"
+              className="btn btn-secondary"
+              style={{
+                height: 30,
+                fontSize: 11,
+                gap: 5,
+                padding: '0 11px',
+                background: 'rgba(59,130,246,0.12)',
+                borderColor: 'rgba(59,130,246,0.3)',
+                color: '#3b82f6',
+                fontWeight: 700
+              }}
+              onClick={() => setShowDailyReportModal(true)}
+              title="Upload technician daily report (.txt, .docx, .pdf) or paste narrative to auto-calculate progress"
+            >
+              <Sparkles size={13} color="#3b82f6" />
+              <span>Upload Report & Calculate</span>
+            </button>
 
             {/* Print Button */}
             <button
@@ -2282,6 +2307,16 @@ export default function RoadmapSituationerModal({ board, tasks, onClose }: Props
 
         </div>
       </motion.div>
+
+      {/* Technician Daily Report Analyzer Modal */}
+      {showDailyReportModal && (
+        <DailyReportAnalyzerModal
+          board={board}
+          tasks={tasks}
+          currency={currency}
+          onClose={() => setShowDailyReportModal(false)}
+        />
+      )}
     </div>
   );
 }

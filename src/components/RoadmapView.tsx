@@ -4,6 +4,7 @@ import {
   CheckSquare, Square,
   ChevronDown, ChevronUp, Plus,
   X, Trash2, Layers, TrendingUp, Users, UserPlus, Calendar, FileText, Check,
+  Sparkles
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { Board, Card as CardType, Member, Sprint, WorkSuspension } from '../types';
@@ -16,6 +17,7 @@ import { useConfirmStore } from '../store/useConfirmStore';
 import AvatarBorder from './ui/AvatarBorder';
 import RoadmapSCurve from './RoadmapSCurve';
 import RoadmapSituationerModal from './RoadmapSituationerModal';
+import DailyReportAnalyzerModal from './DailyReportAnalyzerModal';
 import RoadmapAssigneePicker from './RoadmapAssigneePicker';
 import NeumorphicDatePicker from './ui/NeumorphicDatePicker';
 import { NeumorphicSelect, SelectOption } from './ui/NeumorphicSelect';
@@ -264,6 +266,7 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
   const toggleCardAssignee = useWorkStore(s => s.toggleCardAssignee);
   const [showSCurve, setShowSCurve] = useState(false);
   const [showSituationer, setShowSituationer] = useState(false);
+  const [showDailyReportModal, setShowDailyReportModal] = useState(false);
   const [quickTaskAssignees, setQuickTaskAssignees] = useState<string[]>([]);
 
   // Workspace users available to assign on roadmap features
@@ -1617,6 +1620,26 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
           >
             <FileText size={13} color="hsl(var(--primary))" />
             <span>Situationer Report</span>
+          </motion.button>
+
+          <motion.button
+            whileTap={{ scale: 0.95 }}
+            type="button"
+            className="btn btn-secondary"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              background: 'rgba(59,130,246,0.1)',
+              borderColor: 'rgba(59,130,246,0.3)',
+              color: '#3b82f6',
+              fontWeight: 600,
+            }}
+            onClick={() => setShowDailyReportModal(true)}
+            title="Upload technician daily report (.txt, .docx, .pdf) to auto-calculate progress"
+          >
+            <Sparkles size={13} color="#3b82f6" />
+            <span>Upload Daily Report</span>
           </motion.button>
 
           <motion.button whileTap={{ scale: 0.95 }} type="button"
@@ -3018,6 +3041,17 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
             board={board}
             tasks={allTasks}
             onClose={() => setShowSituationer(false)}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showDailyReportModal && (
+          <DailyReportAnalyzerModal
+            board={board}
+            tasks={allTasks}
+            currency={board.currency}
+            onClose={() => setShowDailyReportModal(false)}
           />
         )}
       </AnimatePresence>
