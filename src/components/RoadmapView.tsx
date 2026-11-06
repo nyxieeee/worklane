@@ -1,3 +1,6 @@
+import ScheduleReallocationModal from './ScheduleReallocationModal';
+import TaskScheduleEditor from './TaskScheduleEditor';
+import { dateKey, scheduledDays } from '../scheduling/calendarSchedule';
 import TaskOrderControls, { taskOrderDropHandlers } from './TaskOrderControls';
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
@@ -5,7 +8,7 @@ import {
   CheckSquare, Square,
   ChevronDown, ChevronUp, Plus,
   X, Trash2, Layers, TrendingUp, Users, UserPlus, Calendar, FileText, Check,
-  Sparkles
+  Sparkles, WandSparkles
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { Board, Card as CardType, Member, Sprint, WorkSuspension } from '../types';
@@ -263,6 +266,7 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
   const allBoards = useWorkStore(s => s.boards);
   const toggleCardAssignee = useWorkStore(s => s.toggleCardAssignee);
   const [showSCurve, setShowSCurve] = useState(false);
+  const [showReallocation, setShowReallocation] = useState(false);
   const [showSituationer, setShowSituationer] = useState(false);
   const [showDailyReportModal, setShowDailyReportModal] = useState(false);
   const [quickTaskAssignees, setQuickTaskAssignees] = useState<string[]>([]);
@@ -327,27 +331,6 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
   };
 
   const [editingDurationCardId, setEditingDurationCardId] = useState<string | null>(null);
-  const [tempDurationDays, setTempDurationDays] = useState<number>(1);
-  const [tempCardStartDate, setTempCardStartDate] = useState<string>('');
-  const [tempCardDueDate, setTempCardDueDate] = useState<string>('');
-
-  const handleSaveCardDates = (cardId: string, startDateStr: string, dueDateStr: string) => {
-    updateCard(cardId, { startDate: startDateStr || null, dueDate: dueDateStr || null });
-    setEditingDurationCardId(null);
-    showToast('Updated task schedule dates', 'success');
-  };
-
-  const handleSaveCardDuration = (cardId: string, startDate: Date | string | null | undefined, days: number) => {
-    const validDays = Math.max(1, Math.min(365, days || 1));
-    const baseStart = startDate ? new Date(startDate) : new Date();
-    const newEnd = new Date(baseStart.getTime());
-    newEnd.setDate(newEnd.getDate() + (validDays - 1));
-    const startIso = baseStart.toISOString().split('T')[0];
-    const endIso = newEnd.toISOString().split('T')[0];
-    updateCard(cardId, { startDate: startIso, dueDate: endIso });
-    setEditingDurationCardId(null);
-    showToast(`Task duration set to ${validDays} day${validDays > 1 ? 's' : ''}`, 'success');
-  };
 
 
   useEffect(() => {
@@ -1043,6 +1026,10 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
       return;
     }
 
+    if (sprintEndDate < sprintStartDate) {
+      showToast('Scheduled end must be on or after scheduled start', 'warning');
+      return;
+    }
     if (editingSprint) {
       const sprintExists = (board.sprints || []).some(s => s.id === editingSprint.id);
       if (sprintExists) {
@@ -1054,14 +1041,8 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
           color: sprintColor,
         });
       } else {
-        createSprint(
-          board.id,
-          sprintName.trim(),
-          sprintStartDate,
-          sprintEndDate,
-          sprintGoal.trim(),
-          sprintColor
-        );
+        const created = createSprint(board.id, editingSprint.name, sprintStartDate, sprintEndDate, sprintGoal.trim(), sprintColor);
+        updateSprint(board.id, created.id, { name: sprintName.trim(), startDate: sprintStartDate, endDate: sprintEndDate });
       }
       const matchingCol = (board.columns || []).find(c => c.id === editingSprint.id || c.name.toLowerCase() === editingSprint.name.toLowerCase());
       if (matchingCol) {
@@ -1507,7 +1488,7 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
                     </span>
                     {board.startDate && board.endDate && (
                       <span style={{ color: 'hsl(var(--muted-foreground))', fontSize: 10, marginLeft: 2 }}>
-                        ({Math.max(1, Math.round((new Date(board.endDate).getTime() - new Date(board.startDate).getTime()) / 86400000) + 1)} days)
+                        ({scheduledDays(board.startDate, board.endDate)} days)
                       </span>
                     )}
                   </span>
@@ -1577,7 +1558,12 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
             </div>
           )}
 
-                    <motion.button
+                    {!isObserver && <button type="button" className="btn btn-secondary" onClick={() => setShowReallocation(true)}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }} title="Redistribute task dates within the scheduled start and end">
+            <WandSparkles size={13} /><span>Auto Reallocate</span>
+          </button>}
+
+          <motion.button
             whileTap={{ scale: 0.95 }}
             type="button"
             className={`btn ${showSCurve ? 'btn-primary' : 'btn-secondary'}`}
@@ -1866,8 +1852,8 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
                             setEditingSprint(section.sprint!);
                             setSprintName(section.sprint!.name);
                             setSprintGoal(section.sprint!.goal || '');
-                            setSprintStartDate(section.sprint!.startDate);
-                            setSprintEndDate(section.sprint!.endDate);
+                            setSprintStartDate(dateKey(section.sprint!.startDate));
+                            setSprintEndDate(dateKey(section.sprint!.endDate));
                             setSprintColor(section.sprint!.color || '#6366f1');
                             setShowSprintModal(true);
                           }}
@@ -1898,8 +1884,8 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
                               setEditingSprint(section.sprint!);
                               setSprintName(section.sprint!.name);
                               setSprintGoal(section.sprint!.goal || '');
-                              setSprintStartDate(section.sprint!.startDate);
-                              setSprintEndDate(section.sprint!.endDate);
+                              setSprintStartDate(dateKey(section.sprint!.startDate));
+                              setSprintEndDate(dateKey(section.sprint!.endDate));
                               setSprintColor(section.sprint!.color || '#6366f1');
                               setShowSprintModal(true);
                             }}
@@ -1934,7 +1920,7 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
                               board.members?.find((m: Member) => m.id === id)
                             ).filter(Boolean);
 
-                            const plannedDays = Math.max(1, Math.round((t.targetEndDate.getTime() - t.targetStartDate.getTime()) / 86400000) + 1);
+                            const plannedDays = scheduledDays(t.targetStartDate, t.targetEndDate);
                             const hasStarted = Boolean(t.card.actualStartDate) ||
                               t.card.completed ||
                               (t.card.progress || 0) > 0 ||
@@ -2090,140 +2076,12 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
                                   title={`Scheduled baseline plan: ${formatShortDate(t.targetStartDate)} to ${formatShortDate(t.targetEndDate)} (${plannedDays} days)`}
                                 >
                                   <span className="roadmap-track-badge sched" title="Schedule / Planned (S)">S</span>
-                                  {editingDurationCardId === t.card.id ? (
-                                    <div
-                                      style={{
-                                        display: 'inline-flex',
-                                        alignItems: 'center',
-                                        gap: 4,
-                                        padding: '2px 6px',
-                                        background: 'hsl(var(--card))',
-                                        border: '1px solid hsl(var(--primary))',
-                                        borderRadius: 6,
-                                        boxShadow: 'var(--neu-shadow-raised-sm)',
-                                        zIndex: 30
-                                      }}
-                                      onClick={e => e.stopPropagation()}
-                                    >
-                                      {/* Start Date picker */}
-                                      <input
-                                        type="date"
-                                        value={tempCardStartDate}
-                                        onChange={e => {
-                                          const s = e.target.value;
-                                          setTempCardStartDate(s);
-                                          if (s && tempDurationDays > 0) {
-                                            const d = new Date(s);
-                                            d.setDate(d.getDate() + tempDurationDays - 1);
-                                            setTempCardDueDate(d.toISOString().split('T')[0]);
-                                          }
-                                        }}
-                                        style={{
-                                          fontSize: 10,
-                                          height: 22,
-                                          padding: '1px 3px',
-                                          border: '1px solid hsl(var(--border))',
-                                          borderRadius: 4,
-                                          background: 'hsl(var(--background))',
-                                          color: 'hsl(var(--foreground))'
-                                        }}
-                                        title="Pick Subtask Start Date"
-                                      />
-                                      <span style={{ fontSize: 9.5, color: 'hsl(var(--muted-foreground))' }}>–</span>
-                                      {/* Due Date picker */}
-                                      <input
-                                        type="date"
-                                        value={tempCardDueDate}
-                                        onChange={e => {
-                                          const due = e.target.value;
-                                          setTempCardDueDate(due);
-                                          if (tempCardStartDate && due) {
-                                            const diff = Math.max(1, Math.round((new Date(due).getTime() - new Date(tempCardStartDate).getTime()) / 86400000) + 1);
-                                            setTempDurationDays(diff);
-                                          }
-                                        }}
-                                        style={{
-                                          fontSize: 10,
-                                          height: 22,
-                                          padding: '1px 3px',
-                                          border: '1px solid hsl(var(--border))',
-                                          borderRadius: 4,
-                                          background: 'hsl(var(--background))',
-                                          color: 'hsl(var(--foreground))'
-                                        }}
-                                        title="Pick Subtask End / Due Date"
-                                      />
-                                      {/* Days */}
-                                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 2 }} title="Duration in days">
-                                        <input
-                                          type="number"
-                                          min={1}
-                                          max={365}
-                                          value={tempDurationDays}
-                                          onChange={e => {
-                                            const days = Math.max(1, parseInt(e.target.value, 10) || 1);
-                                            setTempDurationDays(days);
-                                            if (tempCardStartDate) {
-                                              const d = new Date(tempCardStartDate);
-                                              d.setDate(d.getDate() + days - 1);
-                                              setTempCardDueDate(d.toISOString().split('T')[0]);
-                                            }
-                                          }}
-                                          style={{
-                                            width: 34,
-                                            height: 22,
-                                            fontSize: 10,
-                                            fontWeight: 700,
-                                            textAlign: 'center',
-                                            padding: '1px 2px',
-                                            border: '1px solid hsl(var(--border))',
-                                            borderRadius: 4,
-                                            background: 'hsl(var(--background))',
-                                            color: 'hsl(var(--foreground))'
-                                          }}
-                                        />
-                                        <span style={{ fontSize: 9.5, color: 'hsl(var(--muted-foreground))' }}>d</span>
-                                      </div>
-                                      <button
-                                        type="button"
-                                        className="icon-btn"
-                                        style={{ width: 20, height: 20, padding: 0 }}
-                                        onClick={() => handleSaveCardDates(t.card.id, tempCardStartDate, tempCardDueDate)}
-                                        title="Save dates"
-                                      >
-                                        <Check size={12} color="#10b981" />
-                                      </button>
-                                      <button
-                                        type="button"
-                                        className="icon-btn"
-                                        style={{ width: 20, height: 20, padding: 0 }}
-                                        onClick={() => setEditingDurationCardId(null)}
-                                        title="Cancel"
-                                      >
-                                        <X size={12} color="hsl(var(--muted-foreground))" />
-                                      </button>
-                                    </div>
-                                  ) : (
-                                    <div
-                                      style={{ display: 'inline-flex', alignItems: 'center', gap: 4, cursor: isObserver ? 'default' : 'pointer' }}
-                                      onClick={e => {
-                                        if (isObserver) return;
-                                        e.stopPropagation();
-                                        setEditingDurationCardId(t.card.id);
-                                        const sIso = t.targetStartDate ? t.targetStartDate.toISOString().split('T')[0] : '';
-                                        const eIso = t.targetEndDate ? t.targetEndDate.toISOString().split('T')[0] : '';
-                                        setTempCardStartDate(t.card.startDate || sIso);
-                                        setTempCardDueDate(t.card.dueDate || eIso);
-                                        setTempDurationDays(plannedDays);
-                                      }}
-                                      title={isObserver ? undefined : 'Click to pick dates or change days for this subtask'}
-                                    >
-                                      <span className="roadmap-date-range">{formatDateRange(t.targetStartDate, t.targetEndDate)}</span>
-                                      <span className="roadmap-duration-label" style={{ borderBottom: isObserver ? 'none' : '1px dashed hsl(var(--primary))' }}>
-                                        ({plannedDays}d)
-                                      </span>
-                                    </div>
-                                  )}
+                                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, cursor: isObserver ? 'default' : 'pointer' }}
+                                    onClick={event => { if (!isObserver) { event.stopPropagation(); setEditingDurationCardId(t.card.id); } }}
+                                    title={isObserver ? undefined : 'Edit dates and allotted days; optionally shift following tasks'}>
+                                    <span className="roadmap-date-range">{formatDateRange(t.targetStartDate, t.targetEndDate)}</span>
+                                    <span style={{ fontSize: 10, color: 'hsl(var(--muted-foreground))', borderBottom: '1px dashed hsl(var(--primary))' }}>({plannedDays}d)</span>
+                                  </div>
                                 </div>
 
                                 {/* 3. Actual Column (A) */}
@@ -2353,10 +2211,10 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
                     setSprintName(`Phase ${(board.columns?.length || 0) + 1}`);
                     setSprintGoal('');
                     const now = new Date();
-                    setSprintStartDate(now.toISOString().split('T')[0]);
+                    setSprintStartDate(dateKey(now));
                     const twoWeeks = new Date(now);
                     twoWeeks.setDate(twoWeeks.getDate() + 14);
-                    setSprintEndDate(twoWeeks.toISOString().split('T')[0]);
+                    setSprintEndDate(dateKey(twoWeeks));
                     setShowSprintModal(true);
                   }}
                   title="Add a new project phase"
@@ -2731,6 +2589,14 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
       </div>
 
 
+      {editingDurationCardId && (() => {
+        const task = allTasks.find(item => item.card.id === editingDurationCardId);
+        return task ? <TaskScheduleEditor key={task.card.id} boardId={board.id} cardId={task.card.id} title={task.card.title}
+          startDate={task.targetStartDate} endDate={task.targetEndDate} onClose={() => setEditingDurationCardId(null)} /> : null;
+      })()}
+
+      {showReallocation && <ScheduleReallocationModal board={board} onClose={() => setShowReallocation(false)} />}
+
       {/* ── Roadmap Modals (Side-by-Side & Centered) ── */}
       <AnimatePresence>
         {(showSprintModal || showQuickAddModal) && (
@@ -2799,7 +2665,7 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
                         <label className="field-label">Start Date</label>
                         <NeumorphicDatePicker
                           value={sprintStartDate || null}
-                          onChange={val => setSprintStartDate(val ? val.split('T')[0] : '')}
+                          onChange={val => setSprintStartDate(dateKey(val))}
                           align="left"
                         />
                       </div>
@@ -2807,7 +2673,7 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
                         <label className="field-label">End Date</label>
                         <NeumorphicDatePicker
                           value={sprintEndDate || null}
-                          onChange={val => setSprintEndDate(val ? val.split('T')[0] : '')}
+                          onChange={val => setSprintEndDate(dateKey(val))}
                           align="right"
                         />
                       </div>

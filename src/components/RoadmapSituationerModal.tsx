@@ -1,3 +1,4 @@
+import { dateKey, scheduledDays, addScheduledDays } from '../scheduling/calendarSchedule';
 import TaskOrderControls, { taskOrderDropHandlers } from './TaskOrderControls';
 import { localReportDate, plannedFraction, recordedFraction, summarizeProgress } from '../reports/projectProgress';
 import React, { useState, useRef, useMemo } from 'react';
@@ -37,6 +38,7 @@ export default function RoadmapSituationerModal({ board, tasks, onClose }: Props
   const updateBoardBudget = useWorkStore(s => s.updateBoardBudget);
   const updateColumnBudget = useWorkStore(s => s.updateColumnBudget);
   const updateCard = useWorkStore(s => s.updateCard);
+  const rescheduleCard = useWorkStore(s => s.rescheduleCard);
   const addComment = useWorkStore(s => s.addComment);
   const showToast = useToastStore(s => s.showToast);
 
@@ -58,8 +60,8 @@ export default function RoadmapSituationerModal({ board, tasks, onClose }: Props
 
     if (today < start) return 0;
     if (today >= end) return 100;
-    const totalDuration = Math.max(1, Math.round((end.getTime() - start.getTime()) / 86400000) + 1);
-    const elapsedDays = Math.max(1, Math.round((today.getTime() - start.getTime()) / 86400000) + 1);
+    const totalDuration = scheduledDays(start, end);
+    const elapsedDays = scheduledDays(start, today);
     return Math.min(100, Math.round((elapsedDays / totalDuration) * 100));
   };
 
@@ -342,11 +344,9 @@ export default function RoadmapSituationerModal({ board, tasks, onClose }: Props
       return;
     }
     const days = newDays;
-    const startIso = currentStartDate.toISOString().split('T')[0];
-    const newDueDate = new Date(currentStartDate);
-    newDueDate.setDate(newDueDate.getDate() + days - 1);
-    const dueDateIso = newDueDate.toISOString().split('T')[0];
-    updateCard(cardId, { startDate: startIso, dueDate: dueDateIso });
+    const startIso = dateKey(currentStartDate);
+    const dueDateIso = addScheduledDays(startIso, days - 1);
+    rescheduleCard(board.id, cardId, startIso, dueDateIso, true);
     showToast(`Updated deliverable duration to ${days} day${days > 1 ? 's' : ''}`, 'success');
     setEditingDaysCardId(null);
   };
@@ -1435,7 +1435,7 @@ export default function RoadmapSituationerModal({ board, tasks, onClose }: Props
                                 ) : (
                                   <div
                                     onClick={() => {
-                                      const curDays = Math.max(1, Math.round((st.task.targetEndDate.getTime() - st.task.targetStartDate.getTime()) / 86400000) + 1);
+                                      const curDays = scheduledDays(st.task.targetStartDate, st.task.targetEndDate);
                                       setEditingDaysCardId(st.task.card.id);
                                       setTempDaysInput(curDays);
                                     }}
@@ -1454,7 +1454,7 @@ export default function RoadmapSituationerModal({ board, tasks, onClose }: Props
                                       color: 'hsl(var(--primary))',
                                       borderBottom: '1px dashed hsl(var(--primary))',
                                     }}>
-                                      {Math.max(1, Math.round((st.task.targetEndDate.getTime() - st.task.targetStartDate.getTime()) / 86400000) + 1)}d
+                                      {scheduledDays(st.task.targetStartDate, st.task.targetEndDate)}d
                                     </span>
                                   </div>
                                 )}

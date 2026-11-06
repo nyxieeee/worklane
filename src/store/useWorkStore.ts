@@ -1,3 +1,4 @@
+import { dateKey, scheduledDays, shiftFollowingTasks, allocateTaskDates, reallocateBoardDates } from '../scheduling/calendarSchedule';
 import { useToastStore } from './useToastStore';
 import { create } from 'zustand';
 import type { Board, Column, Card, Member, MemberRole, Attachment, Comment, Sprint } from '../types';
@@ -54,6 +55,8 @@ interface WorkState {
   // Card actions
   addCard: (colId: string, title: string) => Card;
   updateCard: (cardId: string, patch: Partial<Card>) => void;
+  reallocateSchedule: (boardId: string, scope: string, start: string, end: string) => boolean;
+  rescheduleCard: (boardId: string, cardId: string, start: string, end: string, cascade?: boolean) => void;
   deleteCard: (cardId: string) => void;
   reorderCard: (boardId: string, colId: string, cardId: string, beforeCardId: string | null) => void;
   moveCard: (cardId: string, fromColId: string, toColId: string, afterCardId?: string) => void;
@@ -544,7 +547,7 @@ export const useWorkStore = create<WorkState>()(
 
         // Total days between start and end if provided
         const overallTotalDays = projEnd && projEnd.getTime() > projStart.getTime()
-          ? Math.max(1, Math.round((projEnd.getTime() - projStart.getTime()) / 86400000) + 1)
+          ? scheduledDays(projStart, projEnd)
           : null;
 
         // Default days per phase: if overall duration is set, divide evenly, else 7 days
@@ -570,8 +573,8 @@ export const useWorkStore = create<WorkState>()(
           currentPhaseCursor.setDate(currentPhaseCursor.getDate() + 1);
           currentPhaseCursor.setHours(0, 0, 0, 0);
 
-          const pStartIso = phaseStart.toISOString().split('T')[0];
-          const pEndIso = phaseEnd.toISOString().split('T')[0];
+          const pStartIso = dateKey(phaseStart);
+          const pEndIso = dateKey(phaseEnd);
 
           generatedSprints.push({
             id: colId,
@@ -605,8 +608,8 @@ export const useWorkStore = create<WorkState>()(
               attachments: [],
               labels: ['roadmap'],
               assignees: creatorMember ? [creatorMember.id] : [],
-              dueDate: tDue.toISOString().split('T')[0],
-              startDate: tStart.toISOString().split('T')[0],
+              dueDate: dateKey(tDue),
+              startDate: dateKey(tStart),
               actualStartDate: totalIdx === 0 ? todayIso : null,
               actualEndDate: null,
               sprintId: colId,
@@ -623,6 +626,17 @@ export const useWorkStore = create<WorkState>()(
             cards,
           };
         });
+
+        // When both project bounds are supplied, fit phases and their tasks inside them.
+        if (projEnd && projEnd >= projStart) {
+          const phaseSpans = allocateTaskDates(generatedSprints.map(sprint => ({
+            id: sprint.id, startDate: sprint.startDate, dueDate: sprint.endDate,
+          })), dateKey(projStart), dateKey(projEnd));
+          phaseSpans.forEach((span, index) => {
+            generatedSprints[index] = { ...generatedSprints[index], startDate: span.startDate, endDate: span.dueDate };
+            columns[index] = { ...columns[index], cards: allocateTaskDates(columns[index].cards, span.startDate, span.dueDate) };
+          });
+        }
 
         const finalRoadmapStart = overallStartDate || (columns[0]?.cards[0]?.startDate) || todayIso;
         const lastCol = columns[columns.length - 1];
@@ -1003,10 +1017,22 @@ export const useWorkStore = create<WorkState>()(
       updateSprint: (boardId, sprintId, patch) => {
         let targetBoard: Board | undefined;
         set(s => {
-          const updatedBoards = updateBoards(s.boards, boardId, b => ({
-            ...b,
-            sprints: (b.sprints || []).map(sp => sp.id === sprintId ? { ...sp, ...patch } : sp),
-          }));
+          const updatedBoards = updateBoards(s.boards, boardId, b => {
+            const existing = b.sprints?.find(sprint => sprint.id === sprintId);
+            if (!existing) return b;
+            const updated = { ...existing, ...patch };
+            const start = dateKey(updated.startDate), end = dateKey(updated.endDate);
+            if (!start || !end || end < start) return b;
+            const datesChanged = patch.startDate !== undefined || patch.endDate !== undefined;
+            return { ...b, sprints: b.sprints?.map(sprint => sprint.id === sprintId ? { ...updated, startDate: start, endDate: end } : sprint),
+              columns: !datesChanged ? b.columns : b.columns.map(column => {
+                const matching = column.id === sprintId || column.name.toLowerCase() === existing.name.toLowerCase();
+                const children = column.cards.filter(card => card.sprintId === sprintId || matching);
+                if (!children.length) return column;
+                const allocations = new Map(allocateTaskDates(children, start, end).map(card => [card.id, { ...card, sprintId }]));
+                return { ...column, cards: column.cards.map(card => allocations.get(card.id) || card) };
+              }) };
+          });
           targetBoard = updatedBoards.find(b => b.id === boardId);
           return { boards: updatedBoards };
         });
@@ -1099,6 +1125,40 @@ export const useWorkStore = create<WorkState>()(
         });
         if (targetBoard) scheduleBoardSync(targetBoard, 50);
         return card;
+      },
+
+      reallocateSchedule: (boardId, scope, startValue, endValue) => {
+        let changed: Board | undefined;
+        set(state => {
+          const board = state.boards.find(item => item.id === boardId);
+          if (!board) return state;
+          const allocated = reallocateBoardDates(board, scope, dateKey(startValue), dateKey(endValue));
+          if (!allocated) return state;
+          changed = allocated;
+          return { boards: state.boards.map(item => item.id === boardId ? allocated : item) };
+        });
+        if (changed) scheduleBoardSync(changed, 50);
+        return !!changed;
+      },
+
+      rescheduleCard: (boardId, cardId, startValue, endValue, cascade = true) => {
+        const start = dateKey(startValue), end = dateKey(endValue);
+        if (!start || !end || end < start) return;
+        let changed: Board | undefined;
+        set(state => {
+          const board = state.boards.find(b => b.id === boardId);
+          const column = board?.columns.find(col => col.cards.some(card => card.id === cardId));
+          if (!board || !column) return state;
+          const cards = shiftFollowingTasks(column.cards, cardId, start, end, cascade);
+          const starts = cards.map(card => dateKey(card.startDate)).filter(Boolean).sort();
+          const ends = cards.map(card => dateKey(card.dueDate)).filter(Boolean).sort();
+          const sprintId = column.cards.find(card => card.id === cardId)?.sprintId;
+          changed = { ...board, columns: board.columns.map(col => col.id === column.id ? { ...col, cards } : col),
+            sprints: board.sprints?.map(sprint => sprint.id === (sprintId || column.id)
+              ? { ...sprint, startDate: starts[0] || sprint.startDate, endDate: ends[ends.length - 1] || sprint.endDate } : sprint) };
+          return { boards: state.boards.map(b => b.id === boardId ? changed! : b) };
+        });
+        if (changed) scheduleBoardSync(changed, 50);
       },
 
       updateCard: (cardId, patch) => {

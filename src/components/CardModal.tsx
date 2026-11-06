@@ -1,3 +1,4 @@
+import { dateKey, scheduledDays, addScheduledDays } from '../scheduling/calendarSchedule';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   AlignLeft, Paperclip, MessageSquare, Calendar, Tag, Users,
@@ -97,6 +98,8 @@ function CardModalInner({ cardId, result, onClose }: InnerProps) {
   const switchBoard = useWorkStore(s => s.switchBoard);
   const createRoadmap = useWorkStore(s => s.createRoadmap);
   const updateCard = useWorkStore(s => s.updateCard);
+  const rescheduleCard = useWorkStore(s => s.rescheduleCard);
+  const [shiftScheduleFollowing, setShiftScheduleFollowing] = useState(true);
   const deleteCard = useWorkStore(s => s.deleteCard);
   const moveCard = useWorkStore(s => s.moveCard);
   const moveInboxCardToColumn = useWorkStore(s => s.moveInboxCardToColumn);
@@ -2304,7 +2307,13 @@ function CardModalInner({ cardId, result, onClose }: InnerProps) {
                   <NeumorphicDatePicker
                     value={card.startDate || null}
                     onChange={newStart => {
-                      updateCard(cardId, { startDate: newStart ? newStart : null });
+                      if (!isRoadmap || !newStart || isInbox) {
+                        updateCard(cardId, { startDate: newStart ? dateKey(newStart) : null });
+                        return;
+                      }
+                      const start = dateKey(newStart);
+                      const duration = card.startDate && card.dueDate ? scheduledDays(card.startDate, card.dueDate) : 1;
+                      rescheduleCard(board.id, cardId, start, addScheduledDays(start, duration - 1), shiftScheduleFollowing);
                     }}
                     placeholder="Scheduled start..."
                     align="left"
@@ -2315,13 +2324,27 @@ function CardModalInner({ cardId, result, onClose }: InnerProps) {
                   <NeumorphicDatePicker
                     value={card.dueDate || null}
                     onChange={newDue => {
-                      updateCard(cardId, { dueDate: newDue ? newDue : null });
+                      if (!isRoadmap || !newDue || isInbox) {
+                        updateCard(cardId, { dueDate: newDue ? dateKey(newDue) : null });
+                        return;
+                      }
+                      const end = dateKey(newDue), start = dateKey(card.startDate) || end;
+                      if (end < start) { showToast('Scheduled end must be on or after scheduled start', 'error'); return; }
+                      rescheduleCard(board.id, cardId, start, end, shiftScheduleFollowing);
                     }}
                     placeholder="Scheduled end..."
                     align="right"
                   />
                 </div>
               </div>
+
+              {isRoadmap && <div style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))' }}>
+                <div>Allotted duration: {card.startDate && card.dueDate ? `${scheduledDays(card.startDate, card.dueDate)} calendar days` : 'Set scheduled start and end'}</div>
+                {!isInbox && <label style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 6 }}>
+                  <input type="checkbox" checked={shiftScheduleFollowing} onChange={event => setShiftScheduleFollowing(event.target.checked)} />
+                  Shift following tasks in this building when dates change
+                </label>}
+              </div>}
 
               {/* Actual Start & Actual End — Roadmap boards only */}
               {isRoadmap && (
