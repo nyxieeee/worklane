@@ -360,6 +360,21 @@ export default function RoadmapSCurve({ board, tasks, onOpenCard, onClose }: Pro
     return points;
   }, [filteredTasks, minDate, maxDate, totalDays, today, columnWeights]);
 
+  // Overall completion always includes every building, regardless of chart filters or dates.
+  const overallCompletion = useMemo(() => {
+    let total = 0;
+    let earned = 0;
+    for (const task of tasks) {
+      const siblings = tasks.filter(t => t.columnId === task.columnId).length;
+      const value = task.card.cost ?? ((resolvedColumnBudgets[task.columnId] || 0) / Math.max(1, siblings));
+      const progress = task.card.completed ? 100 : Math.max(0, Math.min(100, task.card.progress ?? 0));
+      total += value;
+      earned += value * progress / 100;
+    }
+    return { percent: total > 0 ? earned / total * 100 : 0,
+      completed: tasks.filter(t => t.card.completed).length, total: tasks.length };
+  }, [tasks, resolvedColumnBudgets]);
+
   // Today metrics & Earned Value
   const todayMetrics: TodayMetrics = useMemo(() => {
     if (curvePoints.length === 0) {
@@ -772,6 +787,16 @@ export default function RoadmapSCurve({ board, tasks, onOpenCard, onClose }: Pro
         gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))',
         gap: 10,
       }}>
+        <div style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--primary) / 0.5)', borderRadius: 8, padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <span style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))', fontWeight: 600 }}>Overall Project Completion</span>
+          <strong style={{ fontSize: 24, color: 'hsl(var(--primary))' }}>{overallCompletion.percent.toFixed(1)}%</strong>
+          <span style={{ fontSize: 10.5, color: 'hsl(var(--muted-foreground))' }}>All buildings · all recorded accomplishment</span>
+          <div role="progressbar" aria-label="Overall project completion" aria-valuemin={0} aria-valuemax={100} aria-valuenow={overallCompletion.percent}
+            style={{ height: 4, background: 'hsl(var(--primary) / 0.15)', borderRadius: 2, overflow: 'hidden' }}>
+            <div style={{ width: `${overallCompletion.percent}%`, height: '100%', background: 'hsl(var(--primary))' }} />
+          </div>
+          <span style={{ fontSize: 10.5, color: 'hsl(var(--muted-foreground))' }}>{overallCompletion.completed} of {overallCompletion.total} items complete · {(100 - overallCompletion.percent).toFixed(1)}% remaining</span>
+        </div>
         {/* Metric 1: Planned Baseline */}
         <div style={{
           background: 'hsl(var(--card))',
@@ -783,7 +808,7 @@ export default function RoadmapSCurve({ board, tasks, onOpenCard, onClose }: Pro
           gap: 4,
         }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))', fontWeight: 600 }}>Target Schedule (Today)</span>
+            <span style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))', fontWeight: 600 }}>Planned Completion to Date</span>
             <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: '#10b981' }} />
           </div>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
@@ -816,7 +841,7 @@ export default function RoadmapSCurve({ board, tasks, onOpenCard, onClose }: Pro
           gap: 4,
         }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))', fontWeight: 600 }}>Work Accomplished (Today)</span>
+            <span style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))', fontWeight: 600 }}>Accomplished to Date (Chart Scope)</span>
             <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: '#f59e0b' }} />
           </div>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
