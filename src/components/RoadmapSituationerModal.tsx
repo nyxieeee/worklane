@@ -1,6 +1,6 @@
 import React, { useState, useRef, useMemo } from 'react';
 import {
-  X, Printer, DollarSign, AlertTriangle, CheckCircle2,
+  X, Download, DollarSign, AlertTriangle, CheckCircle2,
   Clock, TrendingUp, Calendar, Layers, FileText, Check, Plus, Edit2,
   ChevronDown, ChevronRight, BarChart2, Calculator, Eye, SlidersHorizontal,
   FileCheck, ShieldAlert, Sparkles
@@ -677,12 +677,30 @@ export default function RoadmapSituationerModal({ board, tasks, onClose }: Props
   // Critical risks & delayed tasks
   const criticalDelayedTasks = tasks.filter(t => !t.card.completed && t.varianceDays > 2 && !(t.card.workSuspensions || []).some(p => p.from.slice(0, 10) <= reportDate && p.to.slice(0, 10) >= reportDate));
 
-  const handlePrint = () => {
-    // Switch to full document view before print
-    setActiveTab('full');
-    setTimeout(() => {
-      window.print();
-    }, 150);
+  const [isDownloading, setIsDownloading] = useState(false);
+  const handleDownload = async () => {
+    if (isDownloading) return;
+    setIsDownloading(true);
+    try {
+      const { downloadSituationerPdf } = await import('../reports/situationerPdf');
+      const date = (d: Date) => d.toLocaleDateString('en-GB');
+      await downloadSituationerPdf({
+        project: board.name, description: board.description || 'Project progress, schedule and financial accomplishment',
+        date: reportDate, currency, preparedBy, period: reportingPeriod, budget: effectiveTotalBudget,
+        planned: overallPlannedPct, actual: overallActualPct, notes: executiveNotes, curve: scurvePoints,
+        phases: phasesList.map(phase => ({ code: phase.wbsCode, name: phase.name, budget: phase.budget,
+          progress: phase.physicalActualPct, tasks: phase.subtasks.map(st => ({
+            code: st.wbsCode, title: st.title, value: st.cost, progress: st.actualFrac * 100, status: st.statusBadge.label,
+            start: date(st.task.targetStartDate), end: date(st.task.targetEndDate),
+            actualStart: st.task.card.actualStartDate || 'Not recorded', actualEnd: st.task.card.actualEndDate || 'Not recorded',
+            pauses: (st.task.card.workSuspensions || []).map(p => `${p.from} to ${p.to}${p.reason ? `: ${p.reason}` : ''}`).join('; ') || 'None',
+          })) })),
+      });
+      showToast('Situationer PDF downloaded', 'success');
+    } catch (error) {
+      console.error('Situationer PDF export failed', error);
+      showToast('Could not download the PDF. Please try again.', 'error');
+    } finally { setIsDownloading(false); }
   };
 
   return (
@@ -813,11 +831,12 @@ export default function RoadmapSituationerModal({ board, tasks, onClose }: Props
               type="button"
               className="btn btn-secondary"
               style={{ height: 30, fontSize: 11, gap: 5, padding: '0 10px' }}
-              onClick={handlePrint}
-              title="Print or Save as Official PDF"
+              onClick={handleDownload}
+              disabled={isDownloading}
+              title="Download the complete situationer as a PDF"
             >
-              <Printer size={13} />
-              <span>Print / PDF</span>
+              <Download size={13} />
+              <span>{isDownloading ? 'Creating PDF…' : 'Download PDF'}</span>
             </button>
 
             <button
@@ -893,7 +912,7 @@ export default function RoadmapSituationerModal({ board, tasks, onClose }: Props
         </div>
 
         {/* ── Report Body ── */}
-        <div ref={printRef} style={{
+        <div ref={printRef} className={activeTab === 'full' ? 'situationer-document' : undefined} style={{
           flex: 1,
           overflowY: 'auto',
           padding: '18px 22px',
@@ -990,7 +1009,7 @@ export default function RoadmapSituationerModal({ board, tasks, onClose }: Props
           </div>
 
           {/* ── 4 Friendly Headline KPI Cards (Plain Language for Everyone) ── */}
-          <div style={{
+          <div className="situationer-kpis" style={{
             display: 'grid',
             gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
             gap: 12,

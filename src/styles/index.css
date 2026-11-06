@@ -2939,3 +2939,67 @@ select option {
 @import './mobile.css';
 
 
+
+/* Full situationer preview uses document styling, independent of the app theme. */
+.situationer-document {
+  --background: 0 0% 100%;
+  --card: 0 0% 100%;
+  --foreground: 222 35% 18%;
+  --muted-foreground: 215 16% 38%;
+  --border: 214 22% 85%;
+  --secondary: 214 30% 96%;
+  --primary: 215 70% 35%;
+  color: hsl(var(--foreground));
+  color-scheme: light;
+}
+.situationer-document > div { box-shadow: none !important; border-radius: 4px !important; }
+.situationer-document .situationer-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+.situationer-document .situationer-kpis > div { box-shadow: none !important; border-radius: 4px !important; }
+.situationer-document table { font-variant-numeric: tabular-nums; }
+.situationer-document textarea { box-shadow: none; }
+
+.scurve-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr));
+  gap: 10px;
+  align-items: stretch;
+}
+.scurve-summary-card {
+  container-type: inline-size;
+  min-width: 0;
+  display: grid;
+  grid-template-rows: 28px 36px 32px 8px minmax(32px, auto);
+  gap: 6px;
+  padding: 14px;
+  border: 1px solid hsl(var(--border) / 0.8);
+  border-radius: 8px;
+  background: hsl(var(--card));
+}
+.scurve-summary-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  color: hsl(var(--muted-foreground));
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+.scurve-summary-heading > :last-child { display: flex; flex-shrink: 0; }
+.scurve-summary-value {
+  display: flex;
+  align-items: center;
+  font-size: clamp(16px, 9cqi, 24px);
+  font-weight: 800;
+  line-height: 1.2;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.scurve-summary-detail, .scurve-summary-footer {
+  color: hsl(var(--muted-foreground));
+  font-size: 10.5px;
+  line-height: 1.5;
+}
+.scurve-summary-track-slot { display: flex; align-items: center; }
+.scurve-summary-track { width: 100%; height: 4px; border-radius: 2px; background: hsl(var(--muted-foreground) / 0.15); overflow: hidden; }
+.scurve-summary-track > div { height: 100%; border-radius: inherit; }

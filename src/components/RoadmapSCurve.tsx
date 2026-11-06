@@ -781,164 +781,43 @@ export default function RoadmapSCurve({ board, tasks, onOpenCard, onClose }: Pro
         </div>
       </div>
 
-      {/* ── 2. Top Executive Summary Metrics ── */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))',
-        gap: 10,
-      }}>
-        <div style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--primary) / 0.5)', borderRadius: 8, padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <span style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))', fontWeight: 600 }}>Overall Project Completion</span>
-          <strong style={{ fontSize: 24, color: 'hsl(var(--primary))' }}>{overallCompletion.percent.toFixed(1)}%</strong>
-          <span style={{ fontSize: 10.5, color: 'hsl(var(--muted-foreground))' }}>All buildings · all recorded accomplishment</span>
-          <div role="progressbar" aria-label="Overall project completion" aria-valuemin={0} aria-valuemax={100} aria-valuenow={overallCompletion.percent}
-            style={{ height: 4, background: 'hsl(var(--primary) / 0.15)', borderRadius: 2, overflow: 'hidden' }}>
-            <div style={{ width: `${overallCompletion.percent}%`, height: '100%', background: 'hsl(var(--primary))' }} />
-          </div>
-          <span style={{ fontSize: 10.5, color: 'hsl(var(--muted-foreground))' }}>{overallCompletion.completed} of {overallCompletion.total} items complete · {(100 - overallCompletion.percent).toFixed(1)}% remaining</span>
-        </div>
-        {/* Metric 1: Planned Baseline */}
-        <div style={{
-          background: 'hsl(var(--card))',
-          border: '1px solid hsl(var(--border) / 0.8)',
-          borderRadius: 8,
-          padding: '10px 12px',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 4,
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))', fontWeight: 600 }}>Planned Completion to Date</span>
-            <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: '#10b981' }} />
-          </div>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-            <span style={{ fontSize: 20, fontWeight: 800, color: '#10b981', lineHeight: 1 }}>
-              {metricMode === 'percent'
-                ? `${todayMetrics.plannedVal}%`
-                : metricMode === 'cost'
-                ? fmtMoney(todayMetrics.plannedVal)
-                : `${todayMetrics.plannedVal} items`}
-            </span>
-            <span style={{ fontSize: 10.5, color: 'hsl(var(--muted-foreground))' }}>target schedule</span>
-          </div>
-          <div style={{ width: '100%', height: 4, background: 'rgba(16,185,129,0.15)', borderRadius: 2, overflow: 'hidden' }}>
-            <div style={{
-              width: `${Math.min(100, metricMode === 'percent' ? todayMetrics.plannedVal : metricMode === 'cost' ? (todayMetrics.plannedVal / Math.max(1, totalContractPrice)) * 100 : (todayMetrics.plannedVal / Math.max(1, todayMetrics.totalCount)) * 100)}%`,
-              height: '100%',
-              background: '#10b981'
-            }} />
-          </div>
-        </div>
-
-        {/* Metric 2: Actual Accomplishment */}
-        <div style={{
-          background: 'hsl(var(--card))',
-          border: '1px solid hsl(var(--border) / 0.8)',
-          borderRadius: 8,
-          padding: '10px 12px',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 4,
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))', fontWeight: 600 }}>Accomplished to Date (Chart Scope)</span>
-            <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: '#f59e0b' }} />
-          </div>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-            <span style={{ fontSize: 20, fontWeight: 800, color: '#f59e0b', lineHeight: 1 }}>
-              {metricMode === 'percent'
-                ? `${todayMetrics.actualVal}%`
-                : metricMode === 'cost'
-                ? fmtMoney(todayMetrics.actualVal)
-                : `${todayMetrics.actualVal} items`}
-            </span>
-            <span style={{ fontSize: 10.5, color: 'hsl(var(--muted-foreground))' }}>earned value</span>
-          </div>
-          <div style={{ width: '100%', height: 4, background: 'rgba(245,158,11,0.15)', borderRadius: 2, overflow: 'hidden' }}>
-            <div style={{
-              width: `${Math.min(100, metricMode === 'percent' ? todayMetrics.actualVal : metricMode === 'cost' ? (todayMetrics.actualVal / Math.max(1, totalContractPrice)) * 100 : (todayMetrics.actualVal / Math.max(1, todayMetrics.totalCount)) * 100)}%`,
-              height: '100%',
-              background: '#f59e0b'
-            }} />
-          </div>
-        </div>
-
-        {/* Metric 3: Schedule Variance */}
-        <div style={{
-          background: 'hsl(var(--card))',
-          border: '1px solid hsl(var(--border) / 0.8)',
-          borderRadius: 8,
-          padding: '10px 12px',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 4,
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))', fontWeight: 600 }}>Schedule Health</span>
-            {todayMetrics.variance >= 0 ? (
-              <CheckCircle2 size={13} color="#10b981" />
-            ) : (
-              <AlertTriangle size={13} color="#ef4444" />
-            )}
-          </div>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-            <span style={{
-              fontSize: 20,
-              fontWeight: 800,
-              color: todayMetrics.variance >= 0 ? '#10b981' : '#ef4444',
-              lineHeight: 1
-            }}>
-              {todayMetrics.variance > 0 ? `+${todayMetrics.variance}` : todayMetrics.variance}
-              {metricMode === 'percent' ? '%' : metricMode === 'cost' ? ` ${currency}` : ' items'}
-            </span>
-            <span style={{
-              fontSize: 10,
-              fontWeight: 700,
-              padding: '1px 5px',
-              borderRadius: 3,
-              background: todayMetrics.variance >= 0 ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)',
-              color: todayMetrics.variance >= 0 ? '#10b981' : '#ef4444'
-            }}>
-              {todayMetrics.variance >= 0 ? 'Ahead of Schedule' : 'Behind Schedule'}
-            </span>
-          </div>
-          <span style={{ fontSize: 10, color: 'hsl(var(--muted-foreground))' }}>
-            SPI: <strong>{todayMetrics.spi}</strong> ({todayMetrics.spi >= 1 ? 'Efficiency > 100%' : 'Lagging baseline'})
-          </span>
-        </div>
-
-        {/* Metric 4: Forecast vs Target Delivery */}
-        <div style={{
-          background: 'hsl(var(--card))',
-          border: '1px solid hsl(var(--border) / 0.8)',
-          borderRadius: 8,
-          padding: '10px 12px',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 4,
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))', fontWeight: 600 }}>Delivery Forecast</span>
-            <Clock size={13} color="hsl(var(--primary))" />
-          </div>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-            <span style={{ fontSize: 15, fontWeight: 800, color: 'hsl(var(--foreground))', lineHeight: 1 }}>
-              {todayMetrics.projectedFinishDate ? todayMetrics.projectedFinishDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '—'}
-            </span>
-            {todayMetrics.finishVarianceDays !== 0 && (
-              <span style={{
-                fontSize: 10,
-                fontWeight: 700,
-                color: todayMetrics.finishVarianceDays > 0 ? '#ef4444' : '#10b981'
-              }}>
-                {todayMetrics.finishVarianceDays > 0 ? `+${todayMetrics.finishVarianceDays}d delay` : `${todayMetrics.finishVarianceDays}d early`}
-              </span>
-            )}
-          </div>
-          <span style={{ fontSize: 10, color: 'hsl(var(--muted-foreground))' }}>
-            Baseline Target: {todayMetrics.targetFinishDate ? todayMetrics.targetFinishDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}
-          </span>
-        </div>
+      {/* Shared layout keeps summary cards aligned across metric modes and screen sizes. */}
+      <div className="scurve-summary">
+        {(() => {
+          const metricValue = (value: number) => metricMode === 'cost' ? fmtMoney(value)
+            : metricMode === 'percent' ? `${value.toLocaleString()}%` : `${value.toLocaleString()} items`;
+          const progressWidth = (value: number) => Math.max(0, Math.min(100, metricMode === 'percent' ? value
+            : value / Math.max(1, metricMode === 'cost' ? totalContractPrice : todayMetrics.totalCount) * 100));
+          const healthColor = todayMetrics.variance >= 0 ? '#10b981' : '#ef4444';
+          const healthLabel = todayMetrics.variance === 0 ? 'On schedule' : todayMetrics.variance > 0 ? 'Ahead of schedule' : 'Behind schedule';
+          const cards = [
+            { title: 'Overall Completion', value: `${overallCompletion.percent.toFixed(1)}%`, color: 'hsl(var(--primary))',
+              icon: <CheckCircle2 size={14} />, detail: 'All buildings · all recorded work',
+              footer: `${overallCompletion.completed} / ${overallCompletion.total} items complete · ${(100 - overallCompletion.percent).toFixed(1)}% remaining`, progress: overallCompletion.percent },
+            { title: 'Planned to Date', value: metricValue(todayMetrics.plannedVal), color: '#10b981', icon: <Target size={14} />,
+              detail: 'Scheduled accomplishment', footer: 'Scope: selected chart buildings', progress: progressWidth(todayMetrics.plannedVal) },
+            { title: 'Accomplished to Date', value: metricValue(todayMetrics.actualVal), color: '#f59e0b', icon: <TrendingUp size={14} />,
+              detail: 'Cumulative earned accomplishment', footer: 'Scope: selected chart buildings', progress: progressWidth(todayMetrics.actualVal) },
+            { title: 'Schedule Health', value: `${todayMetrics.variance > 0 ? '+' : todayMetrics.variance < 0 ? '−' : ''}${metricValue(Math.abs(todayMetrics.variance))}`,
+              color: healthColor, icon: todayMetrics.variance >= 0 ? <CheckCircle2 size={14} /> : <AlertTriangle size={14} />,
+              detail: healthLabel, footer: `SPI: ${todayMetrics.spi.toFixed(2)} · ${todayMetrics.spi === 1 ? 'At planned pace' : todayMetrics.spi > 1 ? 'Above planned pace' : 'Below planned pace'}`, progress: null },
+            { title: 'Delivery Forecast', value: todayMetrics.projectedFinishDate?.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) || '—',
+              color: 'hsl(var(--foreground))', icon: <Clock size={14} />,
+              detail: todayMetrics.finishVarianceDays === 0 ? 'Matches baseline target' : `${Math.abs(todayMetrics.finishVarianceDays)} days ${todayMetrics.finishVarianceDays > 0 ? 'late' : 'early'}`,
+              footer: `Baseline: ${todayMetrics.targetFinishDate?.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) || 'Not scheduled'}`, progress: null },
+          ];
+          return cards.map(card => <div className="scurve-summary-card" key={card.title}>
+            <div className="scurve-summary-heading"><span>{card.title}</span><span style={{ color: card.color }}>{card.icon}</span></div>
+            <strong className="scurve-summary-value" style={{ color: card.color }} title={card.value}>{card.value}</strong>
+            <div className="scurve-summary-detail">{card.detail}</div>
+            <div className="scurve-summary-track-slot">
+              {card.progress != null && <div className="scurve-summary-track" role="progressbar" aria-label={card.title} aria-valuemin={0} aria-valuemax={100} aria-valuenow={card.progress}>
+                <div style={{ width: `${Math.max(0, Math.min(100, card.progress))}%`, background: card.color }} />
+              </div>}
+            </div>
+            <div className="scurve-summary-footer">{card.footer}</div>
+          </div>);
+        })()}
       </div>
 
       {/* ── 3. Interactive SVG S-Curve Chart ── */}
