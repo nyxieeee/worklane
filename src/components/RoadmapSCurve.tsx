@@ -1,3 +1,4 @@
+import { plannedFraction, recordedFraction, summarizeProgress } from '../reports/projectProgress';
 import React, { useState, useMemo, useRef } from 'react';
 import {
   TrendingUp, Calendar, CheckCircle2, AlertTriangle, Clock,
@@ -202,6 +203,16 @@ export default function RoadmapSCurve({ board, tasks, onOpenCard, onClose }: Pro
     return { minDate: s, maxDate: e, totalDays: days };
   }, [filteredTasks, today]);
 
+  const progressEntries = useMemo(() => tasks.map(task => ({ task,
+    value: task.card.cost ?? ((board.columns.find(column => column.id === task.columnId)?.budget
+      ?? ((board.totalBudget && board.totalBudget > 0 ? board.totalBudget : 1000000) / Math.max(1, board.columns.length)))
+      / Math.max(1, tasks.filter(t => t.columnId === task.columnId).length)),
+  })), [tasks, board.columns, board.totalBudget]);
+  const overallProgress = useMemo(() => summarizeProgress(progressEntries, today, totalContractPrice), [progressEntries, today, totalContractPrice]);
+  const scopedEntries = useMemo(() => progressEntries.filter(entry => filteredTasks.includes(entry.task)), [progressEntries, filteredTasks]);
+  const scopeBudget = selectedSprintId === 'all' ? totalContractPrice : scopedEntries.reduce((sum, entry) => sum + entry.value, 0);
+  const scopedProgress = useMemo(() => summarizeProgress(scopedEntries, today, scopeBudget), [scopedEntries, today, scopeBudget]);
+
   // Generate continuous timeline points (Weighted by Cost / Schedule)
   const curvePoints: SPoint[] = useMemo(() => {
     if (filteredTasks.length === 0) return [];
@@ -209,17 +220,9 @@ export default function RoadmapSCurve({ board, tasks, onOpenCard, onClose }: Pro
     const totalDeliverables = filteredTasks.length;
 
     // Weight calculation: combine task cost or column weight with duration
-    const getTaskWeight = (t: TaskWithScheduleForSCurve) => {
-      if (t.card.cost != null) return t.card.cost;
-      const colMeta = columnWeights[t.columnId];
-      if (colMeta) {
-        const siblingCount = filteredTasks.filter(item => item.columnId === t.columnId).length;
-        return colMeta.budget / Math.max(1, siblingCount);
-      }
-      return 1;
-    };
+    const getTaskWeight = (task: TaskWithScheduleForSCurve) => progressEntries.find(entry => entry.task === task)?.value ?? 0;
 
-    const totalWeight = filteredTasks.reduce((acc, t) => acc + getTaskWeight(t), 0);
+    const totalWeight = scopeBudget;
 
     // Sample daily or sub-weekly points depending on range
     const stepDays = totalDays > 120 ? 3 : totalDays > 60 ? 2 : 1;
@@ -249,18 +252,9 @@ export default function RoadmapSCurve({ board, tasks, onOpenCard, onClose }: Pro
       let plannedCountAcc = 0;
 
       filteredTasks.forEach(t => {
-        const tStart = t.targetStartDate.getTime();
-        const tEnd = t.targetEndDate.getTime();
-        const tWeight = getTaskWeight(t);
-
-        if (tTime >= tEnd) {
-          plannedWeightAcc += tWeight;
-          plannedCountAcc += 1;
-        } else if (tTime > tStart) {
-          const frac = (tTime - tStart) / (tEnd - tStart);
-          plannedWeightAcc += tWeight * frac;
-          plannedCountAcc += frac;
-        }
+        const fraction = plannedFraction(t, curr);
+        plannedWeightAcc += getTaskWeight(t) * fraction;
+        plannedCountAcc += fraction;
       });
 
       const plannedPct = totalWeight > 0 ? Math.min(100, (plannedWeightAcc / totalWeight) * 100) : 0;
@@ -278,32 +272,13 @@ export default function RoadmapSCurve({ board, tasks, onOpenCard, onClose }: Pro
           const actStart = t.actualStartDate.getTime();
           const tWeight = getTaskWeight(t);
 
-          if (t.card.completed) {
-            const compTime = t.card.actualEndDate
-              ? new Date(t.card.actualEndDate).getTime()
-              : t.card.completedAt
-              ? new Date(t.card.completedAt).getTime()
-              : t.actualOrProjectedEndDate.getTime();
-
-            if (tTime >= compTime) {
-              actualWeightAcc += tWeight;
-              actualCountAcc += 1;
-            } else if (tTime >= actStart) {
-              const span = Math.max(1, compTime - actStart);
-              const frac = Math.min(1, Math.max(0, (tTime - actStart) / span));
-              actualWeightAcc += tWeight * frac;
-              actualCountAcc += frac;
-            }
-          } else {
-            const rawProgress = (t.card.progress || 0) / 100;
-            if (rawProgress > 0 && tTime >= actStart) {
-              const elapsed = Math.max(1, todayTime - actStart);
-              const currentT = Math.max(0, tTime - actStart);
-              const frac = isToday ? rawProgress : Math.min(rawProgress, (currentT / elapsed) * rawProgress);
-              actualWeightAcc += tWeight * frac;
-              actualCountAcc += frac;
-            }
-          }
+          const progress = recordedFraction(t);
+          const completion = t.card.actualEndDate || t.card.completedAt;
+          const end = t.card.completed && completion ? new Date(completion).getTime() : todayTime;
+          const fraction = isToday ? progress
+            : progress * Math.min(1, Math.max(0, (tTime - actStart) / Math.max(1, end - actStart)));
+          actualWeightAcc += tWeight * fraction;
+          actualCountAcc += fraction;
         });
 
         actualPct = totalWeight > 0 ? Math.min(100, (actualWeightAcc / totalWeight) * 100) : 0;
@@ -320,9 +295,9 @@ export default function RoadmapSCurve({ board, tasks, onOpenCard, onClose }: Pro
         label: curr.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
         isToday,
         isPastOrToday,
-        plannedPct: Math.round(plannedPct * 10) / 10,
+        plannedPct: isToday ? scopedProgress.plannedPct : Math.round(plannedPct * 10) / 10,
         plannedCount: Math.round(plannedCount * 10) / 10,
-        actualPct: actualPct !== null ? Math.round(actualPct * 10) / 10 : null,
+        actualPct: isToday ? scopedProgress.actualPct : actualPct !== null ? Math.round(actualPct * 10) / 10 : null,
         actualCount: actualCount !== null ? Math.round(actualCount * 10) / 10 : null,
         projectedPct,
         projectedCount,
@@ -358,22 +333,13 @@ export default function RoadmapSCurve({ board, tasks, onOpenCard, onClose }: Pro
     }
 
     return points;
-  }, [filteredTasks, minDate, maxDate, totalDays, today, columnWeights]);
+  }, [filteredTasks, minDate, maxDate, totalDays, today, columnWeights, scopeBudget, scopedProgress, progressEntries]);
 
   // Overall completion always includes every building, regardless of chart filters or dates.
   const overallCompletion = useMemo(() => {
-    let total = 0;
-    let earned = 0;
-    for (const task of tasks) {
-      const siblings = tasks.filter(t => t.columnId === task.columnId).length;
-      const value = task.card.cost ?? ((resolvedColumnBudgets[task.columnId] || 0) / Math.max(1, siblings));
-      const progress = task.card.completed ? 100 : Math.max(0, Math.min(100, task.card.progress ?? 0));
-      total += value;
-      earned += value * progress / 100;
-    }
-    return { percent: total > 0 ? earned / total * 100 : 0,
+    return { percent: overallProgress.actualPct,
       completed: tasks.filter(t => t.card.completed).length, total: tasks.length };
-  }, [tasks, resolvedColumnBudgets]);
+  }, [tasks, overallProgress]);
 
   // Today metrics & Earned Value
   const todayMetrics: TodayMetrics = useMemo(() => {
@@ -394,27 +360,26 @@ export default function RoadmapSCurve({ board, tasks, onOpenCard, onClose }: Pro
       };
     }
 
-    const todayPt = curvePoints.find(p => p.isToday) || curvePoints.filter(p => p.isPastOrToday).slice(-1)[0] || curvePoints[0];
-    const plannedPct = todayPt.plannedPct;
-    const actualPct = todayPt.actualPct ?? 0;
+    const plannedPct = scopedProgress.plannedPct;
+    const actualPct = scopedProgress.actualPct;
 
     const plannedVal = metricMode === 'percent'
       ? plannedPct
       : metricMode === 'cost'
-      ? Math.round(totalContractPrice * (plannedPct / 100))
-      : todayPt.plannedCount;
+      ? scopedProgress.plannedValue
+      : scopedProgress.plannedCount;
 
     const actualVal = metricMode === 'percent'
       ? actualPct
       : metricMode === 'cost'
-      ? Math.round(totalContractPrice * (actualPct / 100))
-      : (todayPt.actualCount ?? 0);
+      ? scopedProgress.actualValue
+      : scopedProgress.actualCount;
 
     const variance = Math.round((actualVal - plannedVal) * 10) / 10;
     const spi = plannedPct > 0 ? Math.round((actualPct / plannedPct) * 100) / 100 : 1.0;
 
-    const plannedCost = Math.round(totalContractPrice * (plannedPct / 100));
-    const actualCost = Math.round(totalContractPrice * (actualPct / 100));
+    const plannedCost = scopedProgress.plannedValue;
+    const actualCost = scopedProgress.actualValue;
     const costVariance = actualCost - plannedCost;
 
     let targetFinish: Date | null = null;
@@ -451,7 +416,7 @@ export default function RoadmapSCurve({ board, tasks, onOpenCard, onClose }: Pro
       actualCost,
       costVariance,
     };
-  }, [curvePoints, metricMode, filteredTasks, totalContractPrice]);
+  }, [curvePoints, metricMode, filteredTasks, scopedProgress]);
 
   // SVG Chart Dimensions & Scale
   const svgWidth = 850;
@@ -460,7 +425,7 @@ export default function RoadmapSCurve({ board, tasks, onOpenCard, onClose }: Pro
   const chartW = svgWidth - margin.left - margin.right;
   const chartH = svgHeight - margin.top - margin.bottom;
 
-  const maxYValue = metricMode === 'percent' ? 100 : metricMode === 'cost' ? totalContractPrice : Math.max(1, filteredTasks.length);
+  const maxYValue = metricMode === 'percent' ? 100 : metricMode === 'cost' ? scopeBudget : Math.max(1, filteredTasks.length);
 
   const getX = (index: number) => {
     if (curvePoints.length <= 1) return margin.left;
@@ -474,15 +439,15 @@ export default function RoadmapSCurve({ board, tasks, onOpenCard, onClose }: Pro
 
   const getValForPoint = (p: SPoint, type: 'planned' | 'actual' | 'projected') => {
     if (type === 'planned') {
-      return metricMode === 'percent' ? p.plannedPct : metricMode === 'cost' ? Math.round(totalContractPrice * (p.plannedPct / 100)) : p.plannedCount;
+      return metricMode === 'percent' ? p.plannedPct : metricMode === 'cost' ? Math.round(scopeBudget * (p.plannedPct / 100)) : p.plannedCount;
     }
     if (type === 'actual') {
       if (p.actualPct === null) return 0;
-      return metricMode === 'percent' ? p.actualPct : metricMode === 'cost' ? Math.round(totalContractPrice * (p.actualPct / 100)) : (p.actualCount ?? 0);
+      return metricMode === 'percent' ? p.actualPct : metricMode === 'cost' ? Math.round(scopeBudget * (p.actualPct / 100)) : (p.actualCount ?? 0);
     }
     if (type === 'projected') {
       if (p.projectedPct === null) return 0;
-      return metricMode === 'percent' ? p.projectedPct : metricMode === 'cost' ? Math.round(totalContractPrice * (p.projectedPct / 100)) : (p.projectedCount ?? 0);
+      return metricMode === 'percent' ? p.projectedPct : metricMode === 'cost' ? Math.round(scopeBudget * (p.projectedPct / 100)) : (p.projectedCount ?? 0);
     }
     return 0;
   };
@@ -495,7 +460,7 @@ export default function RoadmapSCurve({ board, tasks, onOpenCard, onClose }: Pro
       const y = getY(getValForPoint(p, 'planned'));
       return `${i === 0 ? 'M' : 'L'} ${x.toFixed(1)} ${y.toFixed(1)}`;
     }).join(' ');
-  }, [curvePoints, metricMode, chartW, chartH, totalContractPrice]);
+  }, [curvePoints, metricMode, chartW, chartH, scopeBudget]);
 
   const plannedAreaPath = useMemo(() => {
     if (curvePoints.length === 0) return '';
@@ -515,7 +480,7 @@ export default function RoadmapSCurve({ board, tasks, onOpenCard, onClose }: Pro
       const y = getY(getValForPoint(p, 'actual'));
       return `${i === 0 ? 'M' : 'L'} ${x.toFixed(1)} ${y.toFixed(1)}`;
     }).join(' ');
-  }, [actualPoints, curvePoints, metricMode, chartW, chartH, totalContractPrice]);
+  }, [actualPoints, curvePoints, metricMode, chartW, chartH, scopeBudget]);
 
   const actualAreaPath = useMemo(() => {
     if (actualPoints.length === 0) return '';
@@ -536,7 +501,7 @@ export default function RoadmapSCurve({ board, tasks, onOpenCard, onClose }: Pro
       const y = getY(getValForPoint(p, 'projected'));
       return `${i === 0 ? 'M' : 'L'} ${x.toFixed(1)} ${y.toFixed(1)}`;
     }).join(' ');
-  }, [projectedPoints, curvePoints, metricMode, chartW, chartH, totalContractPrice]);
+  }, [projectedPoints, curvePoints, metricMode, chartW, chartH, scopeBudget]);
 
   // Today marker line position
   const todayIndex = curvePoints.findIndex(p => p.isToday);
@@ -553,7 +518,7 @@ export default function RoadmapSCurve({ board, tasks, onOpenCard, onClose }: Pro
       }
     });
     return list;
-  }, [curvePoints, metricMode, chartW, chartH, totalContractPrice]);
+  }, [curvePoints, metricMode, chartW, chartH, scopeBudget]);
 
   // Mouse hover calculation
   const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
@@ -787,7 +752,7 @@ export default function RoadmapSCurve({ board, tasks, onOpenCard, onClose }: Pro
           const metricValue = (value: number) => metricMode === 'cost' ? fmtMoney(value)
             : metricMode === 'percent' ? `${value.toLocaleString()}%` : `${value.toLocaleString()} items`;
           const progressWidth = (value: number) => Math.max(0, Math.min(100, metricMode === 'percent' ? value
-            : value / Math.max(1, metricMode === 'cost' ? totalContractPrice : todayMetrics.totalCount) * 100));
+            : value / Math.max(1, metricMode === 'cost' ? scopeBudget : todayMetrics.totalCount) * 100));
           const healthColor = todayMetrics.variance >= 0 ? '#10b981' : '#ef4444';
           const healthLabel = todayMetrics.variance === 0 ? 'On schedule' : todayMetrics.variance > 0 ? 'Ahead of schedule' : 'Behind schedule';
           const cards = [
@@ -795,9 +760,9 @@ export default function RoadmapSCurve({ board, tasks, onOpenCard, onClose }: Pro
               icon: <CheckCircle2 size={14} />, detail: 'All buildings · all recorded work',
               footer: `${overallCompletion.completed} / ${overallCompletion.total} items complete · ${(100 - overallCompletion.percent).toFixed(1)}% remaining`, progress: overallCompletion.percent },
             { title: 'Planned to Date', value: metricValue(todayMetrics.plannedVal), color: '#10b981', icon: <Target size={14} />,
-              detail: 'Scheduled accomplishment', footer: 'Scope: selected chart buildings', progress: progressWidth(todayMetrics.plannedVal) },
+              detail: 'Scheduled accomplishment', footer: selectedSprintId === 'all' ? 'Scope: all buildings' : 'Scope: selected building / phase', progress: progressWidth(todayMetrics.plannedVal) },
             { title: 'Accomplished to Date', value: metricValue(todayMetrics.actualVal), color: '#f59e0b', icon: <TrendingUp size={14} />,
-              detail: 'Cumulative earned accomplishment', footer: 'Scope: selected chart buildings', progress: progressWidth(todayMetrics.actualVal) },
+              detail: 'Cumulative earned accomplishment', footer: selectedSprintId === 'all' ? 'Scope: all buildings' : 'Scope: selected building / phase', progress: progressWidth(todayMetrics.actualVal) },
             { title: 'Schedule Health', value: `${todayMetrics.variance > 0 ? '+' : todayMetrics.variance < 0 ? '−' : ''}${metricValue(Math.abs(todayMetrics.variance))}`,
               color: healthColor, icon: todayMetrics.variance >= 0 ? <CheckCircle2 size={14} /> : <AlertTriangle size={14} />,
               detail: healthLabel, footer: `SPI: ${todayMetrics.spi.toFixed(2)} · ${todayMetrics.spi === 1 ? 'At planned pace' : todayMetrics.spi > 1 ? 'Above planned pace' : 'Below planned pace'}`, progress: null },
@@ -1088,7 +1053,7 @@ export default function RoadmapSCurve({ board, tasks, onOpenCard, onClose }: Pro
                     {metricMode === 'percent'
                       ? `${hoveredPoint.plannedPct}%`
                       : metricMode === 'cost'
-                      ? fmtMoney(Math.round(totalContractPrice * (hoveredPoint.plannedPct / 100)))
+                      ? fmtMoney(Math.round(scopeBudget * (hoveredPoint.plannedPct / 100)))
                       : `${hoveredPoint.plannedCount} items`}
                   </strong>
                 </div>
@@ -1103,7 +1068,7 @@ export default function RoadmapSCurve({ board, tasks, onOpenCard, onClose }: Pro
                       {metricMode === 'percent'
                         ? `${hoveredPoint.actualPct}%`
                         : metricMode === 'cost'
-                        ? fmtMoney(Math.round(totalContractPrice * (hoveredPoint.actualPct / 100)))
+                        ? fmtMoney(Math.round(scopeBudget * (hoveredPoint.actualPct / 100)))
                         : `${hoveredPoint.actualCount} items`}
                     </strong>
                   </div>
@@ -1117,7 +1082,7 @@ export default function RoadmapSCurve({ board, tasks, onOpenCard, onClose }: Pro
                       {metricMode === 'percent'
                         ? `${hoveredPoint.projectedPct}%`
                         : metricMode === 'cost'
-                        ? fmtMoney(Math.round(totalContractPrice * (hoveredPoint.projectedPct / 100)))
+                        ? fmtMoney(Math.round(scopeBudget * (hoveredPoint.projectedPct / 100)))
                         : `${hoveredPoint.projectedCount} items`}
                     </strong>
                   </div>
@@ -1131,7 +1096,7 @@ export default function RoadmapSCurve({ board, tasks, onOpenCard, onClose }: Pro
                       {metricMode === 'percent'
                         ? `${Math.round((hoveredPoint.actualPct - hoveredPoint.plannedPct) * 10) / 10}%`
                         : metricMode === 'cost'
-                        ? fmtMoney(Math.round(totalContractPrice * ((hoveredPoint.actualPct - hoveredPoint.plannedPct) / 100)))
+                        ? fmtMoney(Math.round(scopeBudget * ((hoveredPoint.actualPct - hoveredPoint.plannedPct) / 100)))
                         : `${Math.round(((hoveredPoint.actualCount ?? 0) - hoveredPoint.plannedCount) * 10) / 10} items`}
                     </strong>
                   </div>

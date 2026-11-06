@@ -65,7 +65,6 @@ export default function App() {
   const updateCard = useWorkStore(s => s.updateCard);
   const syncCurrentUserProfile = useWorkStore(s => s.syncCurrentUserProfile);
   const loadBoardsFromCloud = useWorkStore(s => s.loadBoardsFromCloud);
-  const isLoadingCloud = useWorkStore(s => s.isLoadingCloud);
   const hasLoadedOnce = useWorkStore(s => s.hasLoadedOnce);
   const loadNotificationsFromCloud = useNotifStore(s => s.loadNotificationsFromCloud);
   const addNotification = useNotifStore(s => s.addNotification);
@@ -75,32 +74,15 @@ export default function App() {
   // Track whether auth has been resolved (prevents login-page flash on reload)
   const [authInitialized, setAuthInitialized] = useState(false);
 
-  // Initialize Supabase Auth session & listener on mount with safety timeout
+  // Readiness follows completed requests, never elapsed animation time.
+  const [loadedWorkspaceEmail, setLoadedWorkspaceEmail] = useState<string | null>(null);
   useEffect(() => {
     let mounted = true;
-    const timer = setTimeout(() => {
-      if (mounted) setAuthInitialized(true);
-    }, 2000);
-
     initializeAuth().finally(() => {
       if (mounted) setAuthInitialized(true);
-      clearTimeout(timer);
     });
-
-    return () => {
-      mounted = false;
-      clearTimeout(timer);
-    };
+    return () => { mounted = false; };
   }, [initializeAuth]);
-
-  // Safety fallback: Never keep the user on the global loading screen for more than 2.5 seconds
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setAuthInitialized(true);
-      useWorkStore.setState({ hasLoadedOnce: true });
-    }, 2500);
-    return () => clearTimeout(timer);
-  }, []);
 
   // Pending invite link state
   const [pendingInvite, setPendingInvite] = useState<{ boardId: string; role: MemberRole } | null>(null);
@@ -159,15 +141,24 @@ export default function App() {
     } catch {}
   }, []);
 
-  // Load cloud boards, notifications & custom labels when user is logged in
+  // Wait for every initial workspace request, including notifications and labels.
+  // Cleanup prevents an earlier account's response from releasing a new account's loader.
   useEffect(() => {
-    if (currentUser?.email) {
-      const email = currentUser.email.toLowerCase().trim();
-      loadBoardsFromCloud(email);
-      loadNotificationsFromCloud(email);
-      useSettingsStore.getState().loadCustomLabelsFromCloud(email);
+    if (!authInitialized || !isAuthenticated || !currentUser?.email) {
+      setLoadedWorkspaceEmail(null);
+      return;
     }
-  }, [currentUser?.email, loadBoardsFromCloud, loadNotificationsFromCloud]);
+    let cancelled = false;
+    const email = currentUser.email.toLowerCase().trim();
+    Promise.allSettled([
+      loadBoardsFromCloud(email),
+      loadNotificationsFromCloud(email),
+      useSettingsStore.getState().loadCustomLabelsFromCloud(email),
+    ]).then(() => {
+      if (!cancelled) setLoadedWorkspaceEmail(email);
+    });
+    return () => { cancelled = true; };
+  }, [authInitialized, isAuthenticated, currentUser?.email, loadBoardsFromCloud, loadNotificationsFromCloud]);
 
   // Realtime subscription: auto-refresh boards & notifications when changes happen on Supabase
   useEffect(() => {
@@ -666,7 +657,7 @@ function saveAlertedSet(key: string, setObj: Set<string>) {
 
   // ── Global Loading Screen ──
   // (1) Auth session not yet resolved, OR (2) first cloud fetch not done yet
-  if (!authInitialized || (isAuthenticated && !hasLoadedOnce)) {
+  if (!authInitialized || (isAuthenticated && (!hasLoadedOnce || loadedWorkspaceEmail !== currentEmail))) {
     return (
       <div className="app-layout">
         <AppLoadingScreen isDark={isDark} />

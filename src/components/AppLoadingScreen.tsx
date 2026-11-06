@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React from "react";
 import { motion } from "framer-motion";
 import sidebarDark from "../assets/sidebar-dark.png";
 import sidebarLight from "../assets/sidebar.png";
@@ -9,21 +9,6 @@ interface AppLoadingScreenProps {
 }
 
 export default function AppLoadingScreen({ isDark = true }: AppLoadingScreenProps) {
-  const [progress, setProgress] = useState(0);
-
-  useEffect(() => {
-    const steps = [
-      { target: 30, delay: 0 },
-      { target: 55, delay: 300 },
-      { target: 75, delay: 700 },
-      { target: 85, delay: 1300 },
-    ];
-    const timers: number[] = steps.map(({ target, delay }) =>
-      window.setTimeout(() => setProgress(target), delay)
-    );
-    return () => timers.forEach(clearTimeout);
-  }, []);
-
   const accent = "#6366f1";
   const sub = isDark ? "#94a3b8" : "#475569";
   const logoSrc = isDark ? sidebarDark : sidebarLight;
@@ -102,6 +87,9 @@ export default function AppLoadingScreen({ isDark = true }: AppLoadingScreenProp
 
         {/* Progress bar */}
         <div
+          role="progressbar"
+          aria-label="Loading workspace from database"
+          aria-valuetext="Waiting for workspace data"
           style={{
             width: 240,
             height: 4,
@@ -111,10 +99,11 @@ export default function AppLoadingScreen({ isDark = true }: AppLoadingScreenProp
           }}
         >
           <motion.div
-            animate={{ width: `${progress}%` }}
-            transition={{ duration: 0.5, ease: "easeOut" }}
+            animate={{ x: ['-100%', '250%'] }}
+            transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
             style={{
               height: "100%",
+              width: "40%",
               borderRadius: 99,
               background: `linear-gradient(90deg, ${accent}, #8b5cf6)`,
               boxShadow: `0 0 12px ${accent}80`,

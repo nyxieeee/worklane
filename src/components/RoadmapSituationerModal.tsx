@@ -1,3 +1,4 @@
+import { localReportDate, plannedFraction, recordedFraction, summarizeProgress } from '../reports/projectProgress';
 import React, { useState, useRef, useMemo } from 'react';
 import {
   X, Download, DollarSign, AlertTriangle, CheckCircle2,
@@ -8,7 +9,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import type { Board } from '../types';
 import type { TaskWithScheduleForSCurve } from './RoadmapSCurve';
-import { formatDueDate, deriveCardProgress } from '../utils';
+import { formatDueDate } from '../utils';
 import { computeSuspendedDays } from './RoadmapView';
 import { useWorkStore } from '../store/useWorkStore';
 import { useToastStore } from '../store/useToastStore';
@@ -107,7 +108,7 @@ export default function RoadmapSituationerModal({ board, tasks, onClose }: Props
   const [isDetailedView, setIsDetailedView] = useState<boolean>(false);
 
   const [currency, setCurrency] = useState(() => board.currency || '₱');
-  const [reportDate, setReportDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [reportDate, setReportDate] = useState(() => localReportDate());
   const [reportingPeriod, setReportingPeriod] = useState('Current Reporting Cycle');
   const [preparedBy, setPreparedBy] = useState(() => board.createdBy || 'Project Lead');
   const [executiveNotes, setExecutiveNotes] = useState(
@@ -187,7 +188,7 @@ export default function RoadmapSituationerModal({ board, tasks, onClose }: Props
   const [tempDaysInput, setTempDaysInput] = useState<number>(1);
 
   const printRef = useRef<HTMLDivElement>(null);
-  const now = new Date(reportDate);
+  const now = new Date(`${reportDate}T00:00:00`);
 
   // 2. Resolved column budgets:
   // If tasks in a column have explicit costs entered, those sum up to form the phase budget.
@@ -352,8 +353,6 @@ export default function RoadmapSituationerModal({ board, tasks, onClose }: Props
   // ── Work Breakdown Structure (WBS) & Schedule of Values Data ──
   const { phasesList, overallPlannedPct, overallActualPct, overallPlannedValue, overallActualValue, overallVariancePct, overallVarianceValue, spi } = useMemo(() => {
     const cols = board.columns || [];
-    const reportT = now.getTime();
-
     const list = cols.map((col, colIdx) => {
       const wbsLetter = getWBSLetter(colIdx);
       const colTasks = tasks.filter(t => t.columnId === col.id);
@@ -361,7 +360,7 @@ export default function RoadmapSituationerModal({ board, tasks, onClose }: Props
 
       // Weight is phaseBudget / effectiveTotalBudget * 100
       const phaseWeightPct = effectiveTotalBudget > 0 ? (phaseBudget / effectiveTotalBudget) * 100 : 0;
-      const defaultTaskCost = colTasks.length > 0 ? phaseBudget / colTasks.length : 0;
+      const defaultTaskCost = colTasks.length > 0 ? (phaseBudgets[col.id] ?? phaseBudget) / colTasks.length : 0;
 
       // Map subtasks with WBS numbering
       const subtasks = colTasks.map((t, taskIdx) => {
@@ -371,24 +370,10 @@ export default function RoadmapSituationerModal({ board, tasks, onClose }: Props
         const taskWeightPct = effectiveTotalBudget > 0 ? (taskCost / effectiveTotalBudget) * 100 : 0;
 
         // Planned fraction up to report date (0.0 to 1.0)
-        const sT = t.targetStartDate.getTime();
         const pausedDays = computeSuspendedDays(t.card, t.targetStartDate, now);
         const adjustedEnd = new Date(t.targetEndDate.getTime() + pausedDays * 86400000);
-        const eT = adjustedEnd.getTime();
-        let plannedFrac = 0;
-        if (reportT >= eT) {
-          plannedFrac = 1;
-        } else if (reportT > sT) {
-          plannedFrac = Math.min(1, Math.max(0, (reportT - sT - pausedDays * 86400000) / Math.max(1, t.targetEndDate.getTime() - sT)));
-        }
-
-        // Actual fraction (0.0 to 1.0)
-        let actualFrac = 0;
-        if (t.card.completed) {
-          actualFrac = 1;
-        } else {
-          actualFrac = deriveCardProgress(t.card, col.name) / 100;
-        }
+        const plannedFrac = plannedFraction(t, now);
+        const actualFrac = recordedFraction(t);
 
         const plannedVal = Math.round(taskCost * plannedFrac);
         const actualVal = Math.round(taskCost * actualFrac);
@@ -474,13 +459,12 @@ export default function RoadmapSituationerModal({ board, tasks, onClose }: Props
       };
     });
 
-    const sumPlannedVal = list.reduce((acc, p) => acc + p.plannedValue, 0);
-    const sumActualVal = list.reduce((acc, p) => acc + p.actualValue, 0);
-    const sumPlannedPct = effectiveTotalBudget > 0 ? Math.round((sumPlannedVal / effectiveTotalBudget) * 1000) / 10 : 0;
-    const sumActualPct = effectiveTotalBudget > 0 ? Math.round((sumActualVal / effectiveTotalBudget) * 1000) / 10 : 0;
-    const sumVariancePct = Math.round((sumActualPct - sumPlannedPct) * 10) / 10;
+    const summary = summarizeProgress(list.flatMap(phase => phase.subtasks.map(st => ({ task: st.task, value: st.cost }))), now, effectiveTotalBudget);
+    const sumPlannedVal = summary.plannedValue, sumActualVal = summary.actualValue;
+    const sumPlannedPct = summary.plannedPct, sumActualPct = summary.actualPct;
+    const sumVariancePct = summary.variancePct;
     const sumVarianceVal = sumActualVal - sumPlannedVal;
-    const computedSPI = sumPlannedPct > 0 ? Math.round((sumActualPct / sumPlannedPct) * 100) / 100 : 1.0;
+    const computedSPI = summary.spi;
 
     return {
       phasesList: list,
@@ -531,7 +515,11 @@ export default function RoadmapSituationerModal({ board, tasks, onClose }: Props
 
     const reportT = now.getTime();
 
-    for (let d = new Date(minDate); d <= maxDate; d.setDate(d.getDate() + stepDays)) {
+    // Include the exact reporting date and both endpoints even on sampled timelines.
+    const sampleTimes = new Set<number>([minDate.getTime(), maxDate.getTime(), reportT]);
+    for (let d = new Date(minDate); d <= maxDate; d.setDate(d.getDate() + stepDays)) sampleTimes.add(d.getTime());
+    for (const sampleTime of [...sampleTimes].sort((a, b) => a - b)) {
+      const d = new Date(sampleTime);
       const curT = d.getTime();
       const isPastOrToday = curT <= reportT;
 
@@ -542,48 +530,38 @@ export default function RoadmapSituationerModal({ board, tasks, onClose }: Props
       phasesList.forEach(phase => {
         phase.subtasks.forEach(st => {
           const sT = st.task.targetStartDate.getTime();
-          const eT = st.task.targetEndDate.getTime();
           const pT = st.task.actualOrProjectedEndDate.getTime();
+          plannedFracSum += st.weightPct * plannedFraction(st.task, d);
 
-          // Planned
-          if (curT >= eT) {
-            plannedFracSum += st.weightPct;
-          } else if (curT > sT) {
-            plannedFracSum += st.weightPct * ((curT - sT) / Math.max(1, eT - sT));
-          }
-
-          // Actual (up to report date)
+          // Historical segments are estimates; the report-date endpoint is recorded accomplishment.
+          const actualStart = st.task.card.actualStartDate
+            ? new Date(st.task.card.actualStartDate).getTime() : sT;
           if (isPastOrToday) {
-            if (st.task.card.completed) {
-              const compT = st.task.card.completedAt ? new Date(st.task.card.completedAt).getTime() : eT;
-              if (curT >= compT) actualFracSum += st.weightPct;
-              else if (curT > sT) actualFracSum += st.weightPct * ((curT - sT) / Math.max(1, compT - sT));
-            } else {
-              const prog = (st.task.card.progress || 0) / 100;
-              if (curT >= reportT) actualFracSum += st.weightPct * prog;
-              else if (curT > sT) actualFracSum += st.weightPct * prog * ((curT - sT) / Math.max(1, reportT - sT));
-            }
+            const completionDate = st.task.card.actualEndDate || st.task.card.completedAt;
+            const actualEnd = st.task.card.completed && completionDate ? new Date(completionDate).getTime() : reportT;
+            const fraction = curT === reportT ? st.actualFrac
+              : st.actualFrac * Math.min(1, Math.max(0, (curT - actualStart) / Math.max(1, actualEnd - actualStart)));
+            actualFracSum += st.weightPct * fraction;
           }
-
-          // Projected
-          if (curT >= pT) {
-            projectedFracSum += st.weightPct;
-          } else if (curT > sT) {
-            projectedFracSum += st.weightPct * ((curT - sT) / Math.max(1, pT - sT));
+          // Forecast starts at the same recorded point, then earns remaining work.
+          if (curT >= reportT) {
+            const forecastEnd = Math.max(reportT + 86400000, pT);
+            const fraction = st.actualFrac + (1 - st.actualFrac)
+              * Math.min(1, Math.max(0, (curT - reportT) / (forecastEnd - reportT)));
+            projectedFracSum += st.weightPct * fraction;
           }
         });
       });
 
       const pPct = Math.min(100, Math.max(0, Math.round(plannedFracSum * 10) / 10));
       const aPct = isPastOrToday ? Math.min(100, Math.max(0, Math.round(actualFracSum * 10) / 10)) : null;
-      const projPct = !isPastOrToday ? Math.min(100, Math.max(0, Math.round(projectedFracSum * 10) / 10)) : null;
+      const projPct = curT >= reportT ? Math.min(100, Math.max(0, Math.round(projectedFracSum * 10) / 10)) : null;
 
       const pVal = Math.round((pPct / 100) * effectiveTotalBudget);
       const aVal = aPct !== null ? Math.round((aPct / 100) * effectiveTotalBudget) : null;
       const projVal = projPct !== null ? Math.round((projPct / 100) * effectiveTotalBudget) : null;
 
-      const diffFromToday = Math.abs(curT - reportT);
-      const isToday = diffFromToday <= (stepDays * 86400000) / 2;
+      const isToday = curT === reportT;
 
       points.push({
         date: new Date(d),
