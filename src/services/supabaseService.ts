@@ -475,7 +475,11 @@ export const supabaseService = {
             position: idx,
           };
         });
-        await supabase.from('columns').upsert(colRows, { onConflict: 'id' });
+        const { error: columnSaveError } = await supabase.from('columns').upsert(colRows, { onConflict: 'id' });
+        if (columnSaveError) {
+          console.error('[SupabaseService] Building budgets could not be saved:', columnSaveError);
+          return false;
+        }
       }
       if (currentColIds.length > 0) {
         await supabase
@@ -566,7 +570,11 @@ export const supabaseService = {
           };
         });
 
-        await supabase.from('cards').upsert(cardRows, { onConflict: 'id' });
+        const { error: cardSaveError } = await supabase.from('cards').upsert(cardRows, { onConflict: 'id' });
+        if (cardSaveError) {
+          console.error('[SupabaseService] Card values could not be saved:', cardSaveError);
+          return false;
+        }
 
         // Batch Assignees (Non-destructive Diff Sync)
         const desiredAssigneesMap = new Map<string, { card_id: string; member_id: string }>();

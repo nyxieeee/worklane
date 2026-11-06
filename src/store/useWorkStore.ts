@@ -1,3 +1,4 @@
+import { useToastStore } from './useToastStore';
 import { create } from 'zustand';
 import type { Board, Column, Card, Member, MemberRole, Attachment, Comment, Sprint } from '../types';
 import { AVATAR_COLORS, LABELS } from '../types';
@@ -153,27 +154,44 @@ export function markLocalBoardMutation(boardId: string) {
   lastLocalMutationTimes.set(boardId, Date.now());
 }
 
-export function scheduleBoardSync(board: Board, delayMs = 60) {
-  if (!board || !board.id) return;
+const queuedSyncBoards = new Set<string>();
+const failedSyncBoards = new Set<string>();
 
+export function scheduleBoardSync(board: Board, delayMs = 60) {
+  if (!board?.id) return;
   const boardId = board.id;
   markLocalBoardMutation(boardId);
-
   const existing = syncTimers.get(boardId);
   if (existing) clearTimeout(existing);
-
   const timer = window.setTimeout(async () => {
     syncTimers.delete(boardId);
+    // One writer per board: a slow older write must finish before the latest one starts.
+    if (activeSyncBoards.has(boardId)) {
+      queuedSyncBoards.add(boardId);
+      return;
+    }
     activeSyncBoards.add(boardId);
     try {
       const freshBoard = useWorkStore.getState().boards.find(b => b.id === boardId) || board;
-      await supabaseService.syncBoard(freshBoard);
+      const saved = await supabaseService.syncBoard(freshBoard);
+      if (saved) failedSyncBoards.delete(boardId);
+      else {
+        failedSyncBoards.add(boardId);
+        useToastStore.getState().showToast('Changes are still on this screen but could not be saved to the database. Check your connection and save again.', 'error');
+      }
+    } catch (error) {
+      failedSyncBoards.add(boardId);
+      console.error('Board save failed', error);
+      useToastStore.getState().showToast('Database save failed. Your edits are still on this screen; please save again.', 'error');
     } finally {
       activeSyncBoards.delete(boardId);
       markLocalBoardMutation(boardId);
+      if (queuedSyncBoards.delete(boardId)) {
+        const latest = useWorkStore.getState().boards.find(b => b.id === boardId);
+        if (latest) scheduleBoardSync(latest, 0);
+      }
     }
   }, delayMs);
-
   syncTimers.set(boardId, timer);
 }
 
@@ -227,6 +245,7 @@ export const useWorkStore = create<WorkState>()(
           set({ isLoadingCloud: true });
 
           try {
+            const cloudLoadStartedAt = Date.now();
             const cloudBoards = await supabaseService.getBoardsForUser(cleanEmail);
 
             if (!cloudBoards) {
@@ -298,7 +317,7 @@ export const useWorkStore = create<WorkState>()(
                 const hasPendingSync = syncTimers.has(cb.id);
                 const isActivelySyncing = activeSyncBoards.has(cb.id);
                 const lastEdit = lastLocalMutationTimes.get(cb.id) || 0;
-                const isRecentLocalEdit = (now - lastEdit) < 3000;
+                const isRecentLocalEdit = (now - lastEdit) < 3000 || lastEdit >= cloudLoadStartedAt;
 
                 // Filter out recently removed members and preserve optimistic styles and avatars
                 const cloudMembersFiltered = (cb.members || []).filter(
@@ -338,9 +357,10 @@ export const useWorkStore = create<WorkState>()(
                 if (isRoadmap) saveKnownRoadmapId(cb.id);
                 const bDesc = memBoard.description || cb.description || '';
 
-                if (hasPendingSync || isActivelySyncing || isRecentLocalEdit) {
+                if (hasPendingSync || isActivelySyncing || isRecentLocalEdit || queuedSyncBoards.has(cb.id) || failedSyncBoards.has(cb.id)) {
                   return {
                     ...cb,
+                    ...memBoard,
                     type: bType,
                     description: bDesc,
                     name: memBoard.name,

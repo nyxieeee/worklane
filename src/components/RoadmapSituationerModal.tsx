@@ -300,13 +300,18 @@ export default function RoadmapSituationerModal({ board, tasks, onClose }: Props
 
   // Save Task Cost
   const handleSaveTaskCost = (cardId: string, colId: string) => {
-    const num = Number(tempTaskCostInput.replace(/,/g, '').trim() || NaN);
+    const parsed = Number(tempTaskCostInput.replace(/,/g, '').trim() || NaN);
+    if (!Number.isFinite(parsed) || parsed < 0) {
+      showToast('Enter a valid amount of zero or more', 'error');
+      return;
+    }
+    const num = Math.round((parsed + Number.EPSILON) * 100) / 100;
     if (!isNaN(num) && num >= 0) {
       const siblings = tasks.filter(t => t.columnId === colId);
       const allocated = Object.fromEntries(siblings.map(t => [t.card.id,
         t.card.id === cardId ? num : (taskCosts[t.card.id] ?? t.card.cost ?? ((resolvedPhaseBudgets[colId] || 0) / Math.max(1, siblings.length)))]));
       setTaskCosts(prev => ({ ...prev, ...allocated }));
-      siblings.forEach(t => updateCard(t.card.id, { cost: allocated[t.card.id] }));
+      siblings.filter(t => t.card.id === cardId || t.card.cost == null).forEach(t => updateCard(t.card.id, { cost: allocated[t.card.id] }));
 
       // Automatically recalculate parent phase's budget
       const colTasks = tasks.filter(t => t.columnId === colId);
@@ -325,7 +330,7 @@ export default function RoadmapSituationerModal({ board, tasks, onClose }: Props
       });
       updateColumnBudget(colId, nextColSum);
 
-      showToast('Deliverable contract value updated', 'success');
+      showToast('Value updated; saving to database…', 'info');
     }
     setEditingCostCardId(null);
   };
@@ -975,7 +980,7 @@ export default function RoadmapSituationerModal({ board, tasks, onClose }: Props
                     style={{ width: 18, height: 18, padding: 0 }}
                     onClick={() => {
                       setIsEditingTotalBudget(true);
-                      setTempTotalBudgetInput(String(effectiveTotalBudget));
+                      setTempTotalBudgetInput(effectiveTotalBudget.toFixed(2));
                     }}
                     title="Click to edit Contract Price"
                   >
@@ -1638,7 +1643,7 @@ export default function RoadmapSituationerModal({ board, tasks, onClose }: Props
                                 <span
                                   onClick={() => {
                                     setEditingBudgetColId(phase.id);
-                                    setTempBudgetInput(String(phase.budget));
+                                    setTempBudgetInput(phase.budget.toFixed(2));
                                   }}
                                   style={{ cursor: 'pointer', borderBottom: '1px dashed hsl(var(--border))' }}
                                   title="Click to edit phase contract value"
@@ -1759,6 +1764,8 @@ export default function RoadmapSituationerModal({ board, tasks, onClose }: Props
                                         autoFocus
                                         value={tempTaskCostInput}
                                         onChange={e => setTempTaskCostInput(e.target.value)}
+                                        aria-label="Item contract value"
+                                        onBlur={() => handleSaveTaskCost(st.task.card.id, phase.id)}
                                         onKeyDown={e => {
                                           if (e.key === 'Enter') handleSaveTaskCost(st.task.card.id, phase.id);
                                           if (e.key === 'Escape') setEditingCostCardId(null);
@@ -1779,6 +1786,9 @@ export default function RoadmapSituationerModal({ board, tasks, onClose }: Props
                                         type="button"
                                         className="icon-btn"
                                         style={{ width: 18, height: 18, padding: 0 }}
+                                        aria-label="Save item value"
+                                        title="Save item value (or press Enter)"
+                                        onMouseDown={e => e.preventDefault()}
                                         onClick={() => handleSaveTaskCost(st.task.card.id, phase.id)}
                                       >
                                         <Check size={11} color="#10b981" />
@@ -1788,7 +1798,7 @@ export default function RoadmapSituationerModal({ board, tasks, onClose }: Props
                                     <span
                                       onClick={() => {
                                         setEditingCostCardId(st.task.card.id);
-                                        setTempTaskCostInput(String(st.cost));
+                                        setTempTaskCostInput(st.cost.toFixed(2));
                                       }}
                                       style={{
                                         cursor: 'pointer',
@@ -2116,7 +2126,7 @@ export default function RoadmapSituationerModal({ board, tasks, onClose }: Props
                           <span
                             onClick={() => {
                               setIsEditingTotalBudget(true);
-                              setTempTotalBudgetInput(String(effectiveTotalBudget));
+                              setTempTotalBudgetInput(effectiveTotalBudget.toFixed(2));
                             }}
                             style={{
                               cursor: 'pointer',
