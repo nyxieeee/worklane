@@ -3003,3 +3003,11 @@ select option {
 .scurve-summary-track-slot { display: flex; align-items: center; }
 .scurve-summary-track { width: 100%; height: 4px; border-radius: 2px; background: hsl(var(--muted-foreground) / 0.15); overflow: hidden; }
 .scurve-summary-track > div { height: 100%; border-radius: inherit; }
+
+.task-order-controls { display: inline-flex; align-items: center; flex-shrink: 0; gap: 1px; }
+.task-order-arrows { display: flex; flex-direction: column; }
+.task-order-button { display: inline-flex; align-items: center; justify-content: center; width: 18px; min-height: 18px; padding: 2px; border: 0; border-radius: 4px; background: transparent; color: hsl(var(--muted-foreground)); cursor: pointer; }
+.task-order-button[draggable="true"] { cursor: grab; }
+.task-order-button:hover:not(:disabled), .task-order-button:focus-visible { color: hsl(var(--primary)); background: hsl(var(--primary) / 0.12); }
+.task-order-button:disabled { opacity: 0.25; cursor: default; }
+@media (pointer: coarse) { .task-order-button { min-width: 28px; min-height: 28px; } }

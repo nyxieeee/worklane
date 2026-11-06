@@ -1,3 +1,4 @@
+import TaskOrderControls, { taskOrderDropHandlers } from './TaskOrderControls';
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
   ChevronLeft, ChevronRight,
@@ -1948,12 +1949,14 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
                             return (
                               <div
                                 key={t.card.id}
+                                {...taskOrderDropHandlers(board, t.columnId, t.card.id, isObserver)}
                                 className={`roadmap-task-row ${t.card.completed ? 'completed' : ''}`}
                                 onClick={() => onOpenCard(t.card.id)}
                                 title={`Open "${t.card.title}"`}
                               >
                                 {/* 1. Task Column */}
                                 <div className="roadmap-col-task">
+                                  <TaskOrderControls board={board} columnId={t.columnId} cardId={t.card.id} disabled={isObserver} />
                                   <button type="button" className="roadmap-check-btn"
                                     onClick={(e) => handleToggleComplete(e, t.card)}
                                     title={t.card.completed ? 'Mark incomplete' : 'Mark complete'}

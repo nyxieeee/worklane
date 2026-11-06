@@ -1,3 +1,4 @@
+import TaskOrderControls, { taskOrderDropHandlers } from './TaskOrderControls';
 import { localReportDate, plannedFraction, recordedFraction, summarizeProgress } from '../reports/projectProgress';
 import React, { useState, useRef, useMemo } from 'react';
 import {
@@ -1734,6 +1735,7 @@ export default function RoadmapSituationerModal({ board, tasks, onClose }: Props
                             return (
                               <React.Fragment key={st.task.card.id}>
                                 <tr
+                                  {...taskOrderDropHandlers(board, phase.id, st.task.card.id)}
                                   style={{
                                     borderBottom: '1px solid hsl(var(--border) / 0.2)',
                                     background: 'transparent',
@@ -1741,6 +1743,7 @@ export default function RoadmapSituationerModal({ board, tasks, onClose }: Props
                                 >
                                 <td style={{ padding: '7px 8px 7px 32px' }}>
                                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                    <TaskOrderControls board={board} columnId={phase.id} cardId={st.task.card.id} />
                                     <span style={{ fontSize: 10.5, fontWeight: 700, color: 'hsl(var(--muted-foreground))' }}>
                                       {st.wbsCode}
                                     </span>

@@ -55,6 +55,7 @@ interface WorkState {
   addCard: (colId: string, title: string) => Card;
   updateCard: (cardId: string, patch: Partial<Card>) => void;
   deleteCard: (cardId: string) => void;
+  reorderCard: (boardId: string, colId: string, cardId: string, beforeCardId: string | null) => void;
   moveCard: (cardId: string, fromColId: string, toColId: string, afterCardId?: string) => void;
   undoLastMove: () => void;
   toggleCardComplete: (cardId: string) => void;
@@ -1156,6 +1157,24 @@ export const useWorkStore = create<WorkState>()(
           };
         });
         if (targetBoard) scheduleBoardSync(targetBoard, 50);
+      },
+
+      reorderCard: (boardId, colId, cardId, beforeCardId) => {
+        let changed: Board | undefined;
+        set(state => {
+          const board = state.boards.find(b => b.id === boardId);
+          const column = board?.columns.find(c => c.id === colId);
+          const card = column?.cards.find(c => c.id === cardId);
+          if (!board || !column || !card || cardId === beforeCardId
+            || (beforeCardId !== null && !column.cards.some(c => c.id === beforeCardId))) return state;
+          const cards = column.cards.filter(c => c.id !== cardId);
+          const index = beforeCardId === null ? cards.length : cards.findIndex(c => c.id === beforeCardId);
+          cards.splice(index, 0, card);
+          if (cards.every((c, i) => c.id === column.cards[i].id)) return state;
+          changed = { ...board, columns: board.columns.map(c => c.id === colId ? { ...c, cards } : c) };
+          return { boards: state.boards.map(b => b.id === boardId ? changed! : b) };
+        });
+        if (changed) scheduleBoardSync(changed, 50);
       },
 
       moveCard: (cardId, fromColId, toColId, afterCardId) => {
