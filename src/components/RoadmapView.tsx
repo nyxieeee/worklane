@@ -131,22 +131,19 @@ export function isMilestoneTask(card: CardType): boolean {
  * a task's actual start date and the given reference date (usually today).
  * Days in suspension ranges are excluded from elapsed-time variance calc.
  */
-export function computeSuspendedDays(card: CardType, from: Date, upTo: Date): number {
+export function computeSuspendedDays(card: Pick<CardType, 'workSuspensions'>, from: Date, upTo: Date): number {
   const suspensions = card.workSuspensions;
   if (!suspensions || suspensions.length === 0) return 0;
-  let total = 0;
-  for (const s of suspensions) {
-    const sFrom = new Date(s.from);
-    sFrom.setHours(0, 0, 0, 0);
-    const sTo = new Date(s.to);
-    sTo.setHours(23, 59, 59, 999);
-    // Clamp to [from, upTo] window
-    const overlapStart = Math.max(from.getTime(), sFrom.getTime());
-    const overlapEnd = Math.min(upTo.getTime(), sTo.getTime());
-    if (overlapEnd > overlapStart) {
-      total += Math.round((overlapEnd - overlapStart) / 86400000);
+  const dates = new Set<string>();
+  for (const suspension of suspensions) {
+    const start = new Date(suspension.from.slice(0, 10) + 'T00:00:00');
+    const end = new Date(suspension.to.slice(0, 10) + 'T00:00:00');
+    for (const day = new Date(Math.max(start.getTime(), new Date(from.getFullYear(), from.getMonth(), from.getDate()).getTime()));
+      day <= end && day <= upTo; day.setDate(day.getDate() + 1)) {
+      dates.add(toLocalDateString(day));
     }
   }
+  const total = dates.size;
   return total;
 }
 
@@ -672,7 +669,7 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
               // Task past target date: projected date extends from today based on remaining progress.
               // Subtract suspended days so paused periods don't inflate the delay.
               const remainingPct = Math.max(0.1, (100 - progressPct) / 100);
-              const extraDays = Math.max(1, Math.ceil(plannedDays * remainingPct) - suspendedDays);
+              const extraDays = Math.max(1, Math.ceil(plannedDays * remainingPct));
               actOrProjEnd = new Date(today.getTime() + extraDays * 86400000);
             } else if (today.getTime() > targetStart.getTime()) {
               // Task in flight: project slippage if pace is lagging.
@@ -721,7 +718,7 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
         // 5. Variance (in days) = Actual/Projected End − Target End
         //    Suspended days are already factored into actOrProjEnd, so the
         //    variance naturally reflects only real work-time delay.
-        const varianceDays = Math.round((actOrProjEnd.getTime() - targetEnd.getTime()) / 86400000);
+        const varianceDays = Math.round((actOrProjEnd.getTime() - targetEnd.getTime()) / 86400000) - suspendedDays;
         const startVarianceDays = card.actualStartDate
           ? Math.round((actStart.getTime() - targetStart.getTime()) / 86400000)
           : 0;

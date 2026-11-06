@@ -8,7 +8,8 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import type { Board } from '../types';
 import type { TaskWithScheduleForSCurve } from './RoadmapSCurve';
-import { formatDueDate } from '../utils';
+import { formatDueDate, deriveCardProgress } from '../utils';
+import { computeSuspendedDays } from './RoadmapView';
 import { useWorkStore } from '../store/useWorkStore';
 import { useToastStore } from '../store/useToastStore';
 import DailyReportAnalyzerModal from './DailyReportAnalyzerModal';
@@ -197,12 +198,12 @@ export default function RoadmapSituationerModal({ board, tasks, onClose }: Props
       const colTasks = tasks.filter(t => t.columnId === col.id);
       const hasExplicitSubtaskCosts = colTasks.some(t => {
         const c = taskCosts[t.card.id] !== undefined ? taskCosts[t.card.id] : t.card.cost;
-        return c !== undefined && c > 0;
+        return c !== undefined && c !== null;
       });
 
       if (hasExplicitSubtaskCosts) {
         const subSum = colTasks.reduce((acc, t) => {
-          const c = taskCosts[t.card.id] !== undefined ? taskCosts[t.card.id] : (t.card.cost || 0);
+          const c = taskCosts[t.card.id] !== undefined ? taskCosts[t.card.id] : (t.card.cost ?? ((phaseBudgets[col.id] || 0) / Math.max(1, colTasks.length)));
           return acc + c;
         }, 0);
         map[col.id] = subSum;
@@ -228,7 +229,7 @@ export default function RoadmapSituationerModal({ board, tasks, onClose }: Props
 
   // Save Total Budget
   const handleSaveTotalBudget = () => {
-    const num = parseFloat(tempTotalBudgetInput.replace(/,/g, ''));
+    const num = Number(tempTotalBudgetInput.replace(/,/g, '').trim() || NaN);
     if (!isNaN(num) && num > 0) {
       setCustomTotalBudget(num);
       updateBoardBudget(board.id, num, currency);
@@ -243,6 +244,12 @@ export default function RoadmapSituationerModal({ board, tasks, onClose }: Props
           const ratio = curBudget / currentSum;
           const newColBudget = Math.round(num * ratio * 100) / 100;
           nextPhaseBudgets[col.id] = newColBudget;
+          const children = tasks.filter(t => t.columnId === col.id);
+          const allocations = Object.fromEntries(children.map(t => [t.card.id,
+            curBudget > 0 ? newColBudget * ((taskCosts[t.card.id] ?? t.card.cost ?? curBudget / children.length) / curBudget)
+              : newColBudget / children.length]));
+          setTaskCosts(prev => ({ ...prev, ...allocations }));
+          children.forEach(t => updateCard(t.card.id, { cost: allocations[t.card.id] }));
           updateColumnBudget(col.id, newColBudget);
         });
         setPhaseBudgets(nextPhaseBudgets);
@@ -267,7 +274,7 @@ export default function RoadmapSituationerModal({ board, tasks, onClose }: Props
 
   // Save Phase Budget
   const handleSavePhaseBudget = (colId: string) => {
-    const num = parseFloat(tempBudgetInput.replace(/,/g, ''));
+    const num = Number(tempBudgetInput.replace(/,/g, '').trim() || NaN);
     if (!isNaN(num) && num >= 0) {
       setPhaseBudgets(prev => {
         const next = { ...prev, [colId]: num };
@@ -277,6 +284,13 @@ export default function RoadmapSituationerModal({ board, tasks, onClose }: Props
         }
         return next;
       });
+      const children = tasks.filter(t => t.columnId === colId);
+      const oldTotal = resolvedPhaseBudgets[colId] || 0;
+      const allocations = Object.fromEntries(children.map(t => [t.card.id, oldTotal > 0
+        ? num * ((taskCosts[t.card.id] ?? t.card.cost ?? oldTotal / children.length) / oldTotal)
+        : num / children.length]));
+      setTaskCosts(prev => ({ ...prev, ...allocations }));
+      children.forEach(t => updateCard(t.card.id, { cost: allocations[t.card.id] }));
       updateColumnBudget(colId, num);
       showToast('Phase contract value updated', 'success');
     }
@@ -285,15 +299,18 @@ export default function RoadmapSituationerModal({ board, tasks, onClose }: Props
 
   // Save Task Cost
   const handleSaveTaskCost = (cardId: string, colId: string) => {
-    const num = parseFloat(tempTaskCostInput.replace(/,/g, ''));
+    const num = Number(tempTaskCostInput.replace(/,/g, '').trim() || NaN);
     if (!isNaN(num) && num >= 0) {
-      setTaskCosts(prev => ({ ...prev, [cardId]: num }));
-      updateCard(cardId, { cost: num });
+      const siblings = tasks.filter(t => t.columnId === colId);
+      const allocated = Object.fromEntries(siblings.map(t => [t.card.id,
+        t.card.id === cardId ? num : (taskCosts[t.card.id] ?? t.card.cost ?? ((resolvedPhaseBudgets[colId] || 0) / Math.max(1, siblings.length)))]));
+      setTaskCosts(prev => ({ ...prev, ...allocated }));
+      siblings.forEach(t => updateCard(t.card.id, { cost: allocated[t.card.id] }));
 
       // Automatically recalculate parent phase's budget
       const colTasks = tasks.filter(t => t.columnId === colId);
       const nextColSum = colTasks.reduce((acc, t) => {
-        const c = t.card.id === cardId ? num : (taskCosts[t.card.id] !== undefined ? taskCosts[t.card.id] : (t.card.cost || 0));
+        const c = t.card.id === cardId ? num : allocated[t.card.id];
         return acc + c;
       }, 0);
 
@@ -313,7 +330,11 @@ export default function RoadmapSituationerModal({ board, tasks, onClose }: Props
   };
 
   const handleSaveSubtaskDays = (cardId: string, currentStartDate: Date, newDays: number) => {
-    const days = Math.max(1, newDays);
+    if (!Number.isInteger(newDays) || newDays < 1) {
+      showToast('Enter at least one day before saving', 'error');
+      return;
+    }
+    const days = newDays;
     const startIso = currentStartDate.toISOString().split('T')[0];
     const newDueDate = new Date(currentStartDate);
     newDueDate.setDate(newDueDate.getDate() + days - 1);
@@ -346,17 +367,19 @@ export default function RoadmapSituationerModal({ board, tasks, onClose }: Props
       const subtasks = colTasks.map((t, taskIdx) => {
         const subtaskWBS = `Item ${wbsLetter}.${taskIdx + 1}`;
         const explicitCost = taskCosts[t.card.id] !== undefined ? taskCosts[t.card.id] : t.card.cost;
-        const taskCost = explicitCost !== undefined && explicitCost > 0 ? explicitCost : defaultTaskCost;
+        const taskCost = explicitCost !== undefined && explicitCost !== null ? explicitCost : defaultTaskCost;
         const taskWeightPct = effectiveTotalBudget > 0 ? (taskCost / effectiveTotalBudget) * 100 : 0;
 
         // Planned fraction up to report date (0.0 to 1.0)
         const sT = t.targetStartDate.getTime();
-        const eT = t.targetEndDate.getTime();
+        const pausedDays = computeSuspendedDays(t.card, t.targetStartDate, now);
+        const adjustedEnd = new Date(t.targetEndDate.getTime() + pausedDays * 86400000);
+        const eT = adjustedEnd.getTime();
         let plannedFrac = 0;
         if (reportT >= eT) {
           plannedFrac = 1;
         } else if (reportT > sT) {
-          plannedFrac = Math.min(1, Math.max(0, (reportT - sT) / Math.max(1, eT - sT)));
+          plannedFrac = Math.min(1, Math.max(0, (reportT - sT - pausedDays * 86400000) / Math.max(1, t.targetEndDate.getTime() - sT)));
         }
 
         // Actual fraction (0.0 to 1.0)
@@ -364,7 +387,7 @@ export default function RoadmapSituationerModal({ board, tasks, onClose }: Props
         if (t.card.completed) {
           actualFrac = 1;
         } else {
-          actualFrac = (t.card.progress || 0) / 100;
+          actualFrac = deriveCardProgress(t.card, col.name) / 100;
         }
 
         const plannedVal = Math.round(taskCost * plannedFrac);
@@ -376,11 +399,13 @@ export default function RoadmapSituationerModal({ board, tasks, onClose }: Props
 
         // Friendly Status Badge
         let statusBadge = { label: 'On Track', color: '#10b981', bg: 'rgba(16,185,129,0.15)' };
-        if (t.card.completed) {
+        if (!t.card.completed && (t.card.workSuspensions || []).some(p => p.from.slice(0, 10) <= reportDate && p.to.slice(0, 10) >= reportDate)) {
+          statusBadge = { label: 'Paused', color: '#f59e0b', bg: 'rgba(245,158,11,0.15)' };
+        } else if (t.card.completed) {
           statusBadge = { label: 'Completed', color: '#10b981', bg: 'rgba(16,185,129,0.2)' };
         } else if (varianceWeightPct > 0.05) {
           statusBadge = { label: 'Ahead', color: '#3b82f6', bg: 'rgba(59,130,246,0.15)' };
-        } else if (varianceWeightPct < -0.05 || (t.targetEndDate < now && !t.card.completed)) {
+        } else if (varianceWeightPct < -0.05 || (adjustedEnd < now && !t.card.completed)) {
           statusBadge = { label: 'Delayed', color: '#ef4444', bg: 'rgba(239,68,68,0.15)' };
         }
 
@@ -389,7 +414,7 @@ export default function RoadmapSituationerModal({ board, tasks, onClose }: Props
           wbsCode: subtaskWBS,
           title: t.card.title,
           cost: taskCost,
-          isExplicitCost: explicitCost !== undefined && explicitCost > 0,
+          isExplicitCost: explicitCost !== undefined && explicitCost !== null,
           weightPct: taskWeightPct,
           plannedFrac,
           actualFrac,
@@ -650,7 +675,7 @@ export default function RoadmapSituationerModal({ board, tasks, onClose }: Props
   }, [tasks, board.startDate, board.endDate]);
 
   // Critical risks & delayed tasks
-  const criticalDelayedTasks = tasks.filter(t => !t.card.completed && (t.varianceDays > 2 || (t.targetEndDate < now && !t.card.completed)));
+  const criticalDelayedTasks = tasks.filter(t => !t.card.completed && t.varianceDays > 2 && !(t.card.workSuspensions || []).some(p => p.from.slice(0, 10) <= reportDate && p.to.slice(0, 10) >= reportDate));
 
   const handlePrint = () => {
     // Switch to full document view before print
@@ -937,9 +962,16 @@ export default function RoadmapSituationerModal({ board, tasks, onClose }: Props
               <div>
                 <span style={{ color: 'hsl(var(--muted-foreground))', display: 'block', fontSize: 10, fontWeight: 600 }}>Total Contract Price:</span>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                  <span style={{ fontSize: 13, fontWeight: 800, color: 'hsl(var(--primary))' }}>
+                  {isEditingTotalBudget ? <div style={{ display: 'flex', gap: 6 }}>
+                    <input aria-label="Total contract price" type="text" inputMode="decimal" autoFocus
+                      value={tempTotalBudgetInput} onChange={e => setTempTotalBudgetInput(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter') handleSaveTotalBudget(); if (e.key === 'Escape') setIsEditingTotalBudget(false); }}
+                      className="text-input" style={{ width: 160 }} />
+                    <button type="button" className="btn btn-primary" onClick={handleSaveTotalBudget}>Save</button>
+                    <button type="button" className="btn btn-secondary" onClick={() => setIsEditingTotalBudget(false)}>Cancel</button>
+                  </div> : <span style={{ fontSize: 13, fontWeight: 800, color: 'hsl(var(--primary))' }}>
                     {fmtMoney(effectiveTotalBudget)}
-                  </span>
+                  </span>}
                   <button
                     type="button"
                     className="icon-btn"
@@ -1368,8 +1400,8 @@ export default function RoadmapSituationerModal({ board, tasks, onClose }: Props
                                       min={1}
                                       max={365}
                                       autoFocus
-                                      value={tempDaysInput}
-                                      onChange={e => setTempDaysInput(parseInt(e.target.value, 10) || 1)}
+                                      value={tempDaysInput || ''}
+                                      onChange={e => setTempDaysInput(parseInt(e.target.value, 10) || 0)}
                                       onKeyDown={e => {
                                         if (e.key === 'Enter') handleSaveSubtaskDays(st.task.card.id, st.task.targetStartDate, tempDaysInput);
                                         if (e.key === 'Escape') setEditingDaysCardId(null);
@@ -1576,7 +1608,7 @@ export default function RoadmapSituationerModal({ board, tasks, onClose }: Props
                               {isEditingPhaseBudget ? (
                                 <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
                                   <input
-                                    type="number"
+                                    type="text" inputMode="decimal"
                                     autoFocus
                                     value={tempBudgetInput}
                                     onChange={e => setTempBudgetInput(e.target.value)}
@@ -1726,7 +1758,7 @@ export default function RoadmapSituationerModal({ board, tasks, onClose }: Props
                                   {isEditingTaskCost ? (
                                     <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
                                       <input
-                                        type="number"
+                                        type="text" inputMode="decimal"
                                         autoFocus
                                         value={tempTaskCostInput}
                                         onChange={e => setTempTaskCostInput(e.target.value)}
@@ -2053,7 +2085,7 @@ export default function RoadmapSituationerModal({ board, tasks, onClose }: Props
                         {isEditingTotalBudget ? (
                           <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
                             <input
-                              type="number"
+                              type="text" inputMode="decimal"
                               autoFocus
                               value={tempTotalBudgetInput}
                               onChange={e => setTempTotalBudgetInput(e.target.value)}

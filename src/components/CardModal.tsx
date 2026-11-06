@@ -2559,7 +2559,7 @@ function CardModalInner({ cardId, result, onClose }: InnerProps) {
               <div className="form-group" style={{ marginBottom: 16 }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
                   <label className="field-label" style={{ display: 'flex', alignItems: 'center', gap: 6, margin: 0 }}>
-                    Work Suspensions
+                    Pause work on selected days
                     {(card.workSuspensions || []).length > 0 && (
                       <span style={{
                         fontSize: 10,
@@ -2594,7 +2594,7 @@ function CardModalInner({ cardId, result, onClose }: InnerProps) {
                 </div>
                 {(card.workSuspensions || []).length === 0 ? (
                   <p style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))', margin: 0, padding: '6px 0' }}>
-                    No work pauses logged. Add a pause if work was stopped and resumed (e.g. client hold, holiday shutdown). Paused days are excluded from variance calculations.
+                    Add a start and end date for each pause, including a single day. Use a reason such as “Waiting for devices” or “Crew working at another building”. Preparation and device installation can have separate scheduled dates; record preparation as completed and schedule installation for when devices are available. Paused days are excluded from delay calculations.
                   </p>
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -3167,6 +3167,21 @@ function CardModalInner({ cardId, result, onClose }: InnerProps) {
               </div>
             )}
 
+            {isRoadmap && <div className="form-group">
+              <label className="field-label" htmlFor="task-contract-value">Item contract value</label>
+              <input id="task-contract-value" key={`${cardId}-${card.cost ?? 'unset'}`} type="text" inputMode="decimal"
+                className="text-input" defaultValue={card.cost?.toLocaleString(undefined, { maximumFractionDigits: 2 }) ?? ''}
+                placeholder="Enter amount, e.g. 83,333.33"
+                onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur(); }}
+                onBlur={e => {
+                  if (!e.target.value.trim()) return;
+                  const cost = Number(e.target.value.replace(/,/g, '').trim());
+                  if (!Number.isFinite(cost) || cost < 0) { showToast('Enter a valid amount of zero or more', 'error'); return; }
+                  if (cost !== card.cost) updateCard(cardId, { cost });
+                }} />
+              <span style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))' }}>Saves when you leave the field. Weight and earned value update from this amount and recorded accomplishment.</span>
+            </div>}
+
             {/* Automated Progress Indicator — Roadmap boards only */}
             {isRoadmap && (() => {
               const autoProgress = deriveCardProgress(card, column?.name || '');
@@ -3214,8 +3229,22 @@ function CardModalInner({ cardId, result, onClose }: InnerProps) {
                       }}
                     />
                   </div>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '8px 0' }}>
+                    Accomplishment
+                    <input aria-label="Physical accomplishment percent" type="range" min="0" max="100" step="1" value={autoProgress}
+                      onChange={e => {
+                        const progress = Number(e.target.value);
+                        const today = [new Date().getFullYear(), String(new Date().getMonth() + 1).padStart(2, '0'), String(new Date().getDate()).padStart(2, '0')].join('-');
+                        updateCard(cardId, { progress, completed: progress === 100,
+                          completedAt: progress === 100 ? (card.completedAt || new Date().toISOString()) : null,
+                          actualStartDate: progress > 0 ? (card.actualStartDate || today) : card.actualStartDate,
+                          actualEndDate: progress === 100 ? (card.actualEndDate || today) : null });
+                      }} />
+                    {autoProgress}%
+                  </label>
                   <span style={{ fontSize: 10.5, color: 'hsl(var(--muted-foreground))', marginTop: 2 }}>
-                    Auto-calculated from stage: <strong>{card.completed ? 'Completed' : (column?.name || 'Task Lifecycle')}</strong>
+                    {card.progress != null ? 'Recorded physical accomplishment' : `Estimated from stage: ${column?.name || 'Task Lifecycle'}`}. Logging a work day records attendance; set accomplishment below.
+
                   </span>
                 </div>
               );

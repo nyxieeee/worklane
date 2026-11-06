@@ -336,8 +336,9 @@ export function getColDotColor(name: string): string {
   return '#64748b';
 }
 
-export function deriveCardProgress(card: CardType, columnName?: string): number {
+export function deriveCardProgress(card: Pick<CardType, 'completed' | 'progress'>, columnName?: string): number {
   if (card.completed) return 100;
+  if (card.progress != null) return Math.max(0, Math.min(100, card.progress));
   const col = (columnName || '').toLowerCase();
   // 100% - Handover / Closeout / Approved / Delivered / Done / Signed-off
   if (col.includes('done') || col.includes('complete') || col.includes('handover') || col.includes('closeout') || col.includes('delivered') || col.includes('approved') || col.includes('finished') || col.includes('sign-off') || col.includes('signed off')) return 100;

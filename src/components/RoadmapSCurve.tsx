@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import RoadmapSituationerModal from './RoadmapSituationerModal';
 import { motion, AnimatePresence } from 'framer-motion';
-import type { Board, Member, Sprint } from '../types';
+import type { Board, Member, Sprint, WorkSuspension } from '../types';
 import { avatarInitials } from '../utils';
 import AvatarBorder from './ui/AvatarBorder';
 import { useWorkStore } from '../store/useWorkStore';
@@ -23,6 +23,7 @@ export interface TaskWithScheduleForSCurve {
     dueDate?: string | null;
     startDate?: string | null;
     progress?: number;
+    workSuspensions?: WorkSuspension[];
     cost?: number;
     isMilestone?: boolean;
     assignees?: string[];
@@ -117,9 +118,9 @@ export default function RoadmapSCurve({ board, tasks, onOpenCard, onClose }: Pro
 
     cols.forEach(col => {
       const colTasks = tasks.filter(t => t.columnId === col.id);
-      const hasTaskCosts = colTasks.some(t => t.card.cost !== undefined && t.card.cost > 0);
+      const hasTaskCosts = colTasks.some(t => t.card.cost != null);
       if (hasTaskCosts) {
-        map[col.id] = colTasks.reduce((acc, t) => acc + (t.card.cost || 0), 0);
+        map[col.id] = colTasks.reduce((acc, t) => acc + (t.card.cost ?? ((col.budget ?? defaultSplit) / Math.max(1, colTasks.length))), 0);
       } else if (col.budget !== undefined && col.budget !== null && col.budget > 0) {
         map[col.id] = col.budget;
       } else {
@@ -150,9 +151,16 @@ export default function RoadmapSCurve({ board, tasks, onOpenCard, onClose }: Pro
   }, [board.columns, resolvedColumnBudgets, totalContractPrice]);
 
   // Handle phase budget update directly from table
+  const updateCard = useWorkStore(s => s.updateCard);
+
   const handleSaveColBudget = (colId: string) => {
-    const val = parseFloat(tempColBudgetInput);
+    const val = Number(tempColBudgetInput.replace(/,/g, '').trim() || NaN);
     if (!isNaN(val) && val >= 0) {
+      const children = tasks.filter(t => t.columnId === colId);
+      const oldBudget = resolvedColumnBudgets[colId] || 0;
+      children.forEach(t => updateCard(t.card.id, { cost: oldBudget > 0
+        ? val * ((t.card.cost ?? oldBudget / children.length) / oldBudget)
+        : val / children.length }));
       updateColumnBudget(colId, val);
       showToast('Phase contract value updated', 'success');
     }
@@ -202,7 +210,7 @@ export default function RoadmapSCurve({ board, tasks, onOpenCard, onClose }: Pro
 
     // Weight calculation: combine task cost or column weight with duration
     const getTaskWeight = (t: TaskWithScheduleForSCurve) => {
-      if (t.card.cost && t.card.cost > 0) return t.card.cost;
+      if (t.card.cost != null) return t.card.cost;
       const colMeta = columnWeights[t.columnId];
       if (colMeta) {
         const siblingCount = filteredTasks.filter(item => item.columnId === t.columnId).length;
@@ -291,7 +299,7 @@ export default function RoadmapSCurve({ board, tasks, onOpenCard, onClose }: Pro
             if (rawProgress > 0 && tTime >= actStart) {
               const elapsed = Math.max(1, todayTime - actStart);
               const currentT = Math.max(0, tTime - actStart);
-              const frac = Math.min(rawProgress, (currentT / elapsed) * rawProgress);
+              const frac = isToday ? rawProgress : Math.min(rawProgress, (currentT / elapsed) * rawProgress);
               actualWeightAcc += tWeight * frac;
               actualCountAcc += frac;
             }
@@ -321,7 +329,10 @@ export default function RoadmapSCurve({ board, tasks, onOpenCard, onClose }: Pro
         milestones: milestonesByDate[dateStr] || []
       });
 
+      const previousTime = curr.getTime();
       curr.setDate(curr.getDate() + stepDays);
+      // Always include today's recorded accomplishment when sampling long projects.
+      if (previousTime < todayTime && curr.getTime() > todayTime) curr.setTime(todayTime);
     }
 
     // Connect Today's actual value smoothly to the projected forecast curve
@@ -609,7 +620,7 @@ export default function RoadmapSCurve({ board, tasks, onOpenCard, onClose }: Pro
               </span>
             </div>
             <p style={{ margin: '2px 0 0', fontSize: 11.5, color: 'hsl(var(--muted-foreground))' }}>
-              Cumulative planned baseline schedule vs. actual work accomplishment &amp; projected delivery.
+              Accomplishment from every building counts, in any work order. Contributions are weighted by item value; installation earns progress separately from preparation. The planned line follows scheduled dates. Past actual points are estimated between recorded start and completion dates.
             </p>
           </div>
         </div>
@@ -1302,7 +1313,7 @@ export default function RoadmapSCurve({ board, tasks, onOpenCard, onClose }: Pro
                         {isEditingThisCol ? (
                           <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
                             <input
-                              type="number"
+                              type="text" inputMode="decimal"
                               autoFocus
                               value={tempColBudgetInput}
                               onChange={e => setTempColBudgetInput(e.target.value)}

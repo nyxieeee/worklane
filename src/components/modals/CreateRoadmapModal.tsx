@@ -92,7 +92,7 @@ export default function CreateRoadmapModal({ onClose, initialName = '' }: Props)
   const [subtaskDaysMap, setSubtaskDaysMap]   = useState<Record<string, number>>({});
   const [newPhaseInput, setNewPhaseInput]     = useState('');
   const [newPhaseType, setNewPhaseType]       = useState<'phase' | 'subtask'>('phase');
-  const [newPhaseDays, setNewPhaseDays]       = useState<number>(7);
+  const [newPhaseDays, setNewPhaseDays]       = useState<number | ''>('');
   const [isSubmitting, setIsSubmitting]       = useState(false);
 
   const fileInputRef                    = useRef<HTMLInputElement>(null);
@@ -158,12 +158,12 @@ export default function CreateRoadmapModal({ onClose, initialName = '' }: Props)
   const handleUpdatePhaseDays = (phaseName: string, days: number) => {
     setPhaseDaysMap(prev => ({
       ...prev,
-      [phaseName]: Math.max(1, days || 1),
+      [phaseName]: Math.max(0, days || 0),
     }));
   };
 
   const handleUpdateSubtaskDays = (idx: number, subtaskName: string, days: number) => {
-    const d = Math.max(1, days || 1);
+    const d = Math.max(0, days || 0);
     setSubtaskDaysMap(prev => ({
       ...prev,
       [`${subtaskName}_${idx}`]: d,
@@ -174,6 +174,12 @@ export default function CreateRoadmapModal({ onClose, initialName = '' }: Props)
 
   const handleCreate = async () => {
     if (!name.trim() || isSubmitting) return;
+    if (phases.some((phase, idx) => (phase.type === 'phase'
+      ? (phaseDaysMap[phase.name] ?? phase.days ?? 7)
+      : (subtaskDaysMap[`${phase.name}_${idx}`] ?? phase.days ?? 3)) < 1)) {
+      showToast('Enter at least one day for each phase or sub-item before creating the roadmap', 'error');
+      return;
+    }
     setIsSubmitting(true);
     try {
       const newRoadmap = await createRoadmap(
@@ -410,9 +416,9 @@ export default function CreateRoadmapModal({ onClose, initialName = '' }: Props)
                             type="number"
                             min={1}
                             max={365}
-                            value={allottedDays}
+                            value={allottedDays || ''}
                             onChange={e => {
-                              const val = parseInt(e.target.value, 10) || 1;
+                              const val = parseInt(e.target.value, 10) || 0;
                               if (isPhase) {
                                 handleUpdatePhaseDays(phase.name, val);
                               } else {
@@ -455,7 +461,7 @@ export default function CreateRoadmapModal({ onClose, initialName = '' }: Props)
                 {(['phase', 'subtask'] as const).map(t => (
                   <button key={t} type="button" onClick={() => {
                     setNewPhaseType(t);
-                    setNewPhaseDays(t === 'phase' ? 7 : 3);
+                    setNewPhaseDays('');
                   }} style={{
                     height: 28, padding: '0 9px', fontSize: 10.5, fontWeight: 600,
                     border: 'none', cursor: 'pointer', textTransform: 'capitalize',
@@ -481,7 +487,7 @@ export default function CreateRoadmapModal({ onClose, initialName = '' }: Props)
                   min={1}
                   max={365}
                   value={newPhaseDays}
-                  onChange={e => setNewPhaseDays(parseInt(e.target.value, 10) || 1)}
+                  onChange={e => setNewPhaseDays(e.target.value === '' ? '' : Number(e.target.value))}
                   style={{
                     width: 44,
                     height: 28,
