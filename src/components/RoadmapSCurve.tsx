@@ -8,7 +8,7 @@ import {
 import RoadmapSituationerModal from './RoadmapSituationerModal';
 import RecalculateProgressModal from './RecalculateProgressModal';
 import { motion, AnimatePresence } from 'framer-motion';
-import type { Board, Member, Sprint, WorkSuspension } from '../types';
+import type { Board, Member, Sprint, WorkSuspension, BOQItem } from '../types';
 import { avatarInitials } from '../utils';
 import AvatarBorder from './ui/AvatarBorder';
 import { useWorkStore } from '../store/useWorkStore';
@@ -27,6 +27,7 @@ export interface TaskWithScheduleForSCurve {
     progress?: number;
     workSuspensions?: WorkSuspension[];
     cost?: number;
+    boq?: BOQItem;
     isMilestone?: boolean;
     assignees?: string[];
   };

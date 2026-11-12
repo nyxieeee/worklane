@@ -239,6 +239,7 @@ export const supabaseService = {
           let workSuspensions: any[] = [];
           let workedDays: string[] = [];
           let linkedRoadmapId: string | null = null;
+          let boq: Card['boq'];
           let cost: number | undefined = undefined;
 
           // Parse embedded roadmap metadata from card description
@@ -256,6 +257,7 @@ export const supabaseService = {
               if (meta.workSuspensions !== undefined) workSuspensions = meta.workSuspensions;
               if (meta.workedDays !== undefined) workedDays = meta.workedDays;
               if (meta.linkedRoadmapId !== undefined) linkedRoadmapId = meta.linkedRoadmapId;
+              if (meta.boq !== undefined) boq = meta.boq;
               if (meta.cost !== undefined) cost = typeof meta.cost === 'number' ? meta.cost : parseFloat(meta.cost);
               desc = desc.replace(rMatch[0], '').trimEnd();
             } catch {}
@@ -291,6 +293,7 @@ export const supabaseService = {
             workSuspensions,
             workedDays,
             linkedRoadmapId,
+            boq,
             cost,
             coverAttachmentId: card.cover_attachment_id,
             createdAt: card.created_at,
@@ -514,7 +517,7 @@ export const supabaseService = {
             (item.card.dependencies && item.card.dependencies.length > 0) ||
             (item.card.workSuspensions && item.card.workSuspensions.length > 0) ||
             (item.card.workedDays && item.card.workedDays.length > 0) ||
-            item.card.linkedRoadmapId || (item.card.cost !== undefined && item.card.cost !== null)
+            item.card.boq || item.card.linkedRoadmapId || (item.card.cost !== undefined && item.card.cost !== null)
           );
 
           let encodedDescription = item.card.description || '';
@@ -537,6 +540,7 @@ export const supabaseService = {
             if (item.card.workSuspensions?.length) rMeta.workSuspensions = item.card.workSuspensions;
             if (item.card.workedDays?.length) rMeta.workedDays = item.card.workedDays;
             if (item.card.linkedRoadmapId) rMeta.linkedRoadmapId = item.card.linkedRoadmapId;
+            if (item.card.boq) rMeta.boq = item.card.boq;
             if (item.card.cost !== undefined && item.card.cost !== null) rMeta.cost = item.card.cost;
             encodedDescription = `${encodedDescription}\n<!--worklane_roadmap:${JSON.stringify(rMeta)}-->`.trim();
           }
@@ -544,7 +548,7 @@ export const supabaseService = {
           // If this is the first card, embed board metadata tag as bulletproof backup
           if (index === 0) {
             const isRoadmap = board.type === 'roadmap' || isKnownRoadmapId(board.id);
-            const boardMeta = { type: isRoadmap ? 'roadmap' : (board.type || 'board'), description: board.description || '', startDate: board.startDate || null, endDate: board.endDate || null };
+            const boardMeta = { type: isRoadmap ? 'roadmap' : (board.type || 'board'), description: board.description || '', startDate: board.startDate || null, endDate: board.endDate || null, totalBudget: board.totalBudget ?? null, currency: board.currency || '₱' };
             encodedDescription = `${encodedDescription}\n<!--worklane_board_meta:${JSON.stringify(boardMeta)}-->`.trim();
           }
 
@@ -1106,6 +1110,8 @@ export const supabaseService = {
         let workSuspensions: any[] = [];
         let workedDays: string[] = [];
         let linkedRoadmapId: string | null = null;
+        let boq: Card['boq'];
+        let cost: number | undefined;
 
         // Parse embedded roadmap metadata from card description
         const rMatch = desc.match(/<!--worklane_roadmap:([\s\S]*?)-->/);
@@ -1122,6 +1128,8 @@ export const supabaseService = {
             if (meta.workSuspensions !== undefined) workSuspensions = meta.workSuspensions;
             if (meta.workedDays !== undefined) workedDays = meta.workedDays;
             if (meta.linkedRoadmapId !== undefined) linkedRoadmapId = meta.linkedRoadmapId;
+            if (meta.boq !== undefined) boq = meta.boq;
+            if (meta.cost !== undefined) cost = Number(meta.cost);
             desc = desc.replace(rMatch[0], '').trimEnd();
           } catch {}
         }
@@ -1150,6 +1158,8 @@ export const supabaseService = {
           workSuspensions,
           workedDays,
           linkedRoadmapId,
+          boq,
+          cost,
           coverAttachmentId: card.cover_attachment_id,
           createdAt: card.created_at,
           isInbox: !!card.is_inbox,
@@ -1205,6 +1215,9 @@ export const supabaseService = {
 
       let bType: 'board' | 'roadmap' = (b.type === 'roadmap' || isKnownRoadmapId(b.id)) ? 'roadmap' : 'board';
       let bDescription: string = b.description || '';
+      let bStartDate: string | null = null, bEndDate: string | null = null;
+      let bTotalBudget: number | undefined;
+      let bCurrency = '₱';
 
       // Check embedded column tags
       bColumns.forEach(c => {
@@ -1227,6 +1240,10 @@ export const supabaseService = {
               const parsedMeta = JSON.parse(mMatch[1]);
               if (parsedMeta.type) bType = parsedMeta.type;
               if (parsedMeta.description) bDescription = parsedMeta.description;
+              bStartDate = parsedMeta.startDate || null;
+              bEndDate = parsedMeta.endDate || null;
+              if (parsedMeta.totalBudget != null) bTotalBudget = Number(parsedMeta.totalBudget);
+              bCurrency = parsedMeta.currency || '₱';
               break;
             } catch {}
           }
@@ -1251,6 +1268,7 @@ export const supabaseService = {
         color: b.color || '#6366f1',
         type: bType,
         description: bDescription,
+        startDate: bStartDate, endDate: bEndDate, totalBudget: bTotalBudget, currency: bCurrency,
         createdBy: b.created_by,
         members: bMembers,
         columns: bColumns,

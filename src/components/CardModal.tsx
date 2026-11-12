@@ -3205,9 +3205,27 @@ function CardModalInner({ cardId, result, onClose }: InnerProps) {
               <span style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))' }}>Saves when you leave the field. Weight and earned value update from this amount and recorded accomplishment.</span>
             </div>}
 
+            {isRoadmap && card.boq && <div className="form-group">
+              <label className="field-label" htmlFor="boq-completed-quantity">Cumulative completed quantity</label>
+              <p style={{ fontSize: 12 }}>BOQ {card.boq.reference}: {card.boq.quantity.toLocaleString()} {card.boq.unit} · Rate {card.boq.unitRate.toLocaleString()} / {card.boq.unit}</p>
+              <input id="boq-completed-quantity" key={`${cardId}-${card.progress}-${card.completed}`} type="number" min={0} max={card.boq.quantity} step="any" className="text-input"
+                defaultValue={Number((deriveCardProgress(card) / 100 * card.boq.quantity).toFixed(6))}
+                onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur(); }}
+                onBlur={e => {
+                  const quantity = e.target.valueAsNumber;
+                  if (!Number.isFinite(quantity) || quantity < 0 || quantity > card.boq!.quantity) { showToast('Enter a completed quantity between zero and the BOQ total', 'error'); return; }
+                  const progress = quantity / card.boq!.quantity * 100;
+                  const today = [new Date().getFullYear(), String(new Date().getMonth() + 1).padStart(2, '0'), String(new Date().getDate()).padStart(2, '0')].join('-');
+                  updateCard(cardId, { progress, completed: quantity === card.boq!.quantity, completedAt: quantity === card.boq!.quantity ? card.completedAt || new Date().toISOString() : null,
+                    actualStartDate: quantity > 0 ? card.actualStartDate || today : card.actualStartDate,
+                    actualEndDate: quantity === card.boq!.quantity ? card.actualEndDate || new Date().toISOString().slice(0, 10) : null });
+                }} />
+              <span style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))' }}>Total completed to date, not today’s additional quantity. Progress = completed quantity ÷ BOQ quantity. Source: {card.boq.sourceFile}.</span>
+            </div>}
+
             {/* Automated Progress Indicator — Roadmap boards only */}
             {isRoadmap && (() => {
-              const autoProgress = deriveCardProgress(card, column?.name || '');
+              const autoProgress = deriveCardProgress(card);
               return (
                 <div className="form-group">
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
@@ -3237,7 +3255,7 @@ function CardModalInner({ cardId, result, onClose }: InnerProps) {
                       overflow: 'hidden',
                       position: 'relative',
                     }}
-                    title={`Progress automatically calculated from stage: ${column?.name || 'Backlog'}`}
+                    title="Recorded physical accomplishment"
                   >
                     <motion.div
                       initial={false}
@@ -3266,7 +3284,7 @@ function CardModalInner({ cardId, result, onClose }: InnerProps) {
                     {autoProgress}%
                   </label>
                   <span style={{ fontSize: 10.5, color: 'hsl(var(--muted-foreground))', marginTop: 2 }}>
-                    {card.progress != null ? 'Recorded physical accomplishment' : `Estimated from stage: ${column?.name || 'Task Lifecycle'}`}. Logging a work day records attendance; set accomplishment below.
+                    {card.progress != null ? 'Recorded physical accomplishment' : 'No accomplishment recorded'}. Logging a work day records attendance; set accomplishment below.
 
                   </span>
                 </div>

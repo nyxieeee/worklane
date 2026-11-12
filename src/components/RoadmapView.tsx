@@ -1,4 +1,5 @@
 import ScheduleReallocationModal from './ScheduleReallocationModal';
+import BOQImportModal from './BOQImportModal';
 import TaskScheduleEditor from './TaskScheduleEditor';
 import { dateKey, scheduledDays } from '../scheduling/calendarSchedule';
 import TaskOrderControls, { taskOrderDropHandlers } from './TaskOrderControls';
@@ -267,6 +268,7 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
   const toggleCardAssignee = useWorkStore(s => s.toggleCardAssignee);
   const [showSCurve, setShowSCurve] = useState(false);
   const [showReallocation, setShowReallocation] = useState(false);
+  const [showBOQImport, setShowBOQImport] = useState(false);
   const [showSituationer, setShowSituationer] = useState(false);
   const [showDailyReportModal, setShowDailyReportModal] = useState(false);
   const [quickTaskAssignees, setQuickTaskAssignees] = useState<string[]>([]);
@@ -625,7 +627,7 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
         // 4. Actual / Projected End Date
         let actOrProjEnd: Date;
         let isProjected = false;
-        const progressPct = deriveCardProgress(card, col.name);
+        const progressPct = deriveCardProgress(card);
 
         // Evaluate work status (Option A: manual check-in + Option B: activity detection)
         const workStatus = getCardWorkStatus(card, actStart, today);
@@ -661,8 +663,8 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
               const calendarElapsed = Math.max(1, Math.round((today.getTime() - targetStart.getTime()) / 86400000));
               const netElapsedDays = Math.max(1, calendarElapsed - suspendedDays);
               const expectedPct = Math.min(100, Math.round((netElapsedDays / plannedDays) * 100));
-              if (progressPct < expectedPct - 15) {
-                const pace = Math.max(0.05, progressPct / netElapsedDays);
+              if (progressPct > 0 && progressPct < expectedPct - 15) {
+                const pace = progressPct / netElapsedDays;
                 const totalProjDays = Math.ceil(100 / pace);
                 // Add suspended days back so the projected end date falls on a real calendar day
                 const slip = Math.max(1, (totalProjDays - plannedDays) + suspendedDays);
@@ -1558,6 +1560,7 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
             </div>
           )}
 
+          {!isObserver && <button type="button" className="btn btn-primary" onClick={() => setShowBOQImport(true)}>Upload Final BOQ</button>}
                     {!isObserver && <button type="button" className="btn btn-secondary" onClick={() => setShowReallocation(true)}
             style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }} title="Redistribute task dates within the scheduled start and end">
             <WandSparkles size={13} /><span>Auto Reallocate</span>
@@ -2596,6 +2599,7 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
       })()}
 
       {showReallocation && <ScheduleReallocationModal board={board} onClose={() => setShowReallocation(false)} />}
+      {showBOQImport && <BOQImportModal board={board} onClose={() => setShowBOQImport(false)} />}
 
       {/* ── Roadmap Modals (Side-by-Side & Centered) ── */}
       <AnimatePresence>

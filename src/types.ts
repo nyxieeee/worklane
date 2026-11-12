@@ -55,6 +55,15 @@ export interface WorkSuspension {
   reason?: string;
 }
 
+export interface BOQItem {
+  reference: string;
+  quantity: number;
+  unit: string;
+  unitRate: number;
+  sourceFile: string;
+  importedAt: string;
+}
+
 export interface Card {
   id: string;
   title: string;
@@ -71,6 +80,7 @@ export interface Card {
   isMilestone?: boolean;
   progress?: number; // 0 to 100 percentage
   cost?: number; // Budget / contract value for cost-weighted S-Curve & SITREP
+  boq?: BOQItem;
   dependencies?: string[]; // card IDs this card depends on
   completed: boolean;
   completedAt: string | null;

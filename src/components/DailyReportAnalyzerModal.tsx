@@ -187,6 +187,9 @@ export function analyzeReportNarrative(
         if (score > bestScore) {
           bestScore = score;
           bestSnippet = s;
+          detectedPct = null;
+          confidence = 'low';
+          matchedReason = 'Activity mentioned; enter verified progress using the total scope quantity';
 
           // Case A: Negative / Not Started status (e.g. "No installed pipe for additional smoke detector")
           if (/\b(no installed|not installed|not started|none installed|zero installed|pending start)\b/i.test(s)) {
@@ -209,9 +212,22 @@ export function analyzeReportNarrative(
             if (countMatch) {
               const num = parseInt(countMatch[1], 10);
               const den = parseInt(countMatch[2], 10);
-              if (den > 0 && num <= den) {
+              if (den > 0 && num <= den && (!t.card.boq || den === t.card.boq.quantity)) {
                 detectedPct = Math.round((num / den) * 100);
                 matchedReason = `Installed ${num} of ${den} units (${detectedPct}%)`;
+                confidence = 'high';
+              }
+            }
+          }
+          // BOQ quantities apply to cumulative counts only; daily counts are not cumulative accomplishment.
+          else if (t.card.boq && /\b(cumulative|to date|total installed|total completed|total drilled)\b/i.test(s)) {
+            const quantity = s.match(/(\d+(?:\.\d+)?)\s*(pieces?|pcs?|units?|holes?|meters?|metres?|m|sets?)\b/i);
+            const normalizeUnit = (unit: string) => unit.toLowerCase().replace(/\./g, '').replace(/^(pieces?|pcs?|units?)$/, 'pc').replace(/^(meters?|metres?|m)$/, 'm').replace(/s$/, '');
+            if (quantity && normalizeUnit(quantity[2]) === normalizeUnit(t.card.boq.unit)) {
+              const completed = Number(quantity[1]);
+              if (completed <= t.card.boq.quantity) {
+                detectedPct = Math.round(completed / t.card.boq.quantity * 1000) / 10;
+                matchedReason = `Cumulative ${completed} / BOQ ${t.card.boq.quantity} ${t.card.boq.unit}`;
                 confidence = 'high';
               }
             }
@@ -229,6 +245,13 @@ export function analyzeReportNarrative(
     if (bestScore >= 0.5 && bestSnippet.length > 0) {
       const curProg = t.card.completed ? 100 : (t.card.progress || 0);
       const finalSuggested = detectedPct !== null ? detectedPct : curProg;
+      const ambiguousLocation = tasks.some(other => other.card.id !== t.card.id && other.card.title.trim().toLowerCase() === taskTitle.trim().toLowerCase())
+        && !bestSnippet.toLowerCase().includes(t.columnName.toLowerCase())
+        && !(taskFloor !== null && extractFloorNum(bestSnippet) === taskFloor);
+      if (ambiguousLocation) {
+        confidence = 'low';
+        matchedReason = `Confirm location: this scope exists in multiple tasks. ${matchedReason}`;
+      }
       if (!matchedReason) matchedReason = 'Scope activity identified in report';
 
       matches.push({
@@ -243,7 +266,7 @@ export function analyzeReportNarrative(
         snippet: bestSnippet,
         matchedReason,
         taskCost: t.card.cost || 0,
-        selected: detectedPct !== null && finalSuggested > curProg,
+        selected: !ambiguousLocation && detectedPct !== null && finalSuggested > curProg,
       });
     }
   });

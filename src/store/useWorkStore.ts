@@ -1,4 +1,5 @@
 import { dateKey, scheduledDays, shiftFollowingTasks, allocateTaskDates, reallocateBoardDates } from '../scheduling/calendarSchedule';
+import type { BOQRow } from '../imports/boq';
 import { useToastStore } from './useToastStore';
 import { create } from 'zustand';
 import type { Board, Column, Card, Member, MemberRole, Attachment, Comment, Sprint } from '../types';
@@ -30,6 +31,7 @@ interface WorkState {
   setBoardType: (boardId: string, type: 'board' | 'roadmap') => void;
   updateBoardBudget: (boardId: string, totalBudget?: number, currency?: string) => void;
   updateColumnBudget: (colId: string, budget?: number) => void;
+  importBOQ: (boardId: string, rows: (BOQRow & { targetCardId: string })[], sourceFile: string) => boolean;
   leaveBoard: (boardId: string, userEmail: string) => void;
   switchBoard: (boardId: string) => void;
   joinBoardFromCloud: (boardId: string, role: MemberRole, user: { name?: string; email: string; avatarUrl?: string }) => Promise<Board | null>;
@@ -1125,6 +1127,40 @@ export const useWorkStore = create<WorkState>()(
         });
         if (targetBoard) scheduleBoardSync(targetBoard, 50);
         return card;
+      },
+
+      importBOQ: (boardId, rows, sourceFile) => {
+        let changed: Board | undefined;
+        set(state => {
+          const board = state.boards.find(b => b.id === boardId);
+          if (!board || !rows.length) return state;
+          const existingIds = new Set(board.columns.flatMap(c => c.cards.map(card => card.id)));
+          const targets = rows.filter(r => r.targetCardId !== '__new__').map(r => r.targetCardId);
+          if (new Set(targets).size !== targets.length || targets.some(id => !existingIds.has(id)) || rows.some(r => !Number.isFinite(r.quantity) || r.quantity <= 0 || !Number.isFinite(r.unitRate) || r.unitRate < 0 || !Number.isFinite(r.quantity * r.unitRate))) return state;
+          const columns = board.columns.map(col => ({ ...col, cards: [...col.cards] }));
+          const importedAt = new Date().toISOString();
+          for (const row of rows) {
+            const boq = { reference: row.reference, quantity: row.quantity, unit: row.unit, unitRate: row.unitRate, sourceFile, importedAt };
+            if (row.targetCardId !== '__new__') {
+              const col = columns.find(c => c.cards.some(card => card.id === row.targetCardId))!;
+              col.cards = col.cards.map(card => card.id === row.targetCardId ? { ...card, boq, cost: row.quantity * row.unitRate } : card);
+            } else {
+              const name = row.location || 'BOQ Scope';
+              let col = columns.find(c => c.name.toLowerCase() === name.toLowerCase());
+              if (!col) { col = { id: uid(), name, cards: [] }; columns.push(col); }
+              col.cards.push({ id: uid(), title: row.description, description: '', boq, cost: row.quantity * row.unitRate,
+                progress: 0, completed: false, completedAt: null, createdAt: importedAt,
+                startDate: board.startDate || null, dueDate: board.endDate || null,
+                actualStartDate: null, actualEndDate: null, comments: [], attachments: [], labels: [], assignees: [] });
+            }
+          }
+          // BOQ item values become the cost weights. Retained tasks keep their existing value.
+          for (const col of columns) col.budget = col.cards.reduce((sum, card) => sum + (card.cost || 0), 0);
+          changed = { ...board, columns, totalBudget: columns.reduce((sum, col) => sum + (col.budget || 0), 0) };
+          return { boards: state.boards.map(b => b.id === boardId ? changed! : b) };
+        });
+        if (changed) scheduleBoardSync(changed, 50);
+        return !!changed;
       },
 
       reallocateSchedule: (boardId, scope, startValue, endValue) => {
