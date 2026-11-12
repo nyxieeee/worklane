@@ -6,6 +6,7 @@ import type { BOQRow } from '../imports/boq';
 import { useWorkStore } from '../store/useWorkStore';
 import { useToastStore } from '../store/useToastStore';
 import { tableToCSV } from '../imports/boqPDF';
+import { Upload, FileText, CheckCircle2, Loader2 } from 'lucide-react';
 
 export default function BOQImportModal({ board, onClose }: { board: Board; onClose: () => void }) {
   const importBOQ = useWorkStore(s => s.importBOQ);
@@ -22,6 +23,8 @@ export default function BOQImportModal({ board, onClose }: { board: Board; onClo
   const [readingStatus, setReadingStatus] = useState('Reading BOQ…');
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const reader = useRef<AbortController | null>(null);
+  const fileInput = useRef<HTMLInputElement>(null);
+  const [dragging, setDragging] = useState(false);
   useEffect(() => () => reader.current?.abort(), []);
   useEffect(() => () => { if (imagePreview) URL.revokeObjectURL(imagePreview); }, [imagePreview]);
   const data = sheets[sheetIndex]?.data || [];
@@ -36,7 +39,7 @@ export default function BOQImportModal({ board, onClose }: { board: Board; onClo
     reader.current?.abort();
     const controller = new AbortController();
     reader.current = controller;
-    setBusy(true); setError(''); setSheets([]); setRows([]); setPDFText(null); setImagePreview(null); setReadingStatus('Reading BOQ…');
+    setBusy(true); setError(''); setSheets([]); setRows([]); setPDFText(null); setImagePreview(null); setReadingStatus('Reading BOQ…'); setFileName(file.name); setDragging(false);
     try {
       let result: typeof sheets;
       if (/\.xlsx$/i.test(file.name)) {
@@ -78,15 +81,26 @@ export default function BOQImportModal({ board, onClose }: { board: Board; onClo
   const duplicate = new Set(targets).size !== targets.length;
   const total = included.reduce((sum, row) => sum + row.quantity * row.unitRate, 0);
   return createPortal(<div className="modal-overlay" style={{ zIndex: 1400 }} onClick={onClose}>
-    <div className="modal large-modal" role="dialog" aria-modal="true" aria-labelledby="boq-title" onClick={e => e.stopPropagation()}>
-      <div className="modal-header"><h2 id="boq-title">Upload Final BOQ</h2><button type="button" className="btn btn-secondary" onClick={onClose}>Close</button></div>
+    <div className="modal large-modal boq-import-modal" style={{ maxWidth: sheets.length || rows.length ? 1100 : 680 }} role="dialog" aria-modal="true" aria-labelledby="boq-title" onClick={e => e.stopPropagation()}>
+      <div className="modal-header"><div><h2 id="boq-title">Upload Final BOQ</h2><p className="boq-intro">Set the project’s quantities and values from your final document.</p></div><button type="button" className="btn btn-secondary" onClick={onClose}>Close</button></div>
       <div className="modal-body">
-        <p>Define the project’s agreed quantities and values. Check the extracted columns, then link each item to a task.</p>
-        <label className="field-label">Excel, PDF, CSV or a BOQ picture
-          <input type="file" accept=".xlsx,.pdf,.csv,.jpg,.jpeg,.png,.webp,.bmp" disabled={busy} onChange={e => { const file = e.target.files?.[0]; if (file) void load(file); e.target.value = ''; }} />
-        </label>
-        <p style={{ fontSize: 12 }}>Pictures: JPG, PNG, WebP or BMP. Use a clear, upright photo showing the entire table.</p>
-        {busy && <p role="status">{readingStatus}</p>}
+        <ol className="boq-steps" aria-label="BOQ import steps">{['Choose file', 'Check columns', 'Review items'].map((step, i) => {
+          const current = rows.length ? 2 : sheets.length ? 1 : 0;
+          return <li key={step} aria-current={i === current ? 'step' : undefined} className={i <= current ? 'is-active' : ''}><span>{i < current ? <CheckCircle2 size={16} /> : i + 1}</span>{step}</li>;
+        })}</ol>
+        <input ref={fileInput} type="file" hidden aria-label="Choose BOQ file" accept=".xlsx,.pdf,.csv,.jpg,.jpeg,.png,.webp,.bmp" disabled={busy} onChange={e => { const file = e.target.files?.[0]; if (file) void load(file); e.target.value = ''; }} />
+        <div className={`boq-upload-area${dragging ? ' is-dragging' : ''}`} aria-busy={busy}
+          onDragOver={e => { e.preventDefault(); if (!busy) setDragging(true); }}
+          onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDragging(false); }}
+          onDrop={e => { e.preventDefault(); setDragging(false); const file = e.dataTransfer.files[0]; if (file && !busy) void load(file); }}>
+          <div className="boq-upload-icon">{busy ? <Loader2 size={26} className="spin" /> : fileName ? <FileText size={26} /> : <Upload size={26} />}</div>
+          <strong>{fileName || 'Drop your final BOQ here'}</strong>
+          <p>{busy ? 'Extracting quantities and rates…' : error ? 'Check the message below or choose another file.' : fileName ? 'Check the extracted columns and quantities below.' : 'Upload an Excel file, PDF, CSV or a clear picture of your BOQ.'}</p>
+          <button type="button" className="btn btn-primary" disabled={busy} onClick={() => fileInput.current?.click()}>{busy ? 'Reading file…' : fileName ? 'Choose another file' : 'Choose BOQ File'}</button>
+          <span className="boq-upload-formats">XLSX · PDF · CSV · JPG · PNG · WebP · BMP</span>
+        </div>
+        {!fileName && <p className="boq-upload-tip">For photos, keep the full table in focus and upright. You’ll review the extracted numbers before importing.</p>}
+        {busy && <p role="status" className="boq-reading-status">{readingStatus}</p>}
         {imagePreview && <img src={imagePreview} alt="Uploaded BOQ for comparison with extracted quantities" style={{ maxWidth: '100%', maxHeight: 320, objectFit: 'contain', alignSelf: 'flex-start' }} />}
         {pdfText !== null && <div>
           <p>Check {imagePreview ? 'picture OCR' : 'PDF extraction'} carefully, especially quantities, decimal points, rates and wrapped descriptions. Correct any reading errors before importing.{!imagePreview && ' Scanned PDFs require OCR first.'}</p>
@@ -111,7 +125,6 @@ export default function BOQImportModal({ board, onClose }: { board: Board; onClo
               </select>
             </label>)}
           </div>
-          <button type="button" className="btn btn-secondary" onClick={review}>Preview BOQ Items</button>
         </>}
         {rows.length > 0 && <>
           <p><strong>{included.length} of {rows.length} items selected · BOQ value: {money(total)}</strong></p>
@@ -130,11 +143,12 @@ export default function BOQImportModal({ board, onClose }: { board: Board; onClo
         </>}
         {error && <p role="alert" style={{ color: '#ef4444' }}>{error}</p>}
       </div>
-      <div className="modal-header"><button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
-        <button type="button" className="btn btn-primary" disabled={busy || !included.length || duplicate} onClick={() => {
+      <div className="modal-header boq-import-footer"><button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
+        {!rows.length && (sheets.length ? <button type="button" className="btn btn-primary" disabled={busy || [1, 3, 4, 5].some(i => columns[i] < 0)} onClick={review}>Review BOQ Items</button> : <span className="boq-footer-hint">{busy ? 'Reading your document…' : 'Choose a file to get started'}</span>)}
+        {rows.length > 0 && <button type="button" className="btn btn-primary" disabled={busy || !included.length || duplicate} onClick={() => {
           if (!importBOQ(board.id, included, fileName)) { setError('The project changed. Check task links and try again.'); return; }
           toast(`Imported ${included.length} BOQ items`, 'success'); onClose();
-        }}>Import {included.length} BOQ Items</button>
+        }}>{included.length ? `Import ${included.length} BOQ Items` : 'Select items to import'}</button>}
       </div>
     </div>
   </div>, document.body);

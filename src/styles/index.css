@@ -3034,6 +3034,25 @@ select option {
 .scurve-summary-track > div { height: 100%; border-radius: inherit; }
 
 .task-order-controls { display: inline-flex; align-items: center; flex-shrink: 0; gap: 1px; }
+.boq-import-modal .modal-header { gap: 16px; }
+.boq-import-modal h2 { font-size: 20px; font-weight: 700; margin: 0; }
+.boq-intro { margin: 5px 0 0; font-size: 12px; color: hsl(var(--muted-foreground)); }
+.boq-steps { display: flex; flex-wrap: wrap; gap: 12px 24px; list-style: none; padding: 0; margin: 0 0 6px; }
+.boq-steps li { display: flex; gap: 8px; align-items: center; font-size: 12px; color: hsl(var(--muted-foreground)); }
+.boq-steps li > span { width: 26px; height: 26px; display: flex; align-items: center; justify-content: center; border-radius: 50%; background: hsl(var(--muted-foreground) / 0.1); font-weight: 700; }
+.boq-steps .is-active { color: hsl(var(--primary)); }
+.boq-steps .is-active > span { background: hsl(var(--primary) / 0.12); }
+.boq-upload-area { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 28px 20px; border: 2px dashed hsl(var(--primary) / 0.4); border-radius: 12px; background: hsl(var(--primary) / 0.04); text-align: center; }
+.boq-upload-area.is-dragging { border-color: hsl(var(--primary)); background: hsl(var(--primary) / 0.12); }
+.boq-upload-icon { color: hsl(var(--primary)); }
+.boq-upload-area strong { font-size: 16px; overflow-wrap: anywhere; }
+.boq-upload-area p { margin: 0; font-size: 13px; color: hsl(var(--muted-foreground)); }
+.boq-upload-area .btn { min-height: 44px; padding: 10px 24px; }
+.boq-upload-formats, .boq-upload-tip, .boq-footer-hint { color: hsl(var(--muted-foreground)); font-size: 11px; line-height: 1.6; }
+.boq-upload-tip { margin: 0; }
+.boq-import-footer { border-top: 1px solid hsl(var(--border)); flex-wrap: wrap; }
+.boq-import-footer .btn { min-height: 40px; }
+.boq-reading-status { color: hsl(var(--primary)); font-size: 12px; }
 .task-order-arrows { display: flex; flex-direction: column; }
 .task-order-button { display: inline-flex; align-items: center; justify-content: center; width: 18px; min-height: 18px; padding: 2px; border: 0; border-radius: 4px; background: transparent; color: hsl(var(--muted-foreground)); cursor: pointer; }
 .task-order-button[draggable="true"] { cursor: grab; }
