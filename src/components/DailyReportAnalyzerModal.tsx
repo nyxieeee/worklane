@@ -1,4 +1,5 @@
 import React, { useState, useRef, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import {
   X, Upload, FileText, Check, AlertTriangle, ArrowRight,
   Sparkles, RefreshCw, Layers, CheckCircle2, Sliders, ShieldAlert,
@@ -443,10 +444,20 @@ export default function DailyReportAnalyzerModal({
     }, 0);
   }, [matches]);
 
-  return (
-    <div className="modal-backdrop" style={{ zIndex: 1200 }} onClick={onClose}>
+  return createPortal(
+    <div
+      className="modal-overlay"
+      style={{ zIndex: 1200 }}
+      onClick={e => {
+        e.stopPropagation();
+        onClose();
+      }}
+    >
       <motion.div
-        className="modal-container"
+        className="modal"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Daily Technician Report & Accomplishment Calculator"
         initial={{ opacity: 0, scale: 0.95, y: 15 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 15 }}
@@ -812,6 +823,7 @@ export default function DailyReportAnalyzerModal({
         </div>
 
       </motion.div>
-    </div>
+    </div>,
+    document.body
   );
 }
