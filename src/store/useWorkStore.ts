@@ -23,7 +23,20 @@ interface WorkState {
 
   // Board & Roadmap actions
   createBoard: (name: string, color: string, createdBy?: string, creatorName?: string) => Promise<Board>;
-  createRoadmap: (name: string, color: string, createdBy?: string, creatorName?: string, description?: string, templatePhases?: Array<string | { name: string; type?: 'phase' | 'subtask' }>, overallStartDate?: string | null, overallEndDate?: string | null, phaseDaysMap?: Record<string, number>, subtaskDaysMap?: Record<string, number>) => Promise<Board>;
+  createRoadmap: (
+    name: string,
+    color: string,
+    createdBy?: string,
+    creatorName?: string,
+    description?: string,
+    templatePhases?: Array<string | { name: string; type?: 'phase' | 'subtask'; cost?: number; quantity?: number; unit?: string }>,
+    overallStartDate?: string | null,
+    overallEndDate?: string | null,
+    phaseDaysMap?: Record<string, number>,
+    subtaskDaysMap?: Record<string, number>,
+    totalContractPrice?: number,
+    currency?: string
+  ) => Promise<Board>;
   deleteBoard: (boardId: string) => void;
   deleteBoards: (boardIds: string[]) => void;
   renameBoard: (boardId: string, name: string) => void;
@@ -476,7 +489,20 @@ export const useWorkStore = create<WorkState>()(
         return board;
       },
 
-      createRoadmap: async (name, color, createdBy, creatorName, description, templatePhases, overallStartDate, overallEndDate, phaseDaysMap, subtaskDaysMap) => {
+      createRoadmap: async (
+        name,
+        color,
+        createdBy,
+        creatorName,
+        description,
+        templatePhases,
+        overallStartDate,
+        overallEndDate,
+        phaseDaysMap,
+        subtaskDaysMap,
+        totalContractPrice,
+        currency
+      ) => {
         const authUser = useAuthStore.getState().user;
         const creatorEmail = (createdBy || authUser?.email || '').toLowerCase().trim();
         const resolvedName = creatorName || authUser?.name || (creatorEmail ? creatorEmail.split('@')[0] : 'Owner');
@@ -497,6 +523,9 @@ export const useWorkStore = create<WorkState>()(
         interface SubtaskEntry {
           name: string;
           days: number;
+          cost?: number;
+          quantity?: number;
+          unit?: string;
         }
         interface PhaseGroup {
           phaseName: string;
@@ -524,8 +553,15 @@ export const useWorkStore = create<WorkState>()(
                 currentGroup = { phaseName: 'Phase 1: Planning', subtasks: [] };
                 phaseGroups.push(currentGroup);
               }
-              const d = (item as any).days || (subtaskDaysMap && subtaskDaysMap[`${item.name}_${itemIndex}`]) || (subtaskDaysMap && subtaskDaysMap[item.name]) || 3;
-              currentGroup.subtasks.push({ name: item.name, days: d });
+              const itemObj = item as any;
+              const d = itemObj.days || (subtaskDaysMap && subtaskDaysMap[`${item.name}_${itemIndex}`]) || (subtaskDaysMap && subtaskDaysMap[item.name]) || 3;
+              currentGroup.subtasks.push({
+                name: item.name,
+                days: d,
+                cost: typeof itemObj.cost === 'number' ? itemObj.cost : undefined,
+                quantity: typeof itemObj.quantity === 'number' ? itemObj.quantity : undefined,
+                unit: typeof itemObj.unit === 'string' ? itemObj.unit : undefined,
+              });
             }
           }
           itemIndex++;
@@ -602,6 +638,15 @@ export const useWorkStore = create<WorkState>()(
             currentSubtaskCursor.setDate(currentSubtaskCursor.getDate() + 1);
             currentSubtaskCursor.setHours(0, 0, 0, 0);
 
+            const boq = (stInfo.quantity || stInfo.cost) ? {
+              reference: `WBS ${gIdx + 1}.${sIdx + 1}`,
+              quantity: stInfo.quantity || 1,
+              unit: stInfo.unit || 'lot',
+              unitRate: stInfo.cost && stInfo.quantity ? Math.round((stInfo.cost / stInfo.quantity) * 100) / 100 : (stInfo.cost || 0),
+              sourceFile: 'Quotation Import',
+              importedAt: new Date().toISOString(),
+            } : undefined;
+
             return {
               id: uid(),
               title: stInfo.name,
@@ -618,14 +663,20 @@ export const useWorkStore = create<WorkState>()(
               progress: totalIdx === 0 ? 20 : 0,
               completed: false,
               completedAt: null,
+              cost: stInfo.cost,
+              boq,
               createdAt: new Date().toISOString(),
             };
           });
+
+          // Calculate column budget from its cards if available
+          const colBudget = cards.reduce((sum, c) => sum + (c.cost || 0), 0);
 
           return {
             id: colId,
             name: group.phaseName,
             cards,
+            budget: colBudget > 0 ? colBudget : undefined,
           };
         });
 
@@ -645,6 +696,10 @@ export const useWorkStore = create<WorkState>()(
         const lastCard = lastCol?.cards[lastCol.cards.length - 1];
         const finalRoadmapEnd = overallEndDate || lastCard?.dueDate || (generatedSprints[generatedSprints.length - 1]?.endDate) || null;
 
+        const computedTotalBudget = typeof totalContractPrice === 'number' && totalContractPrice > 0
+          ? totalContractPrice
+          : columns.reduce((sum, col) => sum + (col.budget || 0), 0);
+
         const roadmap: Board = {
           id: uid(),
           name,
@@ -653,6 +708,8 @@ export const useWorkStore = create<WorkState>()(
           description: description || '',
           startDate: finalRoadmapStart,
           endDate: finalRoadmapEnd,
+          totalBudget: computedTotalBudget > 0 ? computedTotalBudget : undefined,
+          currency: currency || '₱',
           createdBy: creatorEmail,
           members: creatorMember ? [creatorMember] : [],
           columns,
