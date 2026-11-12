@@ -607,7 +607,7 @@ export default function RoadmapSCurve({ board, tasks, onOpenCard, onClose }: Pro
             </p>
             <details style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))', marginTop: 4 }}>
               <summary style={{ cursor: 'pointer' }}>How progress is calculated</summary>
-              <p>Items are weighted by value across all buildings. Preparation and installation earn progress separately. The planned line follows scheduled dates; past actual points are estimated between recorded start and completion dates.</p>
+              <p>Items are weighted by value across all buildings. Preparation and installation earn progress separately. The planned line follows scheduled dates; past actual points are estimated between recorded start and completion dates. The forecast uses allocated durations and recorded pauses. A percentage snapshot is not treated as a daily production rate.</p>
             </details>
           </div>
         </div>
@@ -787,7 +787,7 @@ export default function RoadmapSCurve({ board, tasks, onOpenCard, onClose }: Pro
               detail: healthLabel, footer: `SPI: ${todayMetrics.spi.toFixed(2)} · ${todayMetrics.spi === 1 ? 'At planned pace' : todayMetrics.spi > 1 ? 'Above planned pace' : 'Below planned pace'}`, progress: null },
             { title: 'Delivery Forecast', value: todayMetrics.projectedFinishDate?.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) || '—',
               color: 'hsl(var(--foreground))', icon: <Clock size={14} />,
-              detail: todayMetrics.finishVarianceDays === 0 ? 'Matches baseline target' : `${Math.abs(todayMetrics.finishVarianceDays)} days ${todayMetrics.finishVarianceDays > 0 ? 'late' : 'early'}`,
+              detail: todayMetrics.finishVarianceDays === 0 ? 'Based on allocated schedule' : `${Math.abs(todayMetrics.finishVarianceDays)} days ${todayMetrics.finishVarianceDays > 0 ? 'late' : 'early'} · schedule estimate`,
               footer: `Baseline: ${todayMetrics.targetFinishDate?.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) || 'Not scheduled'}`, progress: null },
           ];
           return cards.map(card => <div className="scurve-summary-card" key={card.title}>

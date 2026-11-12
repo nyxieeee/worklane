@@ -12,6 +12,22 @@ const ordinal = (value: string | Date) => {
   return Date.UTC(year, month - 1, day) / 86400000;
 };
 export const scheduledDays = (start: string | Date, end: string | Date) => Math.max(1, ordinal(end) - ordinal(start) + 1);
+
+/** A snapshot percentage is not a measured daily production rate. */
+export function forecastScheduledEnd(start: Date, end: Date, asOf: Date, progress: number, futurePausedDays = 0): Date {
+  const plannedEnd = new Date(end);
+  plannedEnd.setHours(23, 59, 59, 999);
+  if (asOf.getTime() <= plannedEnd.getTime()) {
+    plannedEnd.setDate(plannedEnd.getDate() + Math.max(0, futurePausedDays));
+    return plannedEnd;
+  }
+  // Overdue work still needs time, estimated from its allocated duration and remaining scope.
+  const remainingDays = Math.max(1, Math.ceil(scheduledDays(start, end) * (1 - Math.max(0, Math.min(100, progress)) / 100)));
+  const result = new Date(asOf);
+  result.setDate(result.getDate() + remainingDays + Math.max(0, futurePausedDays));
+  result.setHours(23, 59, 59, 999);
+  return result;
+}
 export function addScheduledDays(start: string | Date, count: number): string {
   const [year, month, day] = dateKey(start).split('-').map(Number);
   return dateKey(new Date(year, month - 1, day + count));

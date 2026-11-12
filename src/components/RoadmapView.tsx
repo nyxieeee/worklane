@@ -1,7 +1,7 @@
 import ScheduleReallocationModal from './ScheduleReallocationModal';
 import BOQImportModal from './BOQImportModal';
 import TaskScheduleEditor from './TaskScheduleEditor';
-import { dateKey, scheduledDays } from '../scheduling/calendarSchedule';
+import { dateKey, scheduledDays, forecastScheduledEnd } from '../scheduling/calendarSchedule';
 import TaskOrderControls, { taskOrderDropHandlers } from './TaskOrderControls';
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
@@ -650,33 +650,8 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
             isProjected = false;
           } else {
             isProjected = true;
-            const plannedDays = Math.max(1, Math.round((targetEnd.getTime() - targetStart.getTime()) / 86400000));
-            if (today.getTime() > targetEnd.getTime()) {
-              // Task past target date: projected date extends from today based on remaining progress.
-              // Subtract suspended days so paused periods don't inflate the delay.
-              const remainingPct = Math.max(0.1, (100 - progressPct) / 100);
-              const extraDays = Math.max(1, Math.ceil(plannedDays * remainingPct));
-              actOrProjEnd = new Date(today.getTime() + extraDays * 86400000);
-            } else if (today.getTime() > targetStart.getTime()) {
-              // Task in flight: project slippage if pace is lagging.
-              // Use net elapsed days (calendar days minus suspended days) for pace calculation.
-              const calendarElapsed = Math.max(1, Math.round((today.getTime() - targetStart.getTime()) / 86400000));
-              const netElapsedDays = Math.max(1, calendarElapsed - suspendedDays);
-              const expectedPct = Math.min(100, Math.round((netElapsedDays / plannedDays) * 100));
-              if (progressPct > 0 && progressPct < expectedPct - 15) {
-                const pace = progressPct / netElapsedDays;
-                const totalProjDays = Math.ceil(100 / pace);
-                // Add suspended days back so the projected end date falls on a real calendar day
-                const slip = Math.max(1, (totalProjDays - plannedDays) + suspendedDays);
-                actOrProjEnd = new Date(targetEnd.getTime() + slip * 86400000);
-              } else {
-                // On track: project end == target end + any suspension time that still lies ahead
-                const futureSuspended = computeSuspendedDays(card, today, targetEnd);
-                actOrProjEnd = new Date(targetEnd.getTime() + futureSuspended * 86400000);
-              }
-            } else {
-              actOrProjEnd = new Date(targetEnd);
-            }
+            const futureSuspended = computeSuspendedDays(card, today, targetEnd);
+            actOrProjEnd = forecastScheduledEnd(targetStart, targetEnd, today, progressPct, futureSuspended);
           }
         }
 
