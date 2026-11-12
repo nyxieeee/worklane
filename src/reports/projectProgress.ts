@@ -20,7 +20,7 @@ export function plannedFraction(task: TaskWithScheduleForSCurve, asOf: Date): nu
 }
 
 /** Accomplishment is the recorded snapshot, independent of inferred completion dates. */
-export const recordedFraction = (task: TaskWithScheduleForSCurve) => deriveCardProgress(task.card, task.columnName) / 100;
+export const recordedFraction = (task: TaskWithScheduleForSCurve) => deriveCardProgress(task.card) / 100;
 
 export function summarizeProgress(entries: { task: TaskWithScheduleForSCurve; value: number }[], asOf: Date, budget: number) {
   let plannedValue = 0, actualValue = 0, plannedCount = 0, actualCount = 0;

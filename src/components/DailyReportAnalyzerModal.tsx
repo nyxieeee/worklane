@@ -100,7 +100,7 @@ function extractFloorNum(text: string): number | null {
 }
 
 // Analyze technician daily narrative text against roadmap tasks
-function analyzeReportNarrative(
+export function analyzeReportNarrative(
   text: string,
   tasks: TaskWithScheduleForSCurve[]
 ): ReportAnalysisResult {
@@ -159,9 +159,6 @@ function analyzeReportNarrative(
     let detectedPct: number | null = null;
     let confidence: 'high' | 'medium' | 'low' = 'low';
 
-    // Track total pieces mentioned for this scope (e.g. 18 pcs + 15 pcs = 33 pcs)
-    let totalPiecesCount = 0;
-    const pieceSnippets: string[] = [];
 
     sentences.forEach(s => {
       const lowerSentence = s.toLowerCase();
@@ -180,19 +177,9 @@ function analyzeReportNarrative(
         }
       });
 
-      // Floor boost
-      if (taskFloor !== null && sentenceFloor === taskFloor) {
-        matchedTokenCount += 2;
-      }
-
-      // Check for piece counts (e.g. "Installed 18 pieces of FDAS pipes")
-      if (matchedTokenCount > 0) {
-        const pieceMatch = s.match(/(\d+)\s*(?:pieces?|pcs?)\s+(?:of\s+)?([a-z0-9\s-]+)/i);
-        if (pieceMatch) {
-          const count = parseInt(pieceMatch[1], 10);
-          totalPiecesCount += count;
-          pieceSnippets.push(`${count} pcs on ${sentenceFloor ? `${sentenceFloor}th floor` : 'site'}`);
-        }
+      // Location alone is not evidence that this deliverable was performed.
+      if (/\b(drill\w*|holes?)\b/i.test(s) && !/\b(drill\w*|holes?|passages?)\b/i.test(taskTitle)) {
+        return;
       }
 
       if (matchedTokenCount > 0) {
@@ -229,53 +216,19 @@ function analyzeReportNarrative(
               }
             }
           }
-          // Case D: Pending status (e.g. "Pipe installation is still pending")
-          else if (/\b(still pending|pending installation|pending pipe|to be installed)\b/i.test(s)) {
-            detectedPct = 40;
-            matchedReason = 'Preparatory / boxes installed; pipe routing pending (40%)';
-            confidence = 'medium';
-          }
-          // Case E: Preparatory drilling completed (e.g. "Completed the preparatory drilling work")
-          else if (/\b(completed the preparatory drilling|finished drilling|holes prepared)\b/i.test(s)) {
-            detectedPct = /drill|hole|passage/i.test(taskTitle) ? 100 : 35;
-            matchedReason = 'Preparatory drilling & hole passages completed';
-            confidence = 'high';
-          }
-          // Case F: Standard technical stage keywords
-          else if (/\b(completed?|finished?|done|tested|passed|accepted|turned over|commissioned|certified)\b/i.test(s)) {
-            detectedPct = 100;
-            matchedReason = 'Completed & verified (Stage 4 - 100%)';
-            confidence = 'high';
-          } else if (/\b(terminated?|pulled|mounting|mounted|installed junction boxes|conduit clamps|pipe supports)\b/i.test(s)) {
-            detectedPct = 75;
-            matchedReason = 'Pipes, junction boxes & clamps installed (Stage 3 - 75%)';
-            confidence = 'medium';
-          } else if (/\b(rough-?in|ongoing|in-?progress|proceeded with|continued the installation|drilled holes|wall drilling)\b/i.test(s)) {
-            detectedPct = 50;
-            matchedReason = 'Rough-in underway / Drilling & routing in progress (50%)';
-            confidence = 'medium';
-          } else if (/\b(delivered?|staged?|unloaded|mobilized?|on-?site|prepared the necessary holes)\b/i.test(s)) {
-            detectedPct = 20;
-            matchedReason = 'Preparatory work & staging (Stage 1 - 20%)';
+          else {
+            detectedPct = null;
+            matchedReason = 'Activity mentioned; enter verified progress using the total scope quantity';
             confidence = 'low';
           }
         }
       }
     });
 
-    // If pieces were aggregated across multiple days (e.g. 18 pcs + 15 pcs = 33 pcs)
-    if (totalPiecesCount > 0) {
-      if (detectedPct === null || detectedPct < 60) {
-        detectedPct = Math.min(85, Math.max(50, 40 + totalPiecesCount));
-      }
-      matchedReason = `Installed total ${totalPiecesCount} pieces (${pieceSnippets.join(', ')})`;
-      confidence = 'high';
-    }
-
-    // Match qualification threshold
-    if (bestScore >= 0.25 || bestSnippet.length > 0) {
+    // Require meaningful scope overlap and measurable progress before selecting an update.
+    if (bestScore >= 0.5 && bestSnippet.length > 0) {
       const curProg = t.card.completed ? 100 : (t.card.progress || 0);
-      const finalSuggested = detectedPct !== null ? detectedPct : (curProg > 0 ? Math.min(100, curProg + 25) : 50);
+      const finalSuggested = detectedPct !== null ? detectedPct : curProg;
       if (!matchedReason) matchedReason = 'Scope activity identified in report';
 
       matches.push({
@@ -290,7 +243,7 @@ function analyzeReportNarrative(
         snippet: bestSnippet,
         matchedReason,
         taskCost: t.card.cost || 0,
-        selected: finalSuggested > curProg || (finalSuggested === 0 && curProg === 0),
+        selected: detectedPct !== null && finalSuggested > curProg,
       });
     }
   });

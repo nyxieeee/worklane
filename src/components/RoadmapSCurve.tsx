@@ -3,9 +3,10 @@ import React, { useState, useMemo, useRef } from 'react';
 import {
   TrendingUp, Calendar, CheckCircle2, AlertTriangle, Clock,
   ChevronDown, Layers, Target, Info, Sparkles, Filter, X, FileText,
-  DollarSign, Check
+  DollarSign, Check, RefreshCw
 } from 'lucide-react';
 import RoadmapSituationerModal from './RoadmapSituationerModal';
+import RecalculateProgressModal from './RecalculateProgressModal';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { Board, Member, Sprint, WorkSuspension } from '../types';
 import { avatarInitials } from '../utils';
@@ -89,6 +90,7 @@ export default function RoadmapSCurve({ board, tasks, onOpenCard, onClose }: Pro
   const [hoverX, setHoverX] = useState<number | null>(null);
   const [showTable, setShowTable] = useState<boolean>(true);
   const [showSituationer, setShowSituationer] = useState<boolean>(false);
+  const [showRecalculation, setShowRecalculation] = useState(false);
   const [isHoveringSvg, setIsHoveringSvg] = useState<boolean>(false);
 
   const [editingColBudgetId, setEditingColBudgetId] = useState<string | null>(null);
@@ -600,8 +602,12 @@ export default function RoadmapSCurve({ board, tasks, onOpenCard, onClose }: Pro
               </span>
             </div>
             <p style={{ margin: '2px 0 0', fontSize: 11.5, color: 'hsl(var(--muted-foreground))' }}>
-              Accomplishment from every building counts, in any work order. Contributions are weighted by item value; installation earns progress separately from preparation. The planned line follows scheduled dates. Past actual points are estimated between recorded start and completion dates.
+              Compare recorded accomplishment with the project plan.
             </p>
+            <details style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))', marginTop: 4 }}>
+              <summary style={{ cursor: 'pointer' }}>How progress is calculated</summary>
+              <p>Items are weighted by value across all buildings. Preparation and installation earn progress separately. The planned line follows scheduled dates; past actual points are estimated between recorded start and completion dates.</p>
+            </details>
           </div>
         </div>
 
@@ -723,12 +729,14 @@ export default function RoadmapSCurve({ board, tasks, onOpenCard, onClose }: Pro
           {/* Toggle breakdown table */}
           <button
             type="button"
-            className="icon-btn"
-            style={{ width: 28, height: 28, borderRadius: 6 }}
+            className="btn btn-secondary"
+            style={{ minHeight: 32, gap: 6, borderRadius: 6 }}
             onClick={() => setShowTable(s => !s)}
+            aria-expanded={showTable}
             title={showTable ? 'Hide phase breakdown' : 'Show phase breakdown'}
           >
             <Layers size={14} color={showTable ? 'hsl(var(--primary))' : 'currentColor'} />
+            <span>{showTable ? 'Hide breakdown' : 'Show breakdown'}</span>
           </button>
 
           {/* Close button */}
@@ -747,6 +755,16 @@ export default function RoadmapSCurve({ board, tasks, onOpenCard, onClose }: Pro
       </div>
 
       {/* Shared layout keeps summary cards aligned across metric modes and screen sizes. */}
+      <div className="scurve-progress-actions">
+        <div>
+          <strong>Review project progress</strong>
+          <p>Numbers look too high? Review item percentages and preview corrections before saving.</p>
+        </div>
+        <button type="button" className="btn btn-primary" onClick={() => setShowRecalculation(true)}>
+          <RefreshCw size={16} aria-hidden="true" />
+          Recalculate Progress
+        </button>
+      </div>
       <div className="scurve-summary">
         {(() => {
           const metricValue = (value: number) => metricMode === 'cost' ? fmtMoney(value)
@@ -1283,6 +1301,7 @@ export default function RoadmapSCurve({ board, tasks, onOpenCard, onClose }: Pro
       )}
 
       {/* Situationer Report Modal */}
+      {showRecalculation && <RecalculateProgressModal board={board} entries={progressEntries} budget={totalContractPrice} onClose={() => setShowRecalculation(false)} />}
       {showSituationer && (
         <RoadmapSituationerModal
           board={board}

@@ -2958,6 +2958,35 @@ select option {
 .situationer-document table { font-variant-numeric: tabular-nums; }
 .situationer-document textarea { box-shadow: none; }
 
+.scurve-progress-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid hsl(var(--primary) / 0.3);
+  border-radius: 10px;
+  background: hsl(var(--primary) / 0.06);
+}
+.scurve-progress-actions strong { font-size: 14px; }
+.scurve-progress-actions p {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: hsl(var(--muted-foreground));
+}
+.scurve-progress-actions .btn {
+  min-height: 44px;
+  padding: 10px 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+@media (max-width: 600px) {
+  .scurve-progress-actions .btn { width: 100%; }
+}
 .scurve-summary {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr));
