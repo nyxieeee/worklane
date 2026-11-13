@@ -3059,3 +3059,17 @@ select option {
 .task-order-button:hover:not(:disabled), .task-order-button:focus-visible { color: hsl(var(--primary)); background: hsl(var(--primary) / 0.12); }
 .task-order-button:disabled { opacity: 0.25; cursor: default; }
 @media (pointer: coarse) { .task-order-button { min-width: 28px; min-height: 28px; } }
+
+/* Keep roadmap content within the dialog on narrow screens and at browser zoom. */
+.create-roadmap-modal .modal-header,
+.create-roadmap-modal .modal-footer { flex-shrink: 0; gap: 12px; }
+.create-roadmap-modal .modal-header > div { min-width: 0; }
+.create-roadmap-modal .modal-header h2 { flex-wrap: wrap; }
+.create-roadmap-modal .modal-body > * { flex-shrink: 0; min-width: 0; }
+.create-roadmap-modal .modal-body .btn { white-space: normal; height: auto !important; min-height: 32px; }
+.create-roadmap-modal .modal-footer { flex-wrap: wrap; }
+.create-roadmap-modal input { min-width: 0; }
+@media (max-width: 600px) {
+  .create-roadmap-modal .modal-body > .form-group > div:last-child { flex-wrap: wrap; }
+  .create-roadmap-modal .modal-footer .btn-primary { flex: 1; white-space: normal; }
+}

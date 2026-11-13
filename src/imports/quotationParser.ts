@@ -1,5 +1,5 @@
 import { parseCSV, findBOQColumns } from './boq';
-import { readBOQPDF, tableToCSV } from './boqPDF';
+import { readBOQPDF } from './boqPDF';
 import { readBOQImage } from './boqImage';
 
 export interface ExtractedBuildingItem {
@@ -30,11 +30,11 @@ export interface QuotationParseResult {
 
 // Helper to sanitize monetary strings (e.g. "₱ 1,250,000.00" -> 1250000)
 export function parseCurrencyNumber(val: unknown): number {
-  if (typeof val === 'number') return isNaN(val) ? 0 : val;
+  if (typeof val === 'number') return Number.isFinite(val) ? val : 0;
   if (!val) return 0;
   const str = String(val).replace(/[^0-9.-]+/g, '');
   const num = parseFloat(str);
-  return isNaN(num) ? 0 : num;
+  return Number.isFinite(num) ? num : 0;
 }
 
 // Detect currency symbol
@@ -54,14 +54,22 @@ export async function extractTableFromFile(
 ): Promise<{ rows: string[][]; rawText: string }> {
   const ext = file.name.split('.').pop()?.toLowerCase() ?? '';
 
-  if (ext === 'xlsx' || ext === 'xls') {
+  if (ext === 'xls' || ext === 'doc') throw new Error('Save this legacy file as .xlsx or .docx and try again.');
+  if (ext === 'xlsx') {
     const { default: readExcel } = await import('read-excel-file/browser');
     const sheets = await readExcel(file);
-    const data = (sheets && sheets[0] ? sheets : [[]]) as unknown[][];
-    // Convert to string matrix
-    const rows = (data || []).map(r => (r || []).map(c => String(c ?? '').trim()));
-    const rawText = rows.map(r => r.join(' ')).join('\n');
-    return { rows, rawText };
+    const rows = sheets.flatMap(sheet => sheet.data.map(row => row.map(cell => String(cell ?? '').trim())));
+    return { rows, rawText: rows.map(row => row.join(' ')).join('\n') };
+  }
+  if (ext === 'docx') {
+    const mammoth = await import('mammoth');
+    const { value } = await mammoth.extractRawText({ arrayBuffer: await file.arrayBuffer() });
+    const rows = value.split(/\r?\n/).filter(line => line.trim()).map(line => line.trim().split(/\t|\s{2,}/));
+    return { rows, rawText: value };
+  }
+  if (ext === 'txt') {
+    const rawText = await file.text();
+    return { rows: rawText.split(/\r?\n/).map(line => line.split(/\t|\s{2,}/)), rawText };
   }
 
   if (ext === 'csv') {
@@ -73,14 +81,14 @@ export async function extractTableFromFile(
   if (ext === 'pdf') {
     onProgress?.('Extracting tables from PDF document...');
     const rows = await readBOQPDF(file);
-    const rawText = tableToCSV(rows);
+    const rawText = rows.map(row => row.join(' ')).join('\n');
     return { rows, rawText };
   }
 
   if (['png', 'jpg', 'jpeg', 'webp', 'bmp'].includes(ext)) {
     onProgress?.('Reading text and table coordinates from image (OCR)...');
     const rows = await readBOQImage(file, msg => onProgress?.(msg), signal);
-    const rawText = tableToCSV(rows);
+    const rawText = rows.map(row => row.join(' ')).join('\n');
     return { rows, rawText };
   }
 
@@ -96,7 +104,7 @@ export function parseCommercialQuotation(table: string[][], rawText: string): Qu
 
   // Look for total contract price or sum of lot lines
   let explicitTotal = 0;
-  const totalMatch = rawText.match(/(?:TOTAL|GRAND TOTAL|CONTRACT PRICE|CONTRACT AMOUNT|PROJECT TOTAL)[:\s]*[₱$€£]?\s*([0-9,]+(?:\.[0-9]{2})?)/i);
+  const totalMatch = rawText.match(/(?:GRAND TOTAL|TOTAL CONTRACT PRICE|CONTRACT PRICE|CONTRACT AMOUNT|PROJECT TOTAL|TOTAL)[:\s]*[₱$€£]?\s*([0-9,]+(?:\.[0-9]{2})?)/i);
   if (totalMatch) {
     explicitTotal = parseCurrencyNumber(totalMatch[1]);
   }
@@ -106,6 +114,12 @@ export function parseCommercialQuotation(table: string[][], rawText: string): Qu
     const row = table[r].filter(Boolean);
     if (!row.length) continue;
     const rowStr = row.join(' ');
+
+    if (/^(grand total|total contract price|contract price|contract amount|project total|total)\b/i.test(rowStr)) {
+      const amount = [...row].reverse().map(parseCurrencyNumber).find(n => n > 0);
+      if (amount) explicitTotal = amount;
+      continue;
+    }
 
     // Match lot keywords: "Labor", "Devices", "Supply & Installation", "1 lot"
     const isLot = /\b(lot|lump\s*sum|ls)\b/i.test(rowStr);
@@ -164,14 +178,29 @@ export function parseCommercialQuotation(table: string[][], rawText: string): Qu
 export function parseBuildingTakeoff(table: string[][], rawText: string): ExtractedBuildingItem[] {
   const items: ExtractedBuildingItem[] = [];
   let currentBuilding = 'General Scope';
+  let columns: number[] | null = null;
 
   // Common building/floor patterns: "Mutien Building", "5th Floor", "Phase 1"
   const sectionHeaderRegex = /^(?:Item\s+[A-Z0-9]+|Phase\s+[0-9]+|[A-Za-z0-9\s-]+(?:Building|Bldg|Floor|Flr|Wing|Tower))/i;
 
   for (let r = 0; r < table.length; r++) {
-    const row = table[r].filter(Boolean);
+    const original = table[r];
+    const row = original.filter(cell => cell.trim());
     if (!row.length) continue;
     const rowStr = row.join(' ').trim();
+    const candidate = findBOQColumns(original);
+    if (candidate[1] >= 0 && candidate[3] >= 0) { columns = candidate; continue; }
+    if (/^(?:sub\s*total|grand total|total)\b/i.test(rowStr)) continue;
+    if (columns) {
+      const description = original[columns[1]]?.trim();
+      const quantity = parseCurrencyNumber(original[columns[3]]);
+      if (description && quantity > 0) {
+        items.push({ id: `item_${r}`, buildingOrPhase: original[columns[2]]?.trim() || currentBuilding,
+          scopeDescription: description, quantity, unit: original[columns[4]]?.trim() || 'pcs',
+          unitRate: parseCurrencyNumber(original[columns[5]]) || undefined });
+        continue;
+      }
+    }
 
     // Skip table header lines
     if (/^(item|no|description|scope|qty|quantity|unit|rate|amount|price)/i.test(row[0] || '')) {
@@ -179,7 +208,7 @@ export function parseBuildingTakeoff(table: string[][], rawText: string): Extrac
     }
 
     // Check if this row is a section header (e.g., Mutien Building, 5th Floor)
-    if (row.length === 1 || (row.length <= 2 && !row.some(c => /^[0-9]+$/.test(c.trim())))) {
+    if (!/\d+(?:\.\d+)?\s*(?:pcs|pieces?|meters?|m\b|sets?|rolls?|lengths?|units?)/i.test(rowStr) && (row.length === 1 || (row.length <= 2 && !row.some(c => /^[0-9]+$/.test(c.trim()))))) {
       if (sectionHeaderRegex.test(rowStr) || rowStr.length < 40) {
         currentBuilding = rowStr.replace(/^[-•*#\d.]+\s*/, '').trim();
         continue;
@@ -203,7 +232,7 @@ export function parseBuildingTakeoff(table: string[][], rawText: string): Extrac
       } else if (!desc && cell.length > 3 && !/^[0-9.,₱$€£]+$/.test(cell)) {
         desc = cell;
       } else if (num > 0) {
-        if (qty === 0 && num < 10000 && !cell.includes('.')) {
+        if (desc && qty === 0) {
           qty = num;
         } else if (unitRate === 0 && qty > 0) {
           unitRate = num;
@@ -215,15 +244,14 @@ export function parseBuildingTakeoff(table: string[][], rawText: string): Extrac
 
     // If unit or qty wasn't found in distinct cells, inspect text
     if (!qty) {
-      const qtyMatch = rowStr.match(/(\d+)\s*(pcs|pieces?|meters?|m|sets?|rolls?|lengths?|units?)/i);
+      const qtyMatch = rowStr.match(/(\d+(?:\.\d+)?)\s*(pcs|pieces?|meters?|m|sets?|rolls?|lengths?|units?)/i);
       if (qtyMatch) {
-        qty = parseInt(qtyMatch[1], 10);
+        qty = Number(qtyMatch[1]);
         unit = qtyMatch[2].toLowerCase();
       }
     }
 
-    if (desc && desc.length > 2) {
-      if (qty === 0) qty = 1;
+    if (desc && desc.length > 2 && qty > 0) {
       items.push({
         id: `item_${r}`,
         buildingOrPhase: currentBuilding,

@@ -1,10 +1,11 @@
-import React, { useState, useRef, useMemo } from 'react';
+import React, { useState, useRef, useMemo, useEffect } from 'react';
 import {
   X, Plus, Trash2, Upload, FileText, Loader2, CheckCircle2,
   Calendar, Clock, Layers, Sparkles, DollarSign, Image as ImageIcon,
   Building, Check, ArrowRight
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
+import { createPortal } from 'react-dom';
 import { useWorkStore } from '../../store/useWorkStore';
 import { useToastStore } from '../../store/useToastStore';
 import { useAuthStore } from '../../store/useAuthStore';
@@ -60,6 +61,10 @@ export default function CreateRoadmapModal({ onClose, initialName = '' }: Props)
 
   const [isReadingQuotation, setIsReadingQuotation] = useState(false);
   const [isReadingBreakdown, setIsReadingBreakdown] = useState(false);
+  const reader = useRef<AbortController | null>(null);
+  useEffect(() => () => reader.current?.abort(), []);
+  const [uploadErrors, setUploadErrors] = useState<string[]>([]);
+  const isReading = isReadingQuotation || isReadingBreakdown;
   const [readingStatus, setReadingStatus]           = useState('');
 
   const [quotationFileName, setQuotationFileName]   = useState<string | null>(null);
@@ -96,13 +101,19 @@ export default function CreateRoadmapModal({ onClose, initialName = '' }: Props)
     if (!file) return;
     e.target.value = '';
 
+    if (isReading) return;
+    const controller = new AbortController();
+    reader.current = controller;
+    setUploadErrors([]);
     setIsReadingQuotation(true);
     setReadingStatus(`Reading ${file.name}...`);
     setQuotationFileName(file.name);
 
     try {
-      const { rows, rawText } = await extractTableFromFile(file, msg => setReadingStatus(msg));
+      const { rows, rawText } = await extractTableFromFile(file, setReadingStatus, controller.signal);
+      if (controller.signal.aborted) return;
       const result = parseCommercialQuotation(rows, rawText);
+      if (result.totalContractPrice <= 0) throw new Error('No contract total or priced lot items found. Check the document or enter the contract price manually.');
 
       if (result.currency) setCurrency(result.currency);
       if (result.totalContractPrice > 0) {
@@ -123,7 +134,10 @@ export default function CreateRoadmapModal({ onClose, initialName = '' }: Props)
 
       showToast(`Loaded quotation: ${result.currency} ${result.totalContractPrice.toLocaleString(undefined, { minimumFractionDigits: 2 })}`, 'success');
     } catch (err: any) {
-      showToast(err.message || 'Failed to parse quotation file', 'error');
+      if (!controller.signal.aborted) {
+        setUploadErrors([`${file.name}: ${err.message || 'Failed to read quotation'}`]);
+        setQuotationFileName(null);
+      }
     } finally {
       setIsReadingQuotation(false);
       setReadingStatus('');
@@ -132,29 +146,40 @@ export default function CreateRoadmapModal({ onClose, initialName = '' }: Props)
 
   // Handle uploading the Building/Scope Breakdown (PNG picture, Excel, or PDF)
   const handleUploadBreakdown = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = Array.from(e.target.files || []);
     e.target.value = '';
-
+    if (!files.length || isReading) return;
+    const controller = new AbortController();
+    reader.current = controller;
     setIsReadingBreakdown(true);
-    setReadingStatus(`Scanning quantities & buildings in ${file.name}...`);
-    setBreakdownFileName(file.name);
-
+    setUploadErrors([]);
+    const items: ExtractedBuildingItem[] = [];
+    const failures: string[] = [];
+    const loaded: string[] = [];
     try {
-      const { rows, rawText } = await extractTableFromFile(file, msg => setReadingStatus(msg));
-      const items = parseBuildingTakeoff(rows, rawText);
-
-      if (items.length === 0) {
-        showToast('No distinct items or quantities found in this image/file.', 'error');
-        setIsReadingBreakdown(false);
-        return;
+      for (const [index, file] of files.entries()) {
+        if (controller.signal.aborted) return;
+        const progress = (message: string) => setReadingStatus(`${index + 1}/${files.length} · ${file.name}: ${message}`);
+        try {
+          progress('Reading quantities and buildings…');
+          const { rows, rawText } = await extractTableFromFile(file, progress, controller.signal);
+          if (controller.signal.aborted) return;
+          const parsed = parseBuildingTakeoff(rows, rawText);
+          if (!parsed.length) throw new Error('No quantities found. Use a clear table with descriptions, quantities and units.');
+          items.push(...parsed.map(item => ({ ...item, id: `${index}_${item.id}` })));
+          loaded.push(file.name);
+        } catch (err) {
+          if (controller.signal.aborted) return;
+          failures.push(`${file.name}: ${err instanceof Error ? err.message : 'Could not read this file'}`);
+        }
       }
-
-      setBuildingTakeoff(items);
-      syncGeneratedPhases(commercialLots, items, contractTotal);
-      showToast(`Extracted ${items.length} deliverables across buildings!`, 'success');
-    } catch (err: any) {
-      showToast(err.message || 'Failed to scan building breakdown', 'error');
+      setUploadErrors(failures);
+      if (items.length) {
+        setBuildingTakeoff(items);
+        setBreakdownFileName(loaded.join(', '));
+        syncGeneratedPhases(commercialLots, items, contractTotal);
+        showToast(`Loaded ${loaded.length} files with ${items.length} deliverables`, 'success');
+      }
     } finally {
       setIsReadingBreakdown(false);
       setReadingStatus('');
@@ -284,7 +309,8 @@ export default function CreateRoadmapModal({ onClose, initialName = '' }: Props)
   };
 
   const handleCreate = async () => {
-    if (!name.trim() || isSubmitting) return;
+    if (!name.trim() || isSubmitting || isReading) return;
+    if (!totalRoadmapDays) { showToast('Choose a completion date on or after the start date.', 'error'); return; }
 
     if (phases.length === 0) {
       showToast('Please add or upload at least one phase before creating the roadmap.', 'error');
@@ -328,10 +354,10 @@ export default function CreateRoadmapModal({ onClose, initialName = '' }: Props)
     flexShrink: 0,
   });
 
-  return (
-    <div className="modal-backdrop" onClick={() => onClose()}>
+  return createPortal(
+    <div className="modal-overlay" style={{ zIndex: 1200 }} onClick={() => onClose()}>
       <motion.div
-        className="modal-container"
+        className="modal create-roadmap-modal" role="dialog" aria-modal="true" aria-label="Create Project Roadmap"
         initial={{ opacity: 0, scale: 0.95, y: 10 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 10 }}
@@ -365,10 +391,10 @@ export default function CreateRoadmapModal({ onClose, initialName = '' }: Props)
         </div>
 
         {/* Body */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div className="modal-body" style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 16 }}>
 
           {/* Mode Switcher */}
-          <div style={{ display: 'flex', gap: 8, padding: 4, background: 'hsl(var(--secondary) / 0.4)', borderRadius: 8 }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, padding: 4, background: 'hsl(var(--secondary) / 0.4)', borderRadius: 8 }}>
             <button
               type="button"
               className={`btn ${creationMode === 'quotation' ? 'btn-primary' : 'btn-secondary'}`}
@@ -404,7 +430,7 @@ export default function CreateRoadmapModal({ onClose, initialName = '' }: Props)
 
           {/* Overall Timeline Dates */}
           <div style={{
-            display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 10, alignItems: 'end',
+            display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))', gap: 10, alignItems: 'end',
             padding: '12px 14px', borderRadius: 8, background: 'hsl(var(--secondary) / 0.25)',
             border: '1px solid hsl(var(--border) / 0.5)'
           }}>
@@ -444,7 +470,7 @@ export default function CreateRoadmapModal({ onClose, initialName = '' }: Props)
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               
               {/* Two Dropzones */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 250px), 1fr))', gap: 12 }}>
                 
                 {/* 1. Commercial Quotation (PDF, Excel, Docx) */}
                 <div
@@ -461,12 +487,12 @@ export default function CreateRoadmapModal({ onClose, initialName = '' }: Props)
                     justifyContent: 'center',
                     gap: 6
                   }}
-                  onClick={() => quotationFileRef.current?.click()}
+                  onClick={() => { if (!isReading) quotationFileRef.current?.click(); }}
                 >
                   <input
                     ref={quotationFileRef}
                     type="file"
-                    accept=".pdf,.xlsx,.xls,.docx,.doc,.csv,.txt"
+                    disabled={isReading} accept=".pdf,.xlsx,.docx,.csv,.txt"
                     style={{ display: 'none' }}
                     onChange={handleUploadQuotation}
                   />
@@ -475,7 +501,7 @@ export default function CreateRoadmapModal({ onClose, initialName = '' }: Props)
                   ) : (
                     <FileText size={24} color="hsl(var(--primary))" style={{ opacity: 0.8 }} />
                   )}
-                  <div style={{ fontSize: 11.5, fontWeight: 700 }}>
+                  <div style={{ fontSize: 11.5, fontWeight: 700, overflowWrap: 'anywhere' }}>
                     {quotationFileName ? quotationFileName : '1. Upload Commercial Quotation'}
                   </div>
                   <div style={{ fontSize: 10, color: 'hsl(var(--muted-foreground))' }}>
@@ -498,12 +524,12 @@ export default function CreateRoadmapModal({ onClose, initialName = '' }: Props)
                     justifyContent: 'center',
                     gap: 6
                   }}
-                  onClick={() => breakdownFileRef.current?.click()}
+                  onClick={() => { if (!isReading) breakdownFileRef.current?.click(); }}
                 >
                   <input
                     ref={breakdownFileRef}
                     type="file"
-                    accept=".png,.jpg,.jpeg,.webp,.pdf,.xlsx,.xls,.csv"
+                    multiple disabled={isReading} accept=".png,.jpg,.jpeg,.webp,.bmp,.pdf,.xlsx,.csv"
                     style={{ display: 'none' }}
                     onChange={handleUploadBreakdown}
                   />
@@ -512,11 +538,11 @@ export default function CreateRoadmapModal({ onClose, initialName = '' }: Props)
                   ) : (
                     <ImageIcon size={24} color="#3b82f6" style={{ opacity: 0.8 }} />
                   )}
-                  <div style={{ fontSize: 11.5, fontWeight: 700 }}>
-                    {breakdownFileName ? breakdownFileName : '2. Upload Building Breakdown (PNG / Picture)'}
+                  <div style={{ fontSize: 11.5, fontWeight: 700, overflowWrap: 'anywhere' }}>
+                    {breakdownFileName ? breakdownFileName : '2. Upload Building Pictures / Takeoff Files'}
                   </div>
                   <div style={{ fontSize: 10, color: 'hsl(var(--muted-foreground))' }}>
-                    Screenshot or BOQ (Reads quantities &amp; floors per building)
+                    Select multiple pictures or files in one batch
                   </div>
                 </div>
 
@@ -529,6 +555,9 @@ export default function CreateRoadmapModal({ onClose, initialName = '' }: Props)
                 </div>
               )}
 
+              {uploadErrors.length > 0 && <div role="alert" style={{ color: 'hsl(var(--destructive))', fontSize: 12 }}>
+                {uploadErrors.map((message, index) => <p key={index}>{message}</p>)}
+              </div>}
               {/* Total Contract Price row */}
               <div style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -593,7 +622,7 @@ export default function CreateRoadmapModal({ onClose, initialName = '' }: Props)
                 background: 'hsl(var(--secondary) / 0.2)', border: '1px dashed hsl(var(--border))',
                 fontSize: 11.5, color: 'hsl(var(--muted-foreground))'
               }}>
-                Drop your quotation or breakdown picture above to automatically generate buildings, deliverables, and monetary values.
+                Select your quotation or breakdown pictures above to automatically generate buildings, deliverables, and monetary values.
               </div>
             ) : (
               <div style={{
@@ -677,7 +706,7 @@ export default function CreateRoadmapModal({ onClose, initialName = '' }: Props)
             )}
 
             {/* Manual add row */}
-            <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 8 }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center', marginTop: 8 }}>
               <div style={{ display: 'flex', borderRadius: 6, overflow: 'hidden', border: '1px solid hsl(var(--border) / 0.7)', flexShrink: 0 }}>
                 {(['phase', 'subtask'] as const).map(t => (
                   <button key={t} type="button" onClick={() => {
@@ -772,7 +801,7 @@ export default function CreateRoadmapModal({ onClose, initialName = '' }: Props)
             type="button"
             className="btn btn-primary"
             onClick={handleCreate}
-            disabled={!name.trim() || phases.length === 0 || isSubmitting}
+            disabled={!name.trim() || phases.length === 0 || isSubmitting || isReading}
             style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700 }}
           >
             {isSubmitting ? (
@@ -790,6 +819,6 @@ export default function CreateRoadmapModal({ onClose, initialName = '' }: Props)
         </div>
 
       </motion.div>
-    </div>
+    </div>, document.body
   );
 }

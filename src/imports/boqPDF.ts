@@ -1,3 +1,4 @@
+import pdfWorkerURL from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import { findBOQColumns } from './boq';
 
 export interface PDFCell { text: string; x: number; y: number; width: number; height: number }
@@ -62,7 +63,7 @@ export function pdfTableRows(pages: PDFCell[][]): string[][] {
 
 export async function readBOQPDF(file: File): Promise<string[][]> {
   const pdfjs = await import('pdfjs-dist');
-  pdfjs.GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url).toString();
+  pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerURL;
   const loadingTask = pdfjs.getDocument({ data: await file.arrayBuffer() });
   const pages: PDFCell[][] = [];
   try {
