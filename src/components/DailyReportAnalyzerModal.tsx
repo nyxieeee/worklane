@@ -1,3 +1,4 @@
+import pdfWorkerURL from 'pdfjs-dist/legacy/build/pdf.worker.min.mjs?url';
 import React, { useState, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import {
@@ -58,11 +59,8 @@ async function extractTextFromFile(file: File): Promise<string> {
   }
 
   if (ext === 'pdf') {
-    const pdfjs = await import('pdfjs-dist');
-    pdfjs.GlobalWorkerOptions.workerSrc = new URL(
-      'pdfjs-dist/build/pdf.worker.min.mjs',
-      import.meta.url,
-    ).toString();
+    const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
+    pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerURL;
     const pdf = await pdfjs.getDocument({ data: await file.arrayBuffer() }).promise;
     let text = '';
     for (let i = 1; i <= pdf.numPages; i++) {

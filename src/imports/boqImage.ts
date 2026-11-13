@@ -1,3 +1,4 @@
+import ocrWorkerURL from 'tesseract.js/dist/worker.min.js?url';
 import { pdfTableRows } from './boqPDF';
 
 export interface OCRWord {
@@ -20,6 +21,9 @@ export async function readBOQImage(file: File, onProgress: (message: string) => 
   const { createWorker } = await import('tesseract.js');
   onProgress('Loading OCR. First use downloads the reading engine and English language data…');
   const worker = await createWorker('eng', 1, {
+    workerPath: ocrWorkerURL,
+    workerBlobURL: false,
+    corePath: 'https://cdn.jsdelivr.net/npm/tesseract.js-core@v7.0.0',
     logger: message => {
       if (!signal?.aborted && message.status === 'recognizing text') onProgress(`Reading picture… ${Math.round(message.progress * 100)}%`);
     },

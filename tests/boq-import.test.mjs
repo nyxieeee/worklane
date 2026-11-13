@@ -115,9 +115,13 @@ test('picture OCR preserves table coordinates, releases its worker and rejects u
     cell('D1', 20, 50), cell('Wall', 100, 50), cell('drilling', 134, 50), cell('100', 340, 50), cell('holes', 410, 50), cell('12.5', 470, 50)];
   let terminated = 0, recognizeCount = 0;
   let data = { text: 'Reference Description Quantity Unit Unit Rate\nD1 Wall drilling 100 holes 12.5', blocks: [{ paragraphs: [{ lines: [{ words }] }] }] };
-  const ocr = { createWorker: async () => ({ setParameters: async () => {}, recognize: async () => { recognizeCount++; return { data }; }, terminate: async () => { terminated++; } }) };
+  const ocr = { createWorker: async (_language, _engine, options) => {
+    assert.equal(options.workerBlobURL, false);
+    assert.equal(options.workerPath, '/assets/ocr-worker.js');
+    assert.equal(options.corePath, 'https://cdn.jsdelivr.net/npm/tesseract.js-core@v7.0.0');
+    return ({ setParameters: async () => {}, recognize: async () => { recognizeCount++; return { data }; }, terminate: async () => { terminated++; } }); } };
   const imageExports = {};
-  new Function('require', 'exports', compile(source('src/imports/boqImage.ts')))(id => id === 'tesseract.js' ? ocr : pdfExports, imageExports);
+  new Function('require', 'exports', compile(source('src/imports/boqImage.ts')))(id => id === 'tesseract.js' ? ocr : id.endsWith('?url') ? { default: '/assets/ocr-worker.js' } : pdfExports, imageExports);
   const table = await imageExports.readBOQImage({}, () => {});
   const parsed = parseBOQRows(table, 0, findBOQColumns(table[0]));
   assert.equal(parsed[0].description, 'Wall drilling');
