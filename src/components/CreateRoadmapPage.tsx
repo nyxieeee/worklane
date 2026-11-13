@@ -1,16 +1,15 @@
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import {
-  X, Plus, Trash2, Upload, FileText, Loader2, CheckCircle2,
+  ArrowLeft, Plus, Trash2, Upload, FileText, Loader2, CheckCircle2,
   Calendar, Clock, Layers, Sparkles, DollarSign, Image as ImageIcon,
   Building, Check, ArrowRight
 } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { createPortal } from 'react-dom';
-import { useWorkStore } from '../../store/useWorkStore';
-import { useToastStore } from '../../store/useToastStore';
-import { useAuthStore } from '../../store/useAuthStore';
-import { BOARD_COLORS } from '../../types';
-import NeumorphicDatePicker from '../ui/NeumorphicDatePicker';
+import { useWorkStore } from '../store/useWorkStore';
+import { useToastStore } from '../store/useToastStore';
+import { useAuthStore } from '../store/useAuthStore';
+import { BOARD_COLORS } from '../types';
+import NeumorphicDatePicker from './ui/NeumorphicDatePicker';
 import {
   extractTableFromFile,
   parseCommercialQuotation,
@@ -18,7 +17,7 @@ import {
   apportionQuotationValues,
   type ExtractedBuildingItem,
   type CommercialLotItem
-} from '../../imports/quotationParser';
+} from '../imports/quotationParser';
 
 interface Props {
   onClose: (createdRoadmapId?: string) => void;
@@ -34,7 +33,7 @@ type PhaseItem = {
   unit?: string;
 };
 
-export default function CreateRoadmapModal({ onClose, initialName = '' }: Props) {
+export default function CreateRoadmapPage({ onClose, initialName = '' }: Props) {
   const createRoadmap = useWorkStore(s => s.createRoadmap);
   const showToast     = useToastStore(s => s.showToast);
   const user          = useAuthStore(s => s.user);
@@ -336,7 +335,7 @@ export default function CreateRoadmapModal({ onClose, initialName = '' }: Props)
       showToast(`Project Roadmap "${name.trim()}" created successfully!`, 'success');
       onClose(newRoadmap.id);
     } catch (err: any) {
-      console.error('[CreateRoadmapModal] error:', err);
+      console.error('[CreateRoadmapPage] error:', err);
       showToast(err.message || 'Failed to create roadmap', 'error');
       setIsSubmitting(false);
     }
@@ -354,40 +353,30 @@ export default function CreateRoadmapModal({ onClose, initialName = '' }: Props)
     flexShrink: 0,
   });
 
-  return createPortal(
-    <div className="modal-overlay" style={{ zIndex: 1200 }} onClick={() => onClose()}>
-      <motion.div
-        className="modal create-roadmap-modal" role="dialog" aria-modal="true" aria-label="Create Project Roadmap"
+  return (
+      <motion.main
+        className="create-roadmap-page" aria-label="Create Project Roadmap"
         initial={{ opacity: 0, scale: 0.95, y: 10 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 10 }}
-        style={{
-          width: '92vw',
-          maxWidth: 780,
-          maxHeight: '92vh',
-          display: 'flex',
-          flexDirection: 'column',
-          padding: 0,
-          overflow: 'hidden'
-        }}
-        onClick={e => e.stopPropagation()}
       >
+        <div className="roadmap-page-back">
+          <button type="button" className="btn btn-secondary" onClick={() => onClose()} disabled={isSubmitting}>
+            <ArrowLeft size={16} aria-hidden="true" /> Back
+          </button>
+        </div>
         {/* Header */}
         <div className="modal-header" style={{ padding: '16px 20px', borderBottom: '1px solid hsl(var(--border))' }}>
           <div>
-            <h2 style={{ fontSize: 16, fontWeight: 700, margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <h1 style={{ fontSize: 24, fontWeight: 700, margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
               <span>Create Project Roadmap</span>
-              <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 4, background: 'rgba(59,130,246,0.15)', color: '#3b82f6' }}>
-                AUTO-EVM
-              </span>
-            </h2>
+
+            </h1>
             <p style={{ fontSize: 11.5, color: 'hsl(var(--muted-foreground))', margin: '3px 0 0' }}>
-              Upload quotation &amp; takeoff files or set up phases manually to generate your Gantt and S-Curve.
+              Upload project files or enter tasks yourself. Review the schedule before creating your roadmap.
             </p>
           </div>
-          <button type="button" className="icon-btn" onClick={() => onClose()}>
-            <X size={16} />
-          </button>
+
         </div>
 
         {/* Body */}
@@ -402,7 +391,7 @@ export default function CreateRoadmapModal({ onClose, initialName = '' }: Props)
               onClick={() => setCreationMode('quotation')}
             >
               <Sparkles size={13} />
-              <span>Smart Quotation &amp; Takeoff Import (Recommended)</span>
+              <span>Upload project files</span>
             </button>
             <button
               type="button"
@@ -410,7 +399,7 @@ export default function CreateRoadmapModal({ onClose, initialName = '' }: Props)
               style={{ height: 32, fontSize: 12, padding: '0 16px' }}
               onClick={() => setCreationMode('manual')}
             >
-              Manual List
+              Enter tasks myself
             </button>
           </div>
 
@@ -818,7 +807,6 @@ export default function CreateRoadmapModal({ onClose, initialName = '' }: Props)
           </button>
         </div>
 
-      </motion.div>
-    </div>, document.body
+      </motion.main>
   );
 }

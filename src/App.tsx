@@ -12,7 +12,7 @@ import NotifPanel from './components/NotifPanel';
 import Toast from './components/Toast';
 import Dashboard from './components/Dashboard';
 import CreateBoardModal from './components/modals/CreateBoardModal';
-import CreateRoadmapModal from './components/modals/CreateRoadmapModal';
+import CreateRoadmapPage from './components/CreateRoadmapPage';
 import AddColumnModal from './components/modals/AddColumnModal';
 import SearchModal from './components/modals/SearchModal';
 import PrivacyModal from './components/modals/PrivacyModal';
@@ -295,6 +295,7 @@ export default function App() {
   const [openCardBoardId, setOpenCardBoardId] = useState<string | null>(null);
   const [showCreateBoard, setShowCreateBoard] = useState(false);
   const [showCreateRoadmap, setShowCreateRoadmap] = useState(false);
+  const [roadmapSource, setRoadmapSource] = useState<{ name: string; cardId: string } | null>(null);
   const [showAddColumn, setShowAddColumn] = useState(false);
   const [showMembers, setShowMembers] = useState(false);
   const [showEmail, setShowEmail] = useState(false);
@@ -442,6 +443,8 @@ export default function App() {
   }, [page, activeBoardId, visibleBoards, hasLoadedOnce]);
 
   const handleSelectBoard = useCallback((boardId: string, view?: 'board' | 'roadmap' | 'calendar') => {
+    setShowCreateRoadmap(false);
+    setRoadmapSource(null);
     switchBoard(boardId);
     setShowBoardSelector(false);
     const storeBoards = useWorkStore.getState().boards;
@@ -475,6 +478,8 @@ export default function App() {
   }, [switchBoard, boards, viewMode]);
 
   const handleGoToDashboard = useCallback(() => {
+    setShowCreateRoadmap(false);
+    setRoadmapSource(null);
     setPage('dashboard');
     try {
       localStorage.setItem('worklane_current_page_v1', 'dashboard');
@@ -689,7 +694,7 @@ function saveAlertedSet(key: string, setObj: Set<string>) {
         <Sidebar
           page={page}
           activeView={viewMode}
-          onSelectView={setViewMode}
+          onSelectView={view => { setShowCreateRoadmap(false); setViewMode(view); }}
           onOpenInbox={() => setShowInbox(s => !s)}
           isInboxOpen={showInbox}
           filterMemberId={filterMemberId}
@@ -708,7 +713,20 @@ function saveAlertedSet(key: string, setObj: Set<string>) {
 
         <div className="app-main-content" style={isMobile ? { overflowX: 'hidden' } : { transformStyle: 'preserve-3d' }}>
           <AnimatePresence mode="wait">
-            {page === 'dashboard' ? (
+            {showCreateRoadmap ? (
+              <CreateRoadmapPage
+                key="page-create-roadmap"
+                initialName={roadmapSource?.name}
+                onClose={(createdRoadmapId?: string) => {
+                  setShowCreateRoadmap(false);
+                  if (createdRoadmapId) {
+                    if (roadmapSource) updateCard(roadmapSource.cardId, { linkedRoadmapId: createdRoadmapId });
+                    handleSelectBoard(createdRoadmapId, 'roadmap');
+                  }
+                  setRoadmapSource(null);
+                }}
+              />
+            ) : page === 'dashboard' ? (
               <motion.div
                 key="page-dashboard"
                 variants={isMobile ? pageMobileVariants : page3DVariants}
@@ -864,18 +882,6 @@ function saveAlertedSet(key: string, setObj: Set<string>) {
           }}
         />
       )}
-      {showCreateRoadmap && (
-        <CreateRoadmapModal
-          onClose={(createdRoadmapId?: string) => {
-            setShowCreateRoadmap(false);
-            if (createdRoadmapId) {
-              setPage('roadmap');
-              setViewMode('roadmap');
-              handleSelectBoard(createdRoadmapId, 'roadmap');
-            }
-          }}
-        />
-      )}
       {showAddColumn && (
         <AddColumnModal
           onClose={() => setShowAddColumn(false)}
@@ -890,6 +896,12 @@ function saveAlertedSet(key: string, setObj: Set<string>) {
         <CardModal
           cardId={openCardId}
           boardId={openCardBoardId}
+          onCreateRoadmap={(name, cardId) => {
+            setRoadmapSource({ name, cardId });
+            setOpenCardId(null);
+            setOpenCardBoardId(null);
+            setShowCreateRoadmap(true);
+          }}
           onClose={() => { setOpenCardId(null); setOpenCardBoardId(null); }}
         />
       )}

@@ -33,7 +33,7 @@ test('table totals survive extracted columns and takeoffs preserve references, l
   assert.equal(parser.parseBuildingTakeoff([['Unreadable text']], '').length, 0);
 });
 test('batch upload retains successful pictures and reports individual failures', async () => {
-  const sourceText = source('src/components/modals/CreateRoadmapModal.tsx');
+  const sourceText = source('src/components/CreateRoadmapPage.tsx');
   const handler = sourceText.slice(sourceText.indexOf('  const handleUploadBreakdown ='), sourceText.indexOf('  // Sync apportioned'));
   const values = {};
   const names = ['isReading', 'reader', 'setIsReadingBreakdown', 'setUploadErrors', 'setReadingStatus', 'extractTableFromFile', 'parseBuildingTakeoff', 'setBuildingTakeoff', 'setBreakdownFileName', 'syncGeneratedPhases', 'commercialLots', 'contractTotal', 'showToast'];

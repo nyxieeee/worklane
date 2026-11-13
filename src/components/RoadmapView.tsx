@@ -1535,12 +1535,6 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
             </div>
           )}
 
-          {!isObserver && <button type="button" className="btn btn-primary" onClick={() => setShowBOQImport(true)}>Upload Final BOQ</button>}
-                    {!isObserver && <button type="button" className="btn btn-secondary" onClick={() => setShowReallocation(true)}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }} title="Redistribute task dates within the scheduled start and end">
-            <WandSparkles size={13} /><span>Auto Reallocate</span>
-          </button>}
-
           <motion.button
             whileTap={{ scale: 0.95 }}
             type="button"
@@ -1552,36 +1546,11 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
               boxShadow: showSCurve ? 'var(--neu-shadow-pressed)' : undefined,
             }}
             onClick={() => setShowSCurve(s => !s)}
-            title="Toggle S-Curve Cumulative Progress Analysis"
+            aria-expanded={showSCurve} title="Compare planned and completed work"
           >
             <TrendingUp size={13} />
-            <span>S-Curve Analysis</span>
-            <span style={{
-              fontSize: 9.5,
-              fontWeight: 700,
-              padding: '1px 5px',
-              borderRadius: 3,
-              background: showSCurve ? 'rgba(255,255,255,0.25)' : 'hsl(var(--primary) / 0.15)',
-              color: showSCurve ? '#fff' : 'hsl(var(--primary))',
-            }}>
-              {showSCurve ? 'Close' : 'View'}
-            </span>
-          </motion.button>
+            <span>{showSCurve ? 'Hide progress chart' : 'View progress chart'}</span>
 
-          <motion.button
-            whileTap={{ scale: 0.95 }}
-            type="button"
-            className="btn btn-secondary"
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 6,
-            }}
-            onClick={() => setShowSituationer(true)}
-            title="Generate Executive Situationer Report (SITREP)"
-          >
-            <FileText size={13} color="hsl(var(--primary))" />
-            <span>Situationer Report</span>
           </motion.button>
 
           <motion.button
@@ -1601,14 +1570,42 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
             title="Upload technician daily report (.txt, .docx, .pdf) to auto-calculate progress"
           >
             <Sparkles size={13} color="#3b82f6" />
-            <span>Upload Daily Report</span>
+            <span>Update progress from a report</span>
+          </motion.button>
+
+          <details className="roadmap-more-tools">
+            <summary>More tools</summary>
+            <div className="roadmap-tool-options">
+              <p>Set up quantities, adjust the schedule, or download a report.</p>
+          {!isObserver && <button type="button" className="btn btn-primary" onClick={() => setShowBOQImport(true)}>Upload quantities & prices</button>}
+                    {!isObserver && <button type="button" className="btn btn-secondary" onClick={() => setShowReallocation(true)}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }} title="Redistribute task dates within the scheduled start and end">
+            <WandSparkles size={13} /><span>Adjust task dates</span>
+          </button>}
+
+          <motion.button
+            whileTap={{ scale: 0.95 }}
+            type="button"
+            className="btn btn-secondary"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+            }}
+            onClick={() => setShowSituationer(true)}
+            title="Generate Executive Project report (SITREP)"
+          >
+            <FileText size={13} color="hsl(var(--primary))" />
+            <span>Project report</span>
           </motion.button>
 
           <motion.button whileTap={{ scale: 0.95 }} type="button"
             className="btn btn-secondary"
             onClick={handleExportCSV}
             title="Export Gantt chart as CSV for Excel"
-          >Export CSV</motion.button>
+          >Download spreadsheet</motion.button>
+            </div>
+          </details>
         </div>
       </div>
 
@@ -1673,6 +1670,10 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
           )}
         </div>
 
+        <details className="roadmap-more-tools">
+          <summary>Timeline options</summary>
+          <div className="roadmap-tool-options">
+            <p>Choose how much time the timeline shows.</p>
         {/* Scale Switcher */}
         <div className="roadmap-scale-group" style={{ flexShrink: 0 }}>
           <button type="button" className={`scale-btn ${scale === 'days' ? 'active' : ''}`} onClick={() => { setScale('days'); setZoomLevel(1); }}>Days</button>
@@ -1686,7 +1687,7 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
             type="button"
             className="roadmap-zoom-btn"
             onClick={() => setZoomLevel(z => Math.max(0.6, +(z - 0.2).toFixed(2)))}
-            title="Zoom out timeline"
+            aria-label="Zoom out timeline" title="Zoom out timeline"
           >−</button>
           <button
             type="button"
@@ -1700,14 +1701,17 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
             type="button"
             className="roadmap-zoom-btn"
             onClick={() => setZoomLevel(z => Math.min(2.2, +(z + 0.2).toFixed(2)))}
-            title="Zoom in timeline"
+            aria-label="Zoom in timeline" title="Zoom in timeline"
           >+</button>
         </div>
+
+          </div>
+        </details>
 
         {/* Date Navigation & Jump Today */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
           <motion.button whileTap={{ scale: 0.92 }} type="button" className="icon-btn"
-            onClick={() => handleNav('prev')} title="Go back" style={{ width: 24, height: 24, minWidth: 24 }}>
+            onClick={() => handleNav('prev')} aria-label="Show earlier dates" title="Show earlier dates" style={{ width: 24, height: 24, minWidth: 24 }}>
             <ChevronLeft size={13} />
           </motion.button>
           <span className="roadmap-date-label" style={{ fontSize: 11, fontWeight: 600, minWidth: 85, textAlign: 'center' }}>
@@ -1717,7 +1721,7 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
             )}
           </span>
           <motion.button whileTap={{ scale: 0.92 }} type="button" className="icon-btn"
-            onClick={() => handleNav('next')} title="Go forward" style={{ width: 24, height: 24, minWidth: 24 }}>
+            onClick={() => handleNav('next')} aria-label="Show later dates" title="Show later dates" style={{ width: 24, height: 24, minWidth: 24 }}>
             <ChevronRight size={13} />
           </motion.button>
           <motion.button whileTap={{ scale: 0.95 }} type="button"

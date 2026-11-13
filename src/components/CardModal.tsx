@@ -22,12 +22,12 @@ import NeumorphicDatePicker from './ui/NeumorphicDatePicker';
 import { NeumorphicSelect } from './ui/NeumorphicSelect';
 import AvatarBorder from './ui/AvatarBorder';
 import { deriveCardProgress, getCardWorkStatus } from './RoadmapView';
-import CreateRoadmapModal from './modals/CreateRoadmapModal';
 
 interface Props {
   cardId: string | null;
   boardId: string | null;
   onClose: () => void;
+  onCreateRoadmap?: (name: string, cardId: string) => void;
 }
 
 function getFileTypeInfo(fileName: string, type: string) {
@@ -53,7 +53,7 @@ function getFileTypeInfo(fileName: string, type: string) {
   return { tag: ext.toUpperCase() || 'FILE', color: '#6366f1', bg: '#6366f11c', icon: File };
 }
 
-export default function CardModal({ cardId, boardId, onClose }: Props) {
+export default function CardModal({ cardId, boardId, onClose, onCreateRoadmap }: Props) {
   const boards = useWorkStore(s => s.boards);
 
   const result = useMemo(() => {
@@ -83,16 +83,17 @@ export default function CardModal({ cardId, boardId, onClose }: Props) {
   }, [boards, cardId, boardId]);
 
   if (!cardId || !result) return null;
-  return <CardModalInner cardId={cardId} result={result} onClose={onClose} />;
+  return <CardModalInner cardId={cardId} result={result} onClose={onClose} onCreateRoadmap={onCreateRoadmap} />;
 }
 
 type InnerProps = {
   cardId: string;
   result: { card: ReturnType<typeof useWorkStore.getState>['boards'][0]['columns'][0]['cards'][0]; column: ReturnType<typeof useWorkStore.getState>['boards'][0]['columns'][0] | null; board: ReturnType<typeof useWorkStore.getState>['boards'][0]; isInbox: boolean };
   onClose: () => void;
+  onCreateRoadmap?: (name: string, cardId: string) => void;
 };
 
-function CardModalInner({ cardId, result, onClose }: InnerProps) {
+function CardModalInner({ cardId, result, onClose, onCreateRoadmap }: InnerProps) {
   const boards = useWorkStore(s => s.boards);
   const getVisibleBoards = useWorkStore(s => s.getVisibleBoards);
   const switchBoard = useWorkStore(s => s.switchBoard);
@@ -238,7 +239,6 @@ function CardModalInner({ cardId, result, onClose }: InnerProps) {
   const [workedRangeFrom, setWorkedRangeFrom] = useState<string | null>(null);
   const [workedRangeTo, setWorkedRangeTo] = useState<string | null>(null);
   const [showWorkedDaysList, setShowWorkedDaysList] = useState(false);
-  const [showCreateRoadmapModal, setShowCreateRoadmapModal] = useState(false);
 
   useEffect(() => {
     setLocalTitle(card.title);
@@ -2558,7 +2558,7 @@ function CardModalInner({ cardId, result, onClose }: InnerProps) {
                         overflow: 'hidden',
                         minWidth: 0,
                       }}
-                      onClick={() => setShowCreateRoadmapModal(true)}
+                      onClick={() => onCreateRoadmap?.(card.title, cardId)}
                       title={`Create Roadmap for "${card.title}"`}
                     >
                       <Plus size={12} style={{ flexShrink: 0 }} />
@@ -4130,26 +4130,6 @@ function CardModalInner({ cardId, result, onClose }: InnerProps) {
         </div>
       )}
     </AnimatePresence>
-    {showCreateRoadmapModal && (
-      <CreateRoadmapModal
-        initialName={card.title}
-        onClose={(createdRoadmapId?: string) => {
-          setShowCreateRoadmapModal(false);
-          if (createdRoadmapId) {
-            updateCard(cardId, { linkedRoadmapId: createdRoadmapId });
-            showToast(`Created & linked roadmap "${card.title}"`, 'success');
-            onClose();
-            switchBoard(createdRoadmapId);
-            try {
-              localStorage.setItem('worklane_current_page_v1', 'board');
-              localStorage.setItem('worklane_current_board_id_v1', createdRoadmapId);
-              localStorage.setItem('worklane_current_view_mode_v1', 'roadmap');
-              window.dispatchEvent(new Event('storage'));
-            } catch {}
-          }
-        }}
-      />
-    )}
     </>
   );
 }

@@ -89,7 +89,7 @@ export default function RoadmapSCurve({ board, tasks, onOpenCard, onClose }: Pro
   const [selectedSprintId, setSelectedSprintId] = useState<string>('all');
   const [hoveredPoint, setHoveredPoint] = useState<SPoint | null>(null);
   const [hoverX, setHoverX] = useState<number | null>(null);
-  const [showTable, setShowTable] = useState<boolean>(true);
+  const [showTable, setShowTable] = useState<boolean>(false);
   const [showSituationer, setShowSituationer] = useState<boolean>(false);
   const [showRecalculation, setShowRecalculation] = useState(false);
   const [isHoveringSvg, setIsHoveringSvg] = useState<boolean>(false);
@@ -588,7 +588,7 @@ export default function RoadmapSCurve({ board, tasks, onOpenCard, onClose }: Pro
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <h2 style={{ fontSize: 16, fontWeight: 700, margin: 0, color: 'hsl(var(--foreground))' }}>
-                Project S-Curve &amp; Earned Progress
+                Project progress
               </h2>
               <span style={{
                 fontSize: 10,
@@ -603,7 +603,7 @@ export default function RoadmapSCurve({ board, tasks, onOpenCard, onClose }: Pro
               </span>
             </div>
             <p style={{ margin: '2px 0 0', fontSize: 11.5, color: 'hsl(var(--muted-foreground))' }}>
-              Compare recorded accomplishment with the project plan.
+              See how much work is done and whether the project is on schedule.
             </p>
             <details style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))', marginTop: 4 }}>
               <summary style={{ cursor: 'pointer' }}>How progress is calculated</summary>
@@ -616,8 +616,9 @@ export default function RoadmapSCurve({ board, tasks, onOpenCard, onClose }: Pro
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
           {/* Phase / Sprint Filter */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <span style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))', fontWeight: 600 }}>Filter:</span>
+            <span style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))', fontWeight: 600 }}>Show:</span>
             <select
+              aria-label="Building or phase"
               value={selectedSprintId}
               onChange={e => setSelectedSprintId(e.target.value)}
               style={{
@@ -631,81 +632,29 @@ export default function RoadmapSCurve({ board, tasks, onOpenCard, onClose }: Pro
                 cursor: 'pointer',
               }}
             >
-              <option value="all">Entire Project (All Phases)</option>
+              <option value="all">Whole project</option>
               {(board.sprints && board.sprints.length > 0) ? (
                 board.sprints.map(s => (
-                  <option key={s.id} value={s.id}>Sprint: {s.name}</option>
+                  <option key={s.id} value={s.id}>{s.name}</option>
                 ))
               ) : (
                 board.columns?.map(col => (
-                  <option key={col.id} value={col.id}>Phase: {col.name}</option>
+                  <option key={col.id} value={col.id}>{col.name}</option>
                 ))
               )}
             </select>
           </div>
 
-          {/* Metric Toggle: Progress (%) vs Cost/Money ($) vs Tasks (#) */}
-          <div style={{
-            display: 'inline-flex',
-            background: 'hsl(var(--muted) / 0.5)',
-            padding: 2,
-            borderRadius: 6,
-            border: '1px solid hsl(var(--border))',
-          }}>
-            <button
-              type="button"
-              onClick={() => setMetricMode('percent')}
-              style={{
-                border: 'none',
-                background: metricMode === 'percent' ? 'hsl(var(--primary))' : 'transparent',
-                color: metricMode === 'percent' ? '#fff' : 'hsl(var(--muted-foreground))',
-                padding: '4px 9px',
-                borderRadius: 4,
-                fontSize: 11,
-                fontWeight: 600,
-                cursor: 'pointer',
-                transition: 'all 0.15s ease',
-              }}
-            >
-              Progress %
-            </button>
-            <button
-              type="button"
-              onClick={() => setMetricMode('cost')}
-              style={{
-                border: 'none',
-                background: metricMode === 'cost' ? 'hsl(var(--primary))' : 'transparent',
-                color: metricMode === 'cost' ? '#fff' : 'hsl(var(--muted-foreground))',
-                padding: '4px 9px',
-                borderRadius: 4,
-                fontSize: 11,
-                fontWeight: 600,
-                cursor: 'pointer',
-                transition: 'all 0.15s ease',
-              }}
-              title="Cost-Weighted Financial S-Curve (Contract Value)"
-            >
-              Cost ({currency})
-            </button>
-            <button
-              type="button"
-              onClick={() => setMetricMode('count')}
-              style={{
-                border: 'none',
-                background: metricMode === 'count' ? 'hsl(var(--primary))' : 'transparent',
-                color: metricMode === 'count' ? '#fff' : 'hsl(var(--muted-foreground))',
-                padding: '4px 9px',
-                borderRadius: 4,
-                fontSize: 11,
-                fontWeight: 600,
-                cursor: 'pointer',
-                transition: 'all 0.15s ease',
-              }}
-            >
-              Tasks (#)
-            </button>
-          </div>
-
+          <details className="roadmap-more-tools">
+            <summary>Chart options</summary>
+            <div className="roadmap-tool-options">
+              <label className="progress-metric-label">Measure progress by
+                <select className="text-input" value={metricMode} onChange={e => setMetricMode(e.target.value as 'percent' | 'cost' | 'count')}>
+                  <option value="percent">Work completed (%)</option>
+                  <option value="cost">Value of work ({currency})</option>
+                  <option value="count">Number of tasks</option>
+                </select>
+              </label>
           {/* Situationer Report (SITREP) Modal Button */}
           <button
             type="button"
@@ -724,7 +673,7 @@ export default function RoadmapSCurve({ board, tasks, onOpenCard, onClose }: Pro
             title="Generate Cost-Weighted Project Situationer Report (SITREP)"
           >
             <FileText size={12} color="hsl(var(--primary))" />
-            <span>Situationer</span>
+            <span>Project report</span>
           </button>
 
           {/* Toggle breakdown table */}
@@ -737,8 +686,15 @@ export default function RoadmapSCurve({ board, tasks, onOpenCard, onClose }: Pro
             title={showTable ? 'Hide phase breakdown' : 'Show phase breakdown'}
           >
             <Layers size={14} color={showTable ? 'hsl(var(--primary))' : 'currentColor'} />
-            <span>{showTable ? 'Hide breakdown' : 'Show breakdown'}</span>
+            <span>{showTable ? 'Hide task details' : 'Show task details'}</span>
           </button>
+
+              <button type="button" className="btn btn-secondary" onClick={() => setShowRecalculation(true)}>
+                <RefreshCw size={14} aria-hidden="true" /> Review progress entries
+              </button>
+              <p>Check individual task percentages and preview corrections before saving.</p>
+            </div>
+          </details>
 
           {/* Close button */}
           {onClose && (
@@ -747,7 +703,7 @@ export default function RoadmapSCurve({ board, tasks, onOpenCard, onClose }: Pro
               className="icon-btn"
               style={{ width: 28, height: 28, borderRadius: 6 }}
               onClick={onClose}
-              title="Close S-Curve section"
+              aria-label="Close progress chart" title="Close progress chart"
             >
               <X size={15} />
             </button>
@@ -756,16 +712,6 @@ export default function RoadmapSCurve({ board, tasks, onOpenCard, onClose }: Pro
       </div>
 
       {/* Shared layout keeps summary cards aligned across metric modes and screen sizes. */}
-      <div className="scurve-progress-actions">
-        <div>
-          <strong>Review project progress</strong>
-          <p>Numbers look too high? Review item percentages and preview corrections before saving.</p>
-        </div>
-        <button type="button" className="btn btn-primary" onClick={() => setShowRecalculation(true)}>
-          <RefreshCw size={16} aria-hidden="true" />
-          Recalculate Progress
-        </button>
-      </div>
       <div className="scurve-summary">
         {(() => {
           const metricValue = (value: number) => metricMode === 'cost' ? fmtMoney(value)
@@ -778,14 +724,14 @@ export default function RoadmapSCurve({ board, tasks, onOpenCard, onClose }: Pro
             { title: 'Overall Completion', value: `${overallCompletion.percent.toFixed(1)}%`, color: 'hsl(var(--primary))',
               icon: <CheckCircle2 size={14} />, detail: 'All buildings · all recorded work',
               footer: `${overallCompletion.completed} / ${overallCompletion.total} items complete · ${(100 - overallCompletion.percent).toFixed(1)}% remaining`, progress: overallCompletion.percent },
-            { title: 'Planned to Date', value: metricValue(todayMetrics.plannedVal), color: '#10b981', icon: <Target size={14} />,
-              detail: 'Scheduled accomplishment', footer: selectedSprintId === 'all' ? 'Scope: all buildings' : 'Scope: selected building / phase', progress: progressWidth(todayMetrics.plannedVal) },
-            { title: 'Accomplished to Date', value: metricValue(todayMetrics.actualVal), color: '#f59e0b', icon: <TrendingUp size={14} />,
-              detail: 'Cumulative earned accomplishment', footer: selectedSprintId === 'all' ? 'Scope: all buildings' : 'Scope: selected building / phase', progress: progressWidth(todayMetrics.actualVal) },
-            { title: 'Schedule Health', value: `${todayMetrics.variance > 0 ? '+' : todayMetrics.variance < 0 ? '−' : ''}${metricValue(Math.abs(todayMetrics.variance))}`,
+            { title: 'Expected by today', value: metricValue(todayMetrics.plannedVal), color: '#10b981', icon: <Target size={14} />,
+              detail: 'Work planned by today', footer: selectedSprintId === 'all' ? 'Scope: all buildings' : 'Scope: selected building / phase', progress: progressWidth(todayMetrics.plannedVal) },
+            { title: 'Completed so far', value: metricValue(todayMetrics.actualVal), color: '#f59e0b', icon: <TrendingUp size={14} />,
+              detail: 'Recorded work completed', footer: selectedSprintId === 'all' ? 'Scope: all buildings' : 'Scope: selected building / phase', progress: progressWidth(todayMetrics.actualVal) },
+            { title: 'Schedule status', value: `${todayMetrics.variance > 0 ? '+' : todayMetrics.variance < 0 ? '−' : ''}${metricValue(Math.abs(todayMetrics.variance))}`,
               color: healthColor, icon: todayMetrics.variance >= 0 ? <CheckCircle2 size={14} /> : <AlertTriangle size={14} />,
-              detail: healthLabel, footer: `SPI: ${todayMetrics.spi.toFixed(2)} · ${todayMetrics.spi === 1 ? 'At planned pace' : todayMetrics.spi > 1 ? 'Above planned pace' : 'Below planned pace'}`, progress: null },
-            { title: 'Delivery Forecast', value: todayMetrics.projectedFinishDate?.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) || '—',
+              detail: healthLabel, footer: todayMetrics.spi === 1 ? 'Work is moving at the planned pace' : todayMetrics.spi > 1 ? 'Work is moving faster than planned' : 'Work is moving slower than planned', progress: null },
+            { title: 'Estimated finish', value: todayMetrics.projectedFinishDate?.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) || '—',
               color: 'hsl(var(--foreground))', icon: <Clock size={14} />,
               detail: todayMetrics.finishVarianceDays === 0 ? 'Based on allocated schedule' : `${Math.abs(todayMetrics.finishVarianceDays)} days ${todayMetrics.finishVarianceDays > 0 ? 'late' : 'early'} · schedule estimate`,
               footer: `Baseline: ${todayMetrics.targetFinishDate?.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) || 'Not scheduled'}`, progress: null },
