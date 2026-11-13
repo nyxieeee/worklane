@@ -655,8 +655,9 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
           }
         }
 
-        // Ensure actual track encompasses any logged work suspension dates
-        if (card.workSuspensions && card.workSuspensions.length > 0) {
+        // Only forecasts may expand to include pauses. Recorded actual dates
+        // remain authoritative, including when a pause ends after completion.
+        if (isProjected && card.workSuspensions && card.workSuspensions.length > 0) {
           for (const s of card.workSuspensions) {
             if (s.from) {
               const sStart = new Date(s.from);
@@ -679,7 +680,10 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
         // 5. Variance (in days) = Actual/Projected End − Target End
         //    Suspended days are already factored into actOrProjEnd, so the
         //    variance naturally reflects only real work-time delay.
-        const varianceDays = Math.round((actOrProjEnd.getTime() - targetEnd.getTime()) / 86400000) - suspendedDays;
+        const varianceSuspendedDays = isProjected
+          ? suspendedDays
+          : computeSuspendedDays(card, actStart, actOrProjEnd);
+        const varianceDays = Math.round((actOrProjEnd.getTime() - targetEnd.getTime()) / 86400000) - varianceSuspendedDays;
         const startVarianceDays = card.actualStartDate
           ? Math.round((actStart.getTime() - targetStart.getTime()) / 86400000)
           : 0;
@@ -1360,10 +1364,10 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
     // 1. Completed tasks
     if (t.card.completed) {
       if (t.varianceDays < 0) {
-        return { label: `Done (${Math.abs(t.varianceDays)}d early)`, color: '#10b981', bg: 'rgba(16,185,129,0.15)' };
+        return { label: `Finished ${Math.abs(t.varianceDays)}d early`, color: '#10b981', bg: 'rgba(16,185,129,0.15)' };
       }
       if (t.varianceDays > 0) {
-        return { label: `Done (${t.varianceDays}d late)`, color: '#f59e0b', bg: 'rgba(245,158,11,0.15)' };
+        return { label: `Finished ${t.varianceDays}d late`, color: '#f59e0b', bg: 'rgba(245,158,11,0.15)' };
       }
       if (t.startVarianceDays < 0) {
         return { label: `Done (started ${Math.abs(t.startVarianceDays)}d early)`, color: '#10b981', bg: 'rgba(16,185,129,0.15)' };
@@ -2079,7 +2083,7 @@ export default function RoadmapView({ board, onOpenCard, isObserver }: Props) {
                                       </span>
                                       {t.startVarianceDays < 0 && (
                                         <span className="roadmap-variance-tag early" title={`Started ${Math.abs(t.startVarianceDays)} days early`}>
-                                          {Math.abs(t.startVarianceDays)}d early
+                                          Started {Math.abs(t.startVarianceDays)}d early
                                         </span>
                                       )}
                                       {t.varianceDays > 0 && !t.card.completed && (
