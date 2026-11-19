@@ -8,6 +8,7 @@ interface ReportTask {
 }
 export interface SituationerReport {
   project: string; description: string; date: string; currency: string; preparedBy: string;
+  preparedByRole?: string;
   period: string; budget: number; planned: number; actual: number; notes: string;
   phases: { code: string; name: string; budget: number; progress: number; tasks: ReportTask[] }[];
   curve: { date: Date; plannedPct: number; actualPct: number | null; projectedPct: number | null }[];
@@ -136,7 +137,7 @@ export async function downloadSituationerPdf(report: SituationerReport) {
   ])));
 
   pdf.addPage(); section('Observations & Sign-off', report.period);
-  table(['Field', 'Details'], [['Executive observations', report.notes || 'No observations recorded.'], ['Prepared by', report.preparedBy], ['Report date', report.date]]);
+  table(['Field', 'Details'], [['Executive observations', report.notes || 'No observations recorded.'], ['Prepared by', report.preparedByRole ? `${report.preparedBy} (${report.preparedByRole})` : report.preparedBy], ['Report date', report.date]]);
 
   const pages = pdf.getNumberOfPages();
   for (let i = 1; i <= pages; i++) {

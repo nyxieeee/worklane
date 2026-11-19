@@ -114,6 +114,7 @@ export default function RoadmapSituationerModal({ board, tasks, onClose }: Props
   const [reportDate, setReportDate] = useState(() => localReportDate());
   const [reportingPeriod, setReportingPeriod] = useState('Current Reporting Cycle');
   const [preparedBy, setPreparedBy] = useState(() => board.createdBy || 'Project Lead');
+  const [preparedByRole, setPreparedByRole] = useState('Project Manager');
   const [executiveNotes, setExecutiveNotes] = useState(
     'Overall deliverables are progressing according to project schedule. Critical path and financial accomplishment are tracked against contract baseline.'
   );
@@ -670,7 +671,7 @@ export default function RoadmapSituationerModal({ board, tasks, onClose }: Props
       const date = (d: Date) => d.toLocaleDateString('en-GB');
       await downloadSituationerPdf({
         project: board.name, description: board.description || 'Project progress, schedule and financial accomplishment',
-        date: reportDate, currency, preparedBy, period: reportingPeriod, budget: effectiveTotalBudget,
+        date: reportDate, currency, preparedBy, preparedByRole, period: reportingPeriod, budget: effectiveTotalBudget,
         planned: overallPlannedPct, actual: overallActualPct, notes: executiveNotes, curve: scurvePoints,
         phases: phasesList.map(phase => ({ code: phase.wbsCode, name: phase.name, budget: phase.budget,
           progress: phase.physicalActualPct, tasks: phase.subtasks.map(st => ({
@@ -2316,6 +2317,7 @@ export default function RoadmapSituationerModal({ board, tasks, onClose }: Props
                     type="text"
                     value={preparedBy}
                     onChange={e => setPreparedBy(e.target.value)}
+                    placeholder="Prepared by name"
                     style={{
                       border: 'none',
                       borderBottom: '1px solid hsl(var(--border))',
@@ -2325,7 +2327,28 @@ export default function RoadmapSituationerModal({ board, tasks, onClose }: Props
                       color: 'hsl(var(--foreground))',
                       padding: '2px 0',
                       marginTop: 4,
-                      minWidth: 160,
+                      minWidth: 170,
+                      display: 'block',
+                    }}
+                  />
+                  <input
+                    type="text"
+                    value={preparedByRole}
+                    onChange={e => setPreparedByRole(e.target.value)}
+                    placeholder="Role"
+                    style={{
+                      border: 'none',
+                      background: 'transparent',
+                      fontSize: 10.5,
+                      color: 'hsl(var(--muted-foreground))',
+                      paddingTop: 4,
+                      paddingBottom: 2,
+                      paddingLeft: 0,
+                      paddingRight: 0,
+                      marginTop: 1,
+                      minWidth: 170,
+                      display: 'block',
+                      fontFamily: 'inherit',
                     }}
                   />
                 </div>
