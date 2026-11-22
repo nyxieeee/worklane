@@ -103,6 +103,10 @@ export async function downloadSituationerPdf(report: SituationerReport) {
   });
   const allocated = report.phases.reduce((sum, phase) => sum + phase.budget, 0);
   const earned = report.phases.reduce((sum, phase) => sum + phase.tasks.reduce((sub, task) => sub + task.value * task.progress / 100, 0), 0);
+  const totalContract = report.budget > 0 ? report.budget : allocated;
+  const overallAccomplished = report.actual !== undefined && report.actual !== null
+    ? report.actual
+    : (totalContract > 0 ? (earned / totalContract) * 100 : 0);
   table(['WBS', 'Building / deliverable', `Contract (${currency})`, 'Weight', 'Progress', `Earned (${currency})`, 'Status'], valueRows, 44, {
     tableWidth: width - margin * 2,
     styles: { fontSize: 8, cellPadding: { top: 2.7, bottom: 2.7, left: 3, right: 3 },
@@ -112,8 +116,8 @@ export async function downloadSituationerPdf(report: SituationerReport) {
       2: { cellWidth: 38, halign: 'right' }, 3: { cellWidth: 18, halign: 'right' },
       4: { cellWidth: 25, halign: 'right' }, 5: { cellWidth: 38, halign: 'right' }, 6: { cellWidth: 28 },
     },
-    foot: [['', 'Allocated total', amount(allocated), `${(report.budget > 0 ? allocated / report.budget * 100 : 0).toFixed(2)}%`,
-      `${(allocated > 0 ? earned / allocated * 100 : 0).toFixed(1)}%`, amount(earned), '']],
+    foot: [['', 'Contract total', amount(totalContract), '100.00%',
+      `${overallAccomplished.toFixed(1)}%`, amount(earned), '']],
     showFoot: 'lastPage', footStyles: { fillColor: [30, 64, 110], textColor: [255, 255, 255], fontStyle: 'bold' },
     didParseCell: data => {
       if (data.column.index >= 2 && data.column.index <= 5) data.cell.styles.halign = 'right';

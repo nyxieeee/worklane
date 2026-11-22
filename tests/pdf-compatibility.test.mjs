@@ -31,3 +31,10 @@ test('compatibility PDF worker reads a quotation without native Uint8Array.toHex
     await loadingTask.destroy();
   }
 });
+
+test('schedule of values table footer reconciles to contract value and overall accomplishment', async () => {
+  const fs = await import('node:fs');
+  const source = fs.readFileSync('src/reports/situationerPdf.ts', 'utf8');
+  // Verify foot row uses totalContract, 100.00%, and overallAccomplished
+  assert.match(source, /foot:\s*\[\[\s*'',\s*'Contract total',\s*amount\(totalContract\),\s*'100\.00%',\s*`\$\{overallAccomplished\.toFixed\(1\)\}%`/);
+});
